@@ -18,7 +18,7 @@ import { AdminFraudMonitor } from './components/AdminFraudMonitor';
 import { AdminSettings } from './components/AdminSettings';
 import { Messages } from './components/Messages';
 
-import { ShieldCheck, AlertOctagon } from 'lucide-react';
+import { AlertOctagon } from 'lucide-react';
 import { Product, Wholesaler, Retailer, Order, PaymentRecord, ManufacturingOrder, ManufacturingSample, RewardSettings, RewardItem, RetailerRewardsProfile, Coupon, ReferralSettings, ReferralRecord, ReferralPayment, Message, AppNotification } from './src/types/domain';
 
 // Error Boundary Component
@@ -70,12 +70,14 @@ class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { has
 }
 
 import { MOCK_PRODUCTS, MOCK_WHOLESALERS, MOCK_RETAILERS, MOCK_ORDERS, WHOLESALER_ORDERS, WHOLESALER_PAYMENTS, MOCK_MANUFACTURING_ORDERS, MOCK_MANUFACTURING_SAMPLES, MOCK_REWARD_SETTINGS, MOCK_REWARDS, MOCK_RETAILER_REWARDS_PROFILE } from './services/mockData';
+import { ProtectedRoute } from './src/components/auth/ProtectedRoute';
+import { useAuth } from './src/hooks/useAuth';
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [darkMode, setDarkMode] = useState(false);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const { logout } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
 
@@ -114,21 +116,6 @@ const App: React.FC = () => {
 
   const handleMarkAllNotificationsRead = () => {
       setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
-
-  const [loginEmail, setLoginEmail] = useState('');
-  const [loginPassword, setLoginPassword] = useState('');
-  const [loginError, setLoginError] = useState('');
-
-  const handleLogin = (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setLoginError('');
-    
-    if (loginEmail === 'admin@beparibd.com' && loginPassword === 'admin123') {
-        setIsAuthenticated(true);
-        return;
-    }
-    setLoginError('Invalid credentials. Please try again.');
   };
 
   // Central State
@@ -546,89 +533,34 @@ const App: React.FC = () => {
     }
   };
 
-  if (!isAuthenticated) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-6">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
-            <div className="flex flex-col items-center text-center mb-8">
-                <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mb-4">
-                <ShieldCheck className="w-8 h-8 text-emerald-600" />
-                </div>
-                <h1 className="text-2xl font-bold text-slate-900 mb-2">BEPARIBD</h1>
-                <p className="text-slate-500 text-sm">Admin Portal — Sign in to continue</p>
-            </div>
-
-            <form onSubmit={handleLogin} className="space-y-4 mb-6">
-                {loginError && (
-                    <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
-                        {loginError}
-                    </div>
-                )}
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Email Address</label>
-                    <input 
-                        type="email" 
-                        value={loginEmail}
-                        onChange={(e) => setLoginEmail(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                        placeholder="admin@beparibd.com"
-                    />
-                </div>
-                <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
-                    <input 
-                        type="password" 
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-                        placeholder="••••••••"
-                    />
-                </div>
-                <button 
-                    type="submit"
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors"
-                >
-                    Sign In
-                </button>
-            </form>
-
-            <div className="mt-8 p-4 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-600">
-                <p className="font-bold mb-2 text-slate-800">Demo Credentials:</p>
-                <ul className="space-y-1">
-                    <li><strong>Admin:</strong> admin@beparibd.com / admin123</li>
-                </ul>
-            </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <ErrorBoundary>
-      <div className="flex h-screen bg-[#F5F7FA] dark:bg-[#121212] font-sans">
-        <Sidebar 
-          activeTab={activeTab} 
-          setActiveTab={setActiveTab} 
-          isOpen={sidebarOpen} 
-          toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
-        />
-        
-        <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
-          <Header 
-              toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
-              darkMode={darkMode}
-              setDarkMode={setDarkMode}
-              notifications={notifications.filter(n => n.userId === 'ADMIN')}
-              onMarkNotificationRead={handleMarkNotificationRead}
-              onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
-              onLogout={() => {}}
+    <ProtectedRoute>
+      <ErrorBoundary>
+        <div className="flex h-screen bg-[#F5F7FA] dark:bg-[#121212] font-sans">
+          <Sidebar 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+            isOpen={sidebarOpen} 
+            toggleSidebar={() => setSidebarOpen(!sidebarOpen)}
           />
-          <main className="flex-1 overflow-y-auto p-6 md:p-8">
-              {renderContent()}
-          </main>
+          
+          <div className={`flex-1 flex flex-col transition-all duration-300 ${sidebarOpen ? 'ml-64' : 'ml-20'}`}>
+            <Header 
+                toggleSidebar={() => setSidebarOpen(!sidebarOpen)} 
+                darkMode={darkMode}
+                setDarkMode={setDarkMode}
+                notifications={notifications.filter(n => n.userId === 'ADMIN')}
+                onMarkNotificationRead={handleMarkNotificationRead}
+                onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+                onLogout={logout}
+            />
+            <main className="flex-1 overflow-y-auto p-6 md:p-8">
+                {renderContent()}
+            </main>
+          </div>
         </div>
-      </div>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </ProtectedRoute>
   );
 };
 
