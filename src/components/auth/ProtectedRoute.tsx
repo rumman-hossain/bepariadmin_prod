@@ -16,10 +16,10 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // Bootstrap loading — show spinner
   if (isLoading && step === 'idle') {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
-        <div className="text-center">
-          <div className="w-10 h-10 border-3 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-slate-500 text-sm">Loading...</p>
+      <div className="flex items-center justify-center min-h-screen bg-[#F2F2F7]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-6 h-6 border-2 border-[#007AFF] border-t-transparent rounded-full animate-spin" />
+          <p className="text-[#8E8E93] text-[15px]">Loading…</p>
         </div>
       </div>
     );
@@ -28,11 +28,11 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // Server unreachable
   if (!isServerReachable) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+      <div className="flex items-center justify-center min-h-screen bg-[#F2F2F7]">
         <div className="text-center">
-          <div className="text-4xl mb-4">🔌</div>
-          <h2 className="text-xl font-bold text-slate-700 mb-2">Server Unreachable</h2>
-          <p className="text-slate-500 text-sm">Unable to connect to the backend. Please try again later.</p>
+          <p className="text-4xl mb-4">🔌</p>
+          <h2 className="text-xl font-semibold text-[#1C1C1E] mb-1">Server Unreachable</h2>
+          <p className="text-[#8E8E93] text-[15px]">Unable to connect. Try again later.</p>
         </div>
       </div>
     );
@@ -46,18 +46,25 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // OTP verification step
   if (step === 'verifying_login') {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-50 p-6">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
-          <div className="flex flex-col items-center text-center mb-6">
-            <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mb-3">
-              <span className="text-2xl">📧</span>
-            </div>
-            <h2 className="text-xl font-bold text-slate-800">Check Your Email</h2>
-            <p className="text-sm text-slate-500 mt-1">
-              Enter the 6-digit code sent to your email
-            </p>
+      <div className="flex items-center justify-center min-h-screen bg-[#F2F2F7] p-6">
+        <div className="w-full max-w-sm">
+          <div className="text-center mb-10">
+            <h1 className="text-[28px] font-bold text-[#1C1C1E] tracking-tight">BEPARIBD</h1>
+            <p className="text-[#8E8E93] text-[15px] mt-1">Admin Portal</p>
           </div>
-          <OtpVerification />
+
+          <div className="bg-white rounded-3xl px-6 py-8">
+            <div className="text-center mb-6">
+              <div className="w-12 h-12 rounded-full bg-[#F2F2F7] flex items-center justify-center mx-auto mb-3">
+                <span className="text-xl">📧</span>
+              </div>
+              <h2 className="text-lg font-semibold text-[#1C1C1E]">Check Your Email</h2>
+              <p className="text-[#8E8E93] text-[15px] mt-1">
+                Enter the 6‑digit code we sent you
+              </p>
+            </div>
+            <OtpVerification />
+          </div>
         </div>
       </div>
     );
@@ -65,16 +72,16 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   // Login form (default)
   return (
-    <div className="flex items-center justify-center min-h-screen bg-slate-50 p-6">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 border border-slate-100">
-        <div className="flex flex-col items-center text-center mb-6">
-          <div className="w-14 h-14 bg-emerald-100 rounded-full flex items-center justify-center mb-3">
-            <span className="text-2xl">🔐</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">BEPARIBD</h1>
-          <p className="text-slate-500 text-sm">Admin Portal — Sign in to continue</p>
+    <div className="flex items-center justify-center min-h-screen bg-[#F2F2F7] p-6">
+      <div className="w-full max-w-sm">
+        <div className="text-center mb-10">
+          <h1 className="text-[28px] font-bold text-[#1C1C1E] tracking-tight">BEPARIBD</h1>
+          <p className="text-[#8E8E93] text-[15px] mt-1">Admin Portal</p>
         </div>
-        <LoginForm />
+
+        <div className="bg-white rounded-3xl px-6 py-8">
+          <LoginForm />
+        </div>
       </div>
     </div>
   );

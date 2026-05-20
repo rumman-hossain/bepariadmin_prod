@@ -38,38 +38,32 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+        <div className="px-4 py-3 bg-red-50 text-red-600 text-sm rounded-2xl border border-red-100">
           {error}
         </div>
       )}
 
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
-          Email or Mobile
-        </label>
+      <div className="space-y-1.5">
         <input
           type="text"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
-          className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-          placeholder="Email or phone number"
+          className="w-full px-4 py-3.5 bg-[#F2F2F7] border-0 rounded-2xl text-[15px] text-[#1C1C1E] placeholder-[#8E8E93] focus:outline-none focus:bg-[#E5E5EA] transition-colors"
+          placeholder="Email or mobile number"
           autoComplete="username"
           disabled={isLoading}
         />
       </div>
 
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
-          Password
-        </label>
+      <div className="space-y-1.5">
         <input
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-          placeholder="••••••••"
+          className="w-full px-4 py-3.5 bg-[#F2F2F7] border-0 rounded-2xl text-[15px] text-[#1C1C1E] placeholder-[#8E8E93] focus:outline-none focus:bg-[#E5E5EA] transition-colors"
+          placeholder="Password"
           autoComplete="current-password"
           disabled={isLoading}
         />
@@ -78,23 +72,19 @@ export function LoginForm() {
       <button
         type="submit"
         disabled={isLoading}
-        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50"
+        className="w-full py-3.5 bg-[#007AFF] hover:bg-[#0062CC] text-white text-[17px] font-semibold rounded-2xl transition-colors disabled:opacity-40"
       >
-        {isLoading ? 'Signing in...' : 'Sign In'}
+        {isLoading ? 'Signing in…' : 'Sign In'}
       </button>
 
-      <div className="text-right">
+      <div className="text-center">
         <a
           href="/forgot-password"
-          className="text-sm text-emerald-600 font-semibold hover:underline"
+          className="text-[15px] text-[#007AFF] hover:text-[#0062CC] transition-colors"
         >
-          Forgot Password?
+          Forgot password?
         </a>
       </div>
-
-      <p className="text-xs text-slate-400 text-center mt-2">
-        🔒 Password is hashed in-browser before sending
-      </p>
     </form>
   );
 }
