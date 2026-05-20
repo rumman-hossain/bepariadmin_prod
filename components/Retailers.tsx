@@ -4,7 +4,7 @@ import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Search, MoreVertical, ShieldAlert, CheckCircle, XCircle, Plus, X, MapPin, Tag, ArrowLeft, User, Smartphone, Building, FileText, Download, Package, DollarSign, Clock, AlertTriangle, CreditCard, Edit2, Save, ArrowUpDown } from 'lucide-react';
 import { Card } from './ui/Card';
-import { Retailer } from '../types';
+import { Retailer } from '../src/types/domain';
 import { MOCK_ORDERS } from '../services/mockData';
 import { CATEGORY_STRUCTURE } from '../services/categories';
 

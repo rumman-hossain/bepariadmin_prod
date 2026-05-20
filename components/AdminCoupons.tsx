@@ -4,7 +4,7 @@ import {
     Copy, CheckCircle, XCircle, Calendar, Tag, Percent, DollarSign,
     RefreshCw, Zap
 } from 'lucide-react';
-import { Coupon } from '../types';
+import { Coupon } from '../src/types/domain';
 
 interface AdminCouponsProps {
     coupons: Coupon[];

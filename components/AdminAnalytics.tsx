@@ -9,7 +9,7 @@ import {
   BarChart, Bar, PieChart as RechartsPieChart, Pie, Cell, AreaChart, Area, Legend,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from 'recharts';
-import { Order, Retailer, Wholesaler, Product, PaymentRecord } from '../types';
+import { Order, Retailer, Wholesaler, Product, PaymentRecord } from '../src/types/domain';
 
 const COLORS = ['#10b981', '#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#64748b'];
 

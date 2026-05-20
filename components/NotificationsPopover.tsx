@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Bell, Check, Info, AlertTriangle, CheckCircle, XCircle } from 'lucide-react';
-import { AppNotification } from '../types';
+import { AppNotification } from '../src/types/domain';
 
 interface NotificationsPopoverProps {
     notifications: AppNotification[];

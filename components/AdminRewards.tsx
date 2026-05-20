@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Gift, Award, Plus, Settings, Save, AlertCircle, CheckCircle, Trash2 } from 'lucide-react';
-import { RewardSettings, RewardItem, RetailerRewardsProfile, Retailer } from '../types';
+import { RewardSettings, RewardItem, RetailerRewardsProfile, Retailer } from '../src/types/domain';
 
 interface AdminRewardsProps {
     settings: RewardSettings;

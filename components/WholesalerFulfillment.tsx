@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Truck, Package, Printer, CheckCircle, Clock, MapPin, Search, Zap, ChevronRight, AlertCircle, Box, XCircle } from 'lucide-react';
-import { Order, OrderStatus } from '../types';
+import { Order, OrderStatus } from '../src/types/domain';
 
 interface WholesalerFulfillmentProps {
     orders: Order[];

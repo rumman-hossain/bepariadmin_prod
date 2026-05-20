@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Card } from './ui/Card';
 import { PhoneCall, MessageCircle, CheckCircle2, AlertCircle, Clock, MoreVertical, Search, Filter, ArrowRight, UserPlus, TrendingUp, Star, Activity } from 'lucide-react';
-import { Retailer } from '../types';
+import { Retailer } from '../src/types/domain';
 
 const TRIGGER_OPTIONS = [
     { value: 'all', label: 'All Triggers' },

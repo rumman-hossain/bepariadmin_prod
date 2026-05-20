@@ -3,7 +3,7 @@ import {
   LayoutDashboard, ShoppingBag, ShoppingCart, 
   CreditCard, Truck, Settings, LogOut, TrendingUp, Store, MessageSquare, Menu, ArrowLeft
 } from 'lucide-react';
-import { AppNotification } from '../types';
+import { AppNotification } from '../src/types/domain';
 import { NotificationsPopover } from './NotificationsPopover';
 
 interface WholesalerLayoutProps {

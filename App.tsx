@@ -19,7 +19,7 @@ import { AdminSettings } from './components/AdminSettings';
 import { Messages } from './components/Messages';
 
 import { ShieldCheck, AlertOctagon } from 'lucide-react';
-import { Product, Wholesaler, Retailer, Order, PaymentRecord, ManufacturingOrder, ManufacturingSample, RewardSettings, RewardItem, RetailerRewardsProfile, Coupon, ReferralSettings, ReferralRecord, ReferralPayment, Message, AppNotification } from './types';
+import { Product, Wholesaler, Retailer, Order, PaymentRecord, ManufacturingOrder, ManufacturingSample, RewardSettings, RewardItem, RetailerRewardsProfile, Coupon, ReferralSettings, ReferralRecord, ReferralPayment, Message, AppNotification } from './src/types/domain';
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; errorInfo: string }> {

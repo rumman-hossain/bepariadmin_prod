@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card } from './ui/Card';
-import { ManufacturingOrder, ManufacturingSample } from '../types';
+import { ManufacturingOrder, ManufacturingSample } from '../src/types/domain';
 import { Search, Eye, X, Plus, Package, Image as ImageIcon, Trash2, Edit2, Save } from 'lucide-react';
 import { AdminConfiguratorSettings } from './AdminConfiguratorSettings';
 

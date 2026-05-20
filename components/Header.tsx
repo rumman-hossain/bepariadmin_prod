@@ -1,7 +1,7 @@
 import React from 'react';
 import { Search, Menu, Moon, Sun, LogOut } from 'lucide-react';
 import { NotificationsPopover } from './NotificationsPopover';
-import { AppNotification } from '../types';
+import { AppNotification } from '../src/types/domain';
 
 interface HeaderProps {
     toggleSidebar: () => void;

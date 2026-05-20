@@ -5,7 +5,7 @@ import { AdminSegmentationEngine } from './AdminSegmentationEngine';
 import { AdminCRMPipeline } from './AdminCRMPipeline';
 import { AdminPromotionalCampaigns } from './AdminPromotionalCampaigns';
 
-import { Retailer } from '../types';
+import { Retailer } from '../src/types/domain';
 
 interface AdminSalesBrainProps {
     retailers: Retailer[];

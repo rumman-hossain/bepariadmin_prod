@@ -1,5 +1,5 @@
 // import { collection, getDocs, addDoc, updateDoc, doc, query, orderBy, getDocFromServer } from 'firebase/firestore';
-// import { ShippingRate } from '../types';
+// import { ShippingRate } from '../src/types/domain';
 
 // const RATES_COLLECTION = 'shippingRates';
 

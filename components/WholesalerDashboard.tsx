@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, Package, Clock, Award, AlertCircle } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Order, Product, Wholesaler } from '../types';
+import { Order, Product, Wholesaler } from '../src/types/domain';
 
 interface WholesalerDashboardProps {
   orders: Order[];

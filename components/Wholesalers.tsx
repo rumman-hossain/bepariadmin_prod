@@ -5,7 +5,7 @@ import html2canvas from 'html2canvas';
 import { Search, Filter, CheckCircle, XCircle, Clock, Star, Zap, ArrowLeft, MapPin, Building, FileText, Download, DollarSign, Package, Save, ExternalLink, ThumbsUp, ThumbsDown, AlertTriangle, Plus, X, UploadCloud, Smartphone, User, CreditCard, Mail, Check, Box, Edit2, ShieldAlert } from 'lucide-react';
 import { Card } from './ui/Card';
 import { MOCK_ORDERS, WHOLESALER_PAYMENTS } from '../services/mockData';
-import { Wholesaler, Product } from '../types';
+import { Wholesaler, Product } from '../src/types/domain';
 
 interface WholesalersProps {
     wholesalers?: Wholesaler[];

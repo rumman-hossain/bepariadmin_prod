@@ -4,7 +4,7 @@ import {
   CreditCard, Truck, FileText, AlertOctagon, Settings, 
   ShieldCheck, Briefcase, DollarSign, Factory, Gift, Tag, Share2, MessageSquare, BarChart2, Brain
 } from 'lucide-react';
-import { NavItem } from '../types';
+import { NavItem } from '../src/types/domain';
 
 interface SidebarProps {
   activeTab: string;

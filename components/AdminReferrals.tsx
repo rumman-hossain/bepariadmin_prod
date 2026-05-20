@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Share2, Save, Users, DollarSign, TrendingUp, AlertCircle, History, FileText, CheckCircle, X, Ticket } from 'lucide-react';
-import { ReferralSettings, ReferralRecord, ReferralPayment } from '../types';
+import { ReferralSettings, ReferralRecord, ReferralPayment } from '../src/types/domain';
 
 interface AdminReferralsProps {
     settings: ReferralSettings;

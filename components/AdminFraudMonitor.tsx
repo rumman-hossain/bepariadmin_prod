@@ -6,7 +6,7 @@ import {
   Activity, Zap, Lock, ExternalLink,
   Users, MapPin, Clock
 } from 'lucide-react';
-import { Wholesaler, Retailer } from '../types';
+import { Wholesaler, Retailer } from '../src/types/domain';
 
 interface FraudMonitorProps {
   wholesalers: Wholesaler[];

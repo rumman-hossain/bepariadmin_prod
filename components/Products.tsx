@@ -3,7 +3,7 @@ import { Card } from './ui/Card';
 import { Edit2, Eye, Check, X, Tag, ArrowLeft, Save, Download, FileText, Scale, Sparkles, Wand2, RefreshCw, Plus, Trash2, Image as ImageIcon, Star, Bot, Store, Clock, Filter, ListFilter, Upload, FileSpreadsheet, XCircle, AlertCircle, Box, Palette, Package } from 'lucide-react';
 import { PricingEngine, SKUGenerator } from '../services/coreEngine';
 import { CATEGORY_STRUCTURE, getCategoryByName, getSubCategoryByName, getProductGroupByName } from '../services/categories';
-import { Product, ProductVariation } from '../types';
+import { Product, ProductVariation } from '../src/types/domain';
 import { editProductImage, enhanceProductDetails } from '../services/geminiService';
 import { MOCK_WHOLESALERS } from '../services/mockData';
 

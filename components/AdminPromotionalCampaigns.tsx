@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Card } from './ui/Card';
 import { Megaphone, Send, Users, Target, Calendar, BarChart3, MessageSquare, Smartphone, Bell, CheckCircle2, Clock, Plus, Activity } from 'lucide-react';
-import { Retailer } from '../types';
+import { Retailer } from '../src/types/domain';
 
 interface AdminPromotionalCampaignsProps {
     retailers: Retailer[];

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Retailer } from '../types';
+import { Retailer } from '../src/types/domain';
 import { Save, User, MapPin, Phone, CreditCard, Building, FileText, Lock, Upload, X, Eye, EyeOff, CheckCircle, Clock } from 'lucide-react';
 
 import { CATEGORY_STRUCTURE } from '../services/categories';

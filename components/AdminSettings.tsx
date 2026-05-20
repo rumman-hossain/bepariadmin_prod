@@ -7,7 +7,7 @@ import {
   MessageSquare, Search
 } from 'lucide-react';
 import { Card } from './ui/Card';
-import { Retailer, Wholesaler } from '../types';
+import { Retailer, Wholesaler } from '../src/types/domain';
 
 const SETTINGS_CATEGORIES = [
   { id: 'profile', label: 'Account & Profile', icon: User },

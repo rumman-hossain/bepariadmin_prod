@@ -3,7 +3,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { TrendingUp, TrendingDown, Users, Package, DollarSign, AlertTriangle, Sparkles, RefreshCw } from 'lucide-react';
 import { Card } from './ui/Card';
 import { getDashboardInsights } from '../services/geminiService';
-import { Retailer, Wholesaler, Order } from '../types';
+import { Retailer, Wholesaler, Order } from '../src/types/domain';
 
 const COLORS = ['#0F9D58', '#FFBB28', '#FF8042', '#0088FE'];
 

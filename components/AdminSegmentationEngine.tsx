@@ -5,7 +5,7 @@ import {
     ChevronDown, MapPin, Calendar, ShoppingBag, CreditCard, 
     Activity, Clock, CheckCircle, Trophy
 } from 'lucide-react';
-import { Retailer } from '../types';
+import { Retailer } from '../src/types/domain';
 
 const VALUE_SEGMENTS = ['High Potential', 'Medium Potential', 'Small Retailer'];
 const BEHAVIOR_SEGMENTS = ['Active Buyer', 'Browsing Not Buying', 'Inactive'];

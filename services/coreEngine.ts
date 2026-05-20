@@ -1,4 +1,4 @@
-import { Product, OrderStatus } from '../types';
+import { Product, OrderStatus } from '../src/types/domain';
 
 /**
  * 2️⃣ PRICING ENGINE (AUTOMATED)

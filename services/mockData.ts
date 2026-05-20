@@ -1,4 +1,4 @@
-import { Retailer, Wholesaler, Order, Product, KPI, PaymentRecord, WalletTransaction, ManufacturingOrder, ManufacturingSample, ShippingRate } from '../types';
+import { Retailer, Wholesaler, Order, Product, KPI, PaymentRecord, WalletTransaction, ManufacturingOrder, ManufacturingSample, ShippingRate } from '../src/types/domain';
 
 // Admin Data
 export const KPIS: KPI[] = [

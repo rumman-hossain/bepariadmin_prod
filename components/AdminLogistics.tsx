@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Truck, Save, Plus, Trash2, Info, AlertCircle, CheckCircle2, Package, Printer, Send } from 'lucide-react';
 import { logisticsService } from '../services/logisticsService';
 import { auth } from '../firebase';
-import { ShippingRate, Order, OrderStatus, Wholesaler, Retailer } from '../types';
+import { ShippingRate, Order, OrderStatus, Wholesaler, Retailer } from '../src/types/domain';
 
 interface AdminLogisticsProps {
   orders?: Order[];

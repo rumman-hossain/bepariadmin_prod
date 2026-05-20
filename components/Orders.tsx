@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card } from './ui/Card';
-import { Order, OrderStatus } from '../types';
+import { Order, OrderStatus } from '../src/types/domain';
 import { Truck, CheckCircle, Clock, XCircle, Share, RefreshCw, Ban, Package, ArrowLeft, Download } from 'lucide-react';
 
 interface OrdersProps {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Card } from './ui/Card';
 import { CreditCard, ArrowUpRight, Search, Clock, Download, Eye, X } from 'lucide-react';
-import { PaymentRecord, Order } from '../types';
+import { PaymentRecord, Order } from '../src/types/domain';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 

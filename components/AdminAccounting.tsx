@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Card } from './ui/Card';
-import { Order, PaymentRecord, ExpenseRecord } from '../types';
+import { Order, PaymentRecord, ExpenseRecord } from '../src/types/domain';
 import { MOCK_WHOLESALERS } from '../services/mockData';
 import { 
     DollarSign, TrendingUp, TrendingDown, CreditCard, 

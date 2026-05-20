@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Send, Search, User as UserIcon, ShieldCheck, Store, Building, Paperclip, Image as ImageIcon, Video, FileText, X, Loader2, Download } from 'lucide-react';
-import { Message, UserRole, Retailer, Wholesaler, MessageAttachment } from '../types';
+import { Message, UserRole, Retailer, Wholesaler, MessageAttachment } from '../src/types/domain';
 
 
 interface MessagesProps {
