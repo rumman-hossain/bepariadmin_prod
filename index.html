@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Beparibd - Admin Control Tower</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
+            colors: {
+              emerald: {
+                500: '#10B981',
+                600: '#0F9D58', // Primary Brand Color
+                700: '#047857',
+              },
+              charcoal: {
+                800: '#2D2D2D',
+                900: '#1E1E1E', // Dark Brand Color
+              },
+              gold: {
+                400: '#D4B873',
+                500: '#C6A75E', // Accent
+                600: '#A68A48',
+              }
+            }
+          }
+        }
+      }
+    </script>
+    <style>
+      /* Custom Scrollbar for premium feel */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+      }
+      .dark ::-webkit-scrollbar-thumb {
+        background: #475569;
+      }
+      .dark ::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+      }
+      
+      /* Custom Scrollbar Class */
+      .custom-scrollbar::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(0, 0, 0, 0.05);
+        border-radius: 10px;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1;
+        border-radius: 10px;
+        border: 2px solid transparent;
+        background-clip: content-box;
+      }
+      .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8;
+        border: 2px solid transparent;
+        background-clip: content-box;
+      }
+      .dark .custom-scrollbar::-webkit-scrollbar-track {
+        background: rgba(255, 255, 255, 0.05);
+      }
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #475569;
+      }
+      .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+      }
+      
+      /* Global rule for all inputs, selects, and textareas to ensure white bg and black text */
+      input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="range"]):not([type="color"]),
+      select,
+      textarea {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+      }
+      
+      /* Ensure modals don't overflow the screen */
+      .fixed.inset-0 > div.bg-white {
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        overflow-y: auto;
+      }
+      .fixed.inset-0 > div.bg-white > div {
+        overflow-y: auto;
+      }
+      .fixed.inset-0 > div.bg-white > div:first-child,
+      .fixed.inset-0 > div.bg-white > div:last-child {
+        flex-shrink: 0;
+      }
+    </style>
+    <script>
+      // Enforce number inputs to always be 0 or positive
+      document.addEventListener('input', function(e) {
+        if (e.target && e.target.type === 'number') {
+          if (parseFloat(e.target.value) < 0) {
+            e.target.value = 0;
+          }
+        }
+      });
+      document.addEventListener('keydown', function(e) {
+        if (e.target && e.target.type === 'number') {
+          if (e.key === '-' || e.key === 'e') {
+            e.preventDefault();
+          }
+        }
+      });
+    </script>
+  <script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "react": "https://esm.sh/react@^19.2.4",
+    "@google/genai": "https://esm.sh/@google/genai@^1.41.0",
+    "recharts": "https://esm.sh/recharts@^3.7.0",
+    "lucide-react": "https://esm.sh/lucide-react@^0.574.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body class="bg-[#F5F7FA] dark:bg-[#121212] text-slate-800 dark:text-slate-100 antialiased overflow-hidden">
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
