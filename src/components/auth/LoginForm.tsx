@@ -83,6 +83,15 @@ export function LoginForm() {
         {isLoading ? 'Signing in...' : 'Sign In'}
       </button>
 
+      <div className="text-right">
+        <a
+          href="/forgot-password"
+          className="text-sm text-emerald-600 font-semibold hover:underline"
+        >
+          Forgot Password?
+        </a>
+      </div>
+
       <p className="text-xs text-slate-400 text-center mt-2">
         🔒 Password is hashed in-browser before sending
       </p>
