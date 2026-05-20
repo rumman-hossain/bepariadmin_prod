@@ -1,1 +1,18 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', sans-serif;
+
+  --color-emerald-500: #10B981;
+  --color-emerald-600: #0F9D58;
+  --color-emerald-700: #047857;
+
+  --color-charcoal-800: #2D2D2D;
+  --color-charcoal-900: #1E1E1E;
+
+  --color-gold-400: #D4B873;
+  --color-gold-500: #C6A75E;
+  --color-gold-600: #A68A48;
+}
+
+@custom-variant dark (&:where(.dark, .dark *));

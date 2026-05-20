@@ -23,6 +23,16 @@
       .dark .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #64748b; }
       .fixed.inset-0 > div.bg-white { max-height: 90vh; display: flex; flex-direction: column; overflow-y: auto; }
       .fixed.inset-0 > div.bg-white > div { overflow-y: auto; }
+      input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="button"]):not([type="range"]):not([type="color"]),
+      select,
+      textarea {
+        background-color: #ffffff !important;
+        color: #000000 !important;
+      }
+      .fixed.inset-0 > div.bg-white > div:first-child,
+      .fixed.inset-0 > div.bg-white > div:last-child {
+        flex-shrink: 0;
+      }
     </style>
     <script type="importmap">
 {
@@ -36,6 +46,7 @@
   }
 }
 </script>
+<link rel="stylesheet" href="/index.css">
   </head>
   <body class="bg-[#F5F7FA] dark:bg-[#121212] text-slate-800 dark:text-slate-100 antialiased overflow-hidden">
     <div id="root"></div>
