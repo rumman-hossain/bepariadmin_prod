@@ -12,7 +12,6 @@ export type AuthStep =
   | 'verifying_login'
   | 'forgot_password'
   | 'reset_password'
-  | 'store_setup'
   | 'dashboard';
 
 /** Auth state persisted in context */
@@ -47,8 +46,6 @@ export interface AuthUser {
   logoUrl?: string;
   code?: string;
   emailVerified: boolean;
-  storeCreated: boolean;
-  storeSetupCompleted: boolean;
 }
 
 /** Actions exposed by AuthContext */
