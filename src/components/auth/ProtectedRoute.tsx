@@ -53,7 +53,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
             <p className="text-[#8E8E93] text-[15px] mt-1">Admin Portal</p>
           </div>
 
-          <div className="bg-white rounded-3xl px-6 py-8">
+          <div className="bg-white rounded-3xl px-6 py-8 shadow-md shadow-black/5">
             <div className="text-center mb-6">
               <div className="w-12 h-12 rounded-full bg-[#F2F2F7] flex items-center justify-center mx-auto mb-3">
                 <span className="text-xl">📧</span>
@@ -79,7 +79,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
           <p className="text-[#8E8E93] text-[15px] mt-1">Admin Portal</p>
         </div>
 
-        <div className="bg-white rounded-3xl px-6 py-8">
+        <div className="bg-white rounded-3xl px-6 py-8 shadow-md shadow-black/5">
           <LoginForm />
         </div>
       </div>
