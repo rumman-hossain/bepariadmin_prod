@@ -12,7 +12,7 @@ import { OtpVerification } from './OtpVerification';
 import { ForgotPasswordForm } from './ForgotPasswordForm';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { step, isLoading, isServerReachable, clearError } = useAuth();
+  const { step, isLoading, isServerReachable, goToLogin } = useAuth();
 
   // Bootstrap loading — show spinner
   if (isLoading && step === 'idle') {
@@ -80,7 +80,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
             <h1 className="text-[28px] font-bold text-[#1C1C1E] tracking-tight">BEPARIBD</h1>
           </div>
           <div className="bg-white rounded-3xl px-6 py-8 shadow-md shadow-black/5">
-            <ForgotPasswordForm onBack={() => clearError()} />
+            <ForgotPasswordForm onBack={goToLogin} />
           </div>
         </div>
       </div>
