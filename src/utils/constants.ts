@@ -2,14 +2,14 @@
 // Application Constants
 // ═══════════════════════════════════════════════════════════════
 
-/** Base URL for the BepariBD API */
-export const API_BASE_URL = (() => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL.replace(/\/$/, '');
-  // Fallback: assume backend runs on same origin in production
-  if (import.meta.env.PROD) return window.location.origin;
-  // Local development
-  return 'http://localhost:8080';
-})();
+/**
+ * Base URL for the BepariBD API.
+ * 
+ * Empty string = relative paths. With Firebase proxy rewrites,
+ * all /api/* and /health requests are forwarded to Cloud Run
+ * from the same origin, so no absolute URL is needed.
+ */
+export const API_BASE_URL = '';
 
 /** PBKDF2 iteration count — must match backend and mobile client */
 export const PBKDF2_ITERATIONS = 310_000;

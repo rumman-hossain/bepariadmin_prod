@@ -31,6 +31,8 @@ export interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
   bootstrap: () => Promise<void>;
   clearError: () => void;
+  goToLogin: () => void;
+  goToForgotPassword: () => void;
 }
 
 const defaultState: AuthState = {
@@ -50,6 +52,8 @@ export const AuthContext = createContext<AuthContextValue>({
   logout: async () => {},
   bootstrap: async () => {},
   clearError: () => {},
+  goToLogin: () => {},
+  goToForgotPassword: () => {},
 });
 
 // ═══════════════════════════════════════════════════════════════
@@ -102,11 +106,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setAccessToken(null);
         return null;
       }
-      const me = retryRes.data as unknown as Record<string, unknown>;
+      const me = (retryRes.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
       return mapUser(me);
     }
 
-    const me = meRes.data as unknown as Record<string, unknown>;
+    const me = (meRes.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
     return mapUser(me);
   }
 
@@ -133,9 +137,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return;
         }
 
-        const data = res.data as unknown as Record<string, unknown>;
+        const inner = (res.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
 
-        if (data.requiresOTP) {
+        if (inner.requiresOTP) {
           loginIdentifierRef.current = identifier.trim().toLowerCase();
           loginUserTypeRef.current = userType;
           setStep('verifying_login');
@@ -181,8 +185,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const data = res.data as unknown as Record<string, unknown>;
-      const token = data.accessToken as string;
+      const inner = (res.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
+      const token = inner.accessToken as string;
 
       if (token) {
         const profile = await fetchProfile(token);
@@ -269,7 +273,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const me = meRes.data as unknown as Record<string, unknown>;
+      const me = (meRes.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
       setUser(mapUser(me));
       setStep('dashboard');
     } catch {
@@ -301,6 +305,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // VALUE
   // ═══════════════════════════════════════════════════════════
 
+  const goToLogin = useCallback(() => {
+    setStep('login_form');
+    setError(null);
+  }, []);
+
+  const goToForgotPassword = useCallback(() => {
+    setStep('forgot_password');
+    setError(null);
+  }, []);
+
+  // ═══════════════════════════════════════════════════════════
+  // VALUE
+  // ═══════════════════════════════════════════════════════════
+
   const value: AuthContextValue = {
     step,
     isLoading,
@@ -314,6 +332,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     bootstrap,
     clearError,
+    goToLogin,
+    goToForgotPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

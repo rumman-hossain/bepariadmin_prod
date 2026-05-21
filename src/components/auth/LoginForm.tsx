@@ -13,7 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { validateIdentifier, validatePassword } from '../../utils/validation';
 
 export function LoginForm() {
-  const { login, isLoading, error, clearError } = useAuth();
+  const { login, goToForgotPassword, isLoading, error, clearError } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
@@ -78,12 +78,13 @@ export function LoginForm() {
       </button>
 
       <div className="text-center">
-        <a
-          href="/forgot-password"
+        <button
+          type="button"
+          onClick={goToForgotPassword}
           className="text-[15px] text-[#007AFF] hover:text-[#0062CC] transition-colors"
         >
           Forgot password?
-        </a>
+        </button>
       </div>
     </form>
   );
