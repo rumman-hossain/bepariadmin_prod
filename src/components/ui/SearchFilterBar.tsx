@@ -19,6 +19,7 @@ interface SearchFilterBarProps {
   searchPlaceholder?: string;
   filters?: Filter[];
   onClearAll?: () => void;
+  className?: string;
 }
 
 export function SearchFilterBar({
@@ -27,17 +28,18 @@ export function SearchFilterBar({
   searchPlaceholder = 'Search...',
   filters,
   onClearAll,
+  className = '',
 }: SearchFilterBarProps) {
   const hasActiveFilters = filters?.some((f) => f.value !== 'All');
 
   return (
-    <div className="space-y-3">
+    <div className={`space-y-3 ${className}`}>
       <div className="relative max-w-md w-full">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-muted" />
         <input
           type="text"
           placeholder={searchPlaceholder}
-          className="w-full pl-10 pr-4 py-2 bg-white text-black border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+          className="w-full pl-10 pr-4 py-2 bg-surface-elevated text-text-default border border-border-default rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-accent-primary focus:border-transparent transition-shadow"
           value={searchTerm}
           onChange={(e) => onSearchChange(e.target.value)}
         />
@@ -45,9 +47,9 @@ export function SearchFilterBar({
 
       {filters && filters.length > 0 && (
         <div className="flex flex-wrap gap-2 items-center">
-          <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-1.5 border border-slate-200 dark:border-slate-700">
-            <Filter className="w-3.5 h-3.5 text-slate-400" />
-            <span className="text-xs font-medium text-slate-500">Filters:</span>
+            <div className="flex items-center gap-2 bg-surface-elevated rounded-lg px-3 py-1.5 border border-border-subtle">
+            <Filter className="w-3.5 h-3.5 text-text-muted" />
+            <span className="text-xs font-medium text-text-muted">Filters:</span>
           </div>
 
           {filters.map((filter) => (
@@ -55,7 +57,7 @@ export function SearchFilterBar({
               key={filter.key}
               value={filter.value}
               onChange={(e) => filter.onChange(e.target.value)}
-              className="text-sm bg-white text-black border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+              className="text-sm bg-surface-elevated text-text-default border border-border-default rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-primary"
             >
               {filter.options.map((opt) => (
                 <option key={opt.value} value={opt.value}>
@@ -68,7 +70,7 @@ export function SearchFilterBar({
           {hasActiveFilters && onClearAll && (
             <button
               onClick={onClearAll}
-              className="text-xs text-red-500 hover:text-red-700 font-bold inline-flex items-center gap-1"
+              className="text-xs text-semantic-danger hover:opacity-80 font-bold inline-flex items-center gap-1 transition-colors"
             >
               <X className="w-3 h-3" /> Clear
             </button>

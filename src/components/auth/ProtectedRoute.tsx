@@ -1,20 +1,22 @@
 /**
  * ProtectedRoute — Wraps children behind authentication.
  *
- * If user is not authenticated, shows login screen instead.
- * Handles loading state during bootstrap.
+ * When the user is not authenticated, redirects to /login (or the
+ * appropriate auth step route) using <Navigate> so the browser URL
+ * always reflects the actual view.  After login the user is sent back
+ * to their intended destination via React Router's `state.from`.
  */
 
 import React from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { LoginForm } from './LoginForm';
-import { OtpVerification } from './OtpVerification';
-import { ForgotPasswordForm } from './ForgotPasswordForm';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { step, isLoading, isServerReachable, goToLogin } = useAuth();
+  const { step, isLoading, isServerReachable } = useAuth();
+  const location = useLocation();
 
-  // Bootstrap loading — show spinner
+  // ── Bootstrap loading — show spinner in-line (no redirect) ──────
   if (isLoading && step === 'idle') {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#F2F2F7]">
@@ -26,7 +28,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Server unreachable
+  // ── Server unreachable — show inline (no route change) ─────────
   if (!isServerReachable) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[#F2F2F7]">
@@ -39,55 +41,33 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Authenticated — show dashboard
+  // ── Authenticated — render protected children ──────────────────
   if (step === 'dashboard') {
     return <>{children}</>;
   }
 
-  // OTP verification step
+  // ── OTP verification — redirect to /login?step=verify ─────────
   if (step === 'verifying_login') {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F2F2F7] p-6">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-10">
-            <h1 className="text-[28px] font-bold text-[#1C1C1E] tracking-tight">BEPARIBD</h1>
-            <p className="text-[#8E8E93] text-[15px] mt-1">Admin Portal</p>
-          </div>
-
-          <div className="bg-white rounded-3xl px-6 py-8 shadow-md shadow-black/5">
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 rounded-full bg-[#F2F2F7] flex items-center justify-center mx-auto mb-3">
-                <span className="text-xl">📧</span>
-              </div>
-              <h2 className="text-lg font-semibold text-[#1C1C1E]">Check Your Email</h2>
-              <p className="text-[#8E8E93] text-[15px] mt-1">
-                Enter the 6‑digit code we sent you
-              </p>
-            </div>
-            <OtpVerification />
-          </div>
-        </div>
-      </div>
-    );
+    return <Navigate to="/login" state={{ from: location, step: 'verify' }} replace />;
   }
 
-  // Forgot password step
+  // ── Forgot password — redirect to /forgot-password ─────────────
   if (step === 'forgot_password') {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#F2F2F7] p-6">
-        <div className="w-full max-w-sm">
-          <div className="text-center mb-10">
-            <h1 className="text-[28px] font-bold text-[#1C1C1E] tracking-tight">BEPARIBD</h1>
-          </div>
-          <div className="bg-white rounded-3xl px-6 py-8 shadow-md shadow-black/5">
-            <ForgotPasswordForm onBack={goToLogin} />
-          </div>
-        </div>
-      </div>
-    );
+    return <Navigate to="/forgot-password" state={{ from: location }} replace />;
   }
 
-  // Login form (default)
+  // ── Login form — redirect to /login, preserving intended path ─
+  // Don't redirect if we're already on an auth page to avoid loops.
+  const isAuthPath =
+    location.pathname === '/login' ||
+    location.pathname === '/forgot-password' ||
+    location.pathname === '/reset-password';
+
+  if (!isAuthPath) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  // Already on /login — render the form without redirect loop
   return (
     <div className="flex items-center justify-center min-h-screen bg-[#F2F2F7] p-6">
       <div className="w-full max-w-sm">

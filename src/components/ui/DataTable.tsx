@@ -22,6 +22,13 @@ interface DataTableProps<T> {
   onRowClick?: (row: T) => void;
 }
 
+function safeKey(value: unknown): string {
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'symbol') {
+    return String(value);
+  }
+  return '';
+}
+
 export function DataTable<T extends Record<string, unknown>>({
   columns,
   data,
@@ -31,19 +38,19 @@ export function DataTable<T extends Record<string, unknown>>({
 }: DataTableProps<T>) {
   if (data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-        <p className="text-sm">{emptyMessage}</p>
+      <div className="flex flex-col items-center justify-center py-16 text-text-muted">
+        <p className="text-sm text-text-muted">{emptyMessage}</p>
       </div>
     );
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-lg border border-border-default">
       <table className="w-full text-sm text-left">
-        <thead className="text-xs text-gray-500 dark:text-gray-400 uppercase bg-gray-50/50 dark:bg-gray-800/30 border-b border-gray-200/50 dark:border-gray-800/50">
+        <thead className="text-xs text-text-muted uppercase bg-surface-elevated border-b border-border-default">
           <tr>
             {columns.map((col) => (
-              <th key={col.key} className={`px-6 py-4 font-medium ${col.className || ''}`}>
+              <th key={col.key} className={`px-4 py-3 font-medium ${col.className || ''}`}>
                 {col.header}
               </th>
             ))}
@@ -52,14 +59,14 @@ export function DataTable<T extends Record<string, unknown>>({
         <tbody>
           {data.map((row) => (
             <tr
-              key={String(row[keyField])}
+              key={safeKey(row[keyField])}
               onClick={() => onRowClick?.(row)}
-              className={`border-b border-gray-200/50 dark:border-gray-800/50 hover:bg-white/50 dark:hover:bg-gray-800/50 transition-colors ${
+              className={`border-b border-border-subtle hover:bg-surface-hover transition-colors ${
                 onRowClick ? 'cursor-pointer' : ''
               }`}
             >
               {columns.map((col) => (
-                <td key={col.key} className={`px-6 py-4 ${col.className || ''}`}>
+                <td key={col.key} className={`px-4 py-3 text-text-default ${col.className || ''}`}>
                   {col.render(row)}
                 </td>
               ))}

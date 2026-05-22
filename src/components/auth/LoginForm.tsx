@@ -13,7 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { validateIdentifier, validatePassword } from '../../utils/validation';
 
 export function LoginForm() {
-  const { login, goToForgotPassword, isLoading, error, clearError } = useAuth();
+  const { login, goToForgotPassword, submitting, error, clearError } = useAuth();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
@@ -53,7 +53,7 @@ export function LoginForm() {
           className="w-full px-4 py-3.5 bg-[#F2F2F7] border-0 rounded-2xl text-[15px] text-[#1C1C1E] placeholder-[#8E8E93] focus:outline-none focus:bg-[#E5E5EA] transition-colors"
           placeholder="Email or mobile number"
           autoComplete="username"
-          disabled={isLoading}
+          disabled={submitting}
         />
       </div>
 
@@ -65,16 +65,16 @@ export function LoginForm() {
           className="w-full px-4 py-3.5 bg-[#F2F2F7] border-0 rounded-2xl text-[15px] text-[#1C1C1E] placeholder-[#8E8E93] focus:outline-none focus:bg-[#E5E5EA] transition-colors"
           placeholder="Password"
           autoComplete="current-password"
-          disabled={isLoading}
+          disabled={submitting}
         />
       </div>
 
       <button
         type="submit"
-        disabled={isLoading}
+        disabled={submitting}
         className="w-full py-3.5 bg-[#007AFF] hover:bg-[#0062CC] text-white text-[17px] font-semibold rounded-2xl transition-colors disabled:opacity-40"
       >
-        {isLoading ? 'Signing in…' : 'Sign In'}
+        {submitting ? 'Signing in…' : 'Sign In'}
       </button>
 
       <div className="text-center">

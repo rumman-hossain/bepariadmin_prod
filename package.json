@@ -1,7 +1,7 @@
 {
-  "name": "v3-beparibd",
+  "name": "beparibd-admin",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -11,10 +11,9 @@
   },
   "dependencies": {
     "@google/genai": "^1.41.0",
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.5.0",
     "@types/three": "^0.183.1",
-    "firebase": "^12.10.0",
+    "axios": "^1.16.1",
+    "clsx": "^2.1.1",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
@@ -22,13 +21,16 @@
     "react": "^19.2.4",
     "react-barcode": "^1.6.1",
     "react-dom": "^19.2.4",
-    "react-qr-code": "^2.0.18",
+    "react-router-dom": "^7.15.1",
     "recharts": "^3.7.0",
-    "three": "^0.183.2"
+    "tailwind-merge": "^3.6.0",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.13"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^22.14.0",
+    "@types/react-dom": "^19.2.3",
     "@typescript-eslint/eslint-plugin": "^8.57.0",
     "@typescript-eslint/parser": "^8.57.0",
     "@vitejs/plugin-react": "^5.0.0",
@@ -36,6 +38,7 @@
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.5.2",
     "globals": "^17.4.0",
+    "rollup-plugin-obfuscator": "^1.1.0",
     "tailwindcss": "^4.3.0",
     "typescript": "~5.8.2",
     "typescript-eslint": "^8.57.0",

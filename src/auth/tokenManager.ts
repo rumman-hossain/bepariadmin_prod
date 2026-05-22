@@ -1,66 +1,18 @@
 /**
- * Token Manager — Browser
+ * Token Manager — Cross-Tab Logout Sync
  *
- * Access token: localStorage (short-lived, 15 min)
- * Refresh token: httpOnly cookie (set by backend, JS-inaccessible)
+ * Access tokens are stored ONLY in memoryTokenStore (module-scope closure).
+ * Refresh tokens are httpOnly cookies (JS-inaccessible).
  *
- * Cross-tab sync via BroadcastChannel.
+ * This module handles BroadcastChannel-based cross-tab LOGOUT only.
+ * No localStorage token sync — tokens NEVER touch localStorage.
  */
-
-import { ACCESS_TOKEN_KEY } from '../utils/constants';
-
-// ═══════════════════════════════════════════════════════════════
-// Access Token
-// ═══════════════════════════════════════════════════════════════
-
-export function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
-}
-
-export function saveAccessToken(token: string): void {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-  broadcastTokenUpdate(token);
-}
-
-export function clearTokens(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-  broadcastLogout();
-}
-
-export function isAuthenticated(): boolean {
-  return !!getAccessToken();
-}
-
-// ═══════════════════════════════════════════════════════════════
-// JWT Decode
-// ═══════════════════════════════════════════════════════════════
-
-export function getTokenExpiry(token: string): number | null {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.exp ? payload.exp * 1000 : null;
-  } catch {
-    return null;
-  }
-}
-
-export function isTokenExpired(token: string): boolean {
-  const exp = getTokenExpiry(token);
-  return exp ? Date.now() > exp : true;
-}
-
-export function isTokenExpiringSoon(token: string, seconds = 60): boolean {
-  const exp = getTokenExpiry(token);
-  return exp ? Date.now() > exp - seconds * 1000 : true;
-}
 
 // ═══════════════════════════════════════════════════════════════
 // Cross-Tab Sync (BroadcastChannel)
 // ═══════════════════════════════════════════════════════════════
 
-type TokenMessage =
-  | { type: 'TOKEN_UPDATED'; token: string }
-  | { type: 'LOGOUT' };
+type LogoutMessage = { type: 'LOGOUT' };
 
 const CHANNEL_NAME = 'bepari-auth';
 
@@ -77,26 +29,22 @@ function getChannel(): BroadcastChannel | null {
   }
 }
 
-function broadcastTokenUpdate(token: string): void {
+/**
+ * Broadcast a logout event to all other tabs.
+ * Called after apiLogout completes.
+ */
+export function broadcastLogout(): void {
   const ch = getChannel();
   if (ch) {
-    ch.postMessage({ type: 'TOKEN_UPDATED', token } satisfies TokenMessage);
-  }
-}
-
-function broadcastLogout(): void {
-  const ch = getChannel();
-  if (ch) {
-    ch.postMessage({ type: 'LOGOUT' } satisfies TokenMessage);
+    ch.postMessage({ type: 'LOGOUT' } satisfies LogoutMessage);
   }
 }
 
 /**
- * Subscribe to cross-tab auth events.
+ * Subscribe to logout broadcasts from other tabs.
  * Returns an unsubscribe function.
  */
 export function onAuthBroadcast(
-  onTokenUpdated: (token: string) => void,
   onLogout: () => void
 ): () => void {
   const ch = getChannel();
@@ -105,12 +53,8 @@ export function onAuthBroadcast(
     return () => {};
   }
 
-  const handler = (event: MessageEvent<TokenMessage>) => {
-    if (event.data.type === 'TOKEN_UPDATED') {
-      localStorage.setItem(ACCESS_TOKEN_KEY, event.data.token);
-      onTokenUpdated(event.data.token);
-    } else if (event.data.type === 'LOGOUT') {
-      localStorage.removeItem(ACCESS_TOKEN_KEY);
+  const handler = (event: MessageEvent<LogoutMessage>) => {
+    if (event.data.type === 'LOGOUT') {
       onLogout();
     }
   };

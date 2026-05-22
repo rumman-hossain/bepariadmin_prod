@@ -1,15 +1,20 @@
 /**
  * AuthContext — React Context + Provider
  *
- * Central auth state: user, tokens, loading, errors.
+ * Central auth state: user, loading, errors.
  * Exposes login, verifyOtp, logout, bootstrap actions.
+ *
+ * Access tokens are stored ONLY in module-scope closure (memoryTokenStore),
+ * NEVER in localStorage/sessionStorage. Cross-tab sync handled via
+ * BroadcastChannel in tokenManager.ts.
  *
  * Matches the mobile app's auth flow behavior.
  */
 
 import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
 import { hashPassword } from './passwordHasher';
-import { clearTokens, onAuthBroadcast } from './tokenManager';
+import { getAccessToken, setAccessToken, clearAccessToken } from './memoryTokenStore';
+import { onAuthBroadcast } from './tokenManager';
 import {
   apiLogin,
   apiVerifyLoginOtp,
@@ -33,19 +38,26 @@ export interface AuthContextValue extends AuthState {
   clearError: () => void;
   goToLogin: () => void;
   goToForgotPassword: () => void;
+  /** True only during explicit login/OTP submit, NOT during bootstrap */
+  submitting: boolean;
 }
 
-const defaultState: AuthState = {
+const defaultState: Omit<AuthState, 'accessToken'> = {
   step: 'idle',
   isLoading: true, // Start loading until bootstrap completes
   error: null,
   user: null,
-  accessToken: null,
   isServerReachable: true,
 };
 
+// AuthState.accessToken is kept for backward-compat on the interface,
+// but its value is derived at call time from memoryTokenStore.
+// Consumers should use getAccessToken() directly where possible.
+
 export const AuthContext = createContext<AuthContextValue>({
   ...defaultState,
+  accessToken: null,
+  submitting: false,
   login: async () => {},
   verifyOtp: async () => {},
   resendOtp: async () => {},
@@ -63,14 +75,21 @@ export const AuthContext = createContext<AuthContextValue>({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [step, setStep] = useState<AuthStep>(defaultState.step);
   const [isLoading, setIsLoading] = useState(defaultState.isLoading);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(defaultState.error);
   const [user, setUser] = useState<AuthUser | null>(defaultState.user);
-  const [accessToken, setAccessToken] = useState<string | null>(defaultState.accessToken);
   const [isServerReachable, setIsServerReachable] = useState(defaultState.isServerReachable);
+
+  // Force re-render trigger — bumped whenever token changes,
+  // so React components reading accessToken from context re-render.
+  const [, setTokenVersion] = useState(0);
 
   // Stored during login for OTP verification
   const loginIdentifierRef = useRef('');
   const loginUserTypeRef = useRef('staff');
+
+  // ── Derived value: read from memoryTokenStore, not React state ───
+  const accessToken = getAccessToken();
 
   // Clear error
   const clearError = useCallback(() => setError(null), []);
@@ -92,8 +111,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch profile after token received
   async function fetchProfile(token: string): Promise<AuthUser | null> {
-    localStorage.setItem('bepari_access_token', token);
     setAccessToken(token);
+    setTokenVersion((v) => v + 1);
 
     const meRes = await apiGetMe();
 
@@ -102,8 +121,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await new Promise((r) => setTimeout(r, 800));
       const retryRes = await apiGetMe();
       if (!retryRes.ok) {
-        clearTokens();
-        setAccessToken(null);
+        clearAccessToken();
+        setTokenVersion((v) => v + 1);
         return null;
       }
       const me = (retryRes.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
@@ -120,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (identifier: string, password: string, userType = 'staff') => {
-      setIsLoading(true);
+      setSubmitting(true);
       setError(null);
 
       try {
@@ -133,7 +152,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!res.ok) {
           setError(friendlyError(res));
-          setIsLoading(false);
+          setSubmitting(false);
           return;
         }
 
@@ -150,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setError(err instanceof Error ? err.message : 'Network error');
       }
 
-      setIsLoading(false);
+      setSubmitting(false);
     },
     []
   );
@@ -160,7 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ═══════════════════════════════════════════════════════════
 
   const verifyOtp = useCallback(async (code: string) => {
-    setIsLoading(true);
+    setSubmitting(true);
     setError(null);
 
     try {
@@ -181,7 +200,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } else {
           setError(friendlyError(res));
         }
-        setIsLoading(false);
+        setSubmitting(false);
         return;
       }
 
@@ -202,7 +221,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(err instanceof Error ? err.message : 'Network error');
     }
 
-    setIsLoading(false);
+    setSubmitting(false);
   }, []);
 
   // ═══════════════════════════════════════════════════════════
@@ -228,9 +247,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Backend logout failure is non-critical
     }
 
-    clearTokens();
+    // apiLogout already calls clearAccessToken() in its .finally(),
+    // but call it again defensively in case the request never fires.
+    clearAccessToken();
+    setTokenVersion((v) => v + 1);
     setUser(null);
-    setAccessToken(null);
     setStep('login_form');
     setError(null);
   }, []);
@@ -242,32 +263,85 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bootstrap = useCallback(async () => {
     setIsLoading(true);
 
+    // Helper: fetch with timeout
+    async function fetchWithTimeout(
+      url: string,
+      options: RequestInit = {},
+      timeoutMs = 3000,
+    ): Promise<Response | null> {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const res = await fetch(url, { ...options, signal: controller.signal });
+        return res;
+      } catch {
+        return null; // Timeout or network error
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
     try {
-      // 1. Health check
-      const healthRes = await fetch('/health');
-      if (!healthRes.ok) {
+      // Run health check and silent refresh in PARALLEL (not sequential)
+      const [healthRes, refreshRes] = await Promise.all([
+        fetchWithTimeout('/health', {}, 3000),
+        fetchWithTimeout(
+          `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/auth/refresh`,
+          {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+          },
+          3000,
+        ),
+      ]);
+
+      // 1. Handle health check result
+      if (!healthRes || !healthRes.ok) {
         setIsServerReachable(false);
+        setStep('login_form');
         setIsLoading(false);
         return;
       }
       setIsServerReachable(true);
 
-      // 2. Check stored token
-      const storedToken = localStorage.getItem('bepari_access_token');
-      if (!storedToken) {
+      // 2. Handle refresh token result
+      if (!refreshRes || !refreshRes.ok) {
+        // No valid refresh cookie — show login form (common case for new sessions)
+        clearAccessToken();
+        setTokenVersion((v) => v + 1);
         setStep('login_form');
         setIsLoading(false);
         return;
       }
 
-      // 3. Validate token via GET /me
-      setAccessToken(storedToken);
+      let refreshJson: Record<string, unknown>;
+      try {
+        refreshJson = await refreshRes.json() as Record<string, unknown>;
+      } catch {
+        setStep('login_form');
+        setIsLoading(false);
+        return;
+      }
+
+      const token = (refreshJson as Record<string, unknown>).data as Record<string, unknown> | undefined;
+      const newAccessToken = (token as Record<string, unknown> | undefined)?.accessToken as string | undefined;
+
+      if (!newAccessToken) {
+        setStep('login_form');
+        setIsLoading(false);
+        return;
+      }
+
+      // 3. Store the new access token and validate via GET /me
+      setAccessToken(newAccessToken);
+      setTokenVersion((v) => v + 1);
+
       const meRes = await apiGetMe();
 
       if (!meRes.ok) {
-        // Token invalid — clear and go to login
-        clearTokens();
-        setAccessToken(null);
+        clearAccessToken();
+        setTokenVersion((v) => v + 1);
         setStep('login_form');
         setIsLoading(false);
         return;
@@ -278,6 +352,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setStep('dashboard');
     } catch {
       setIsServerReachable(false);
+      setStep('login_form');
     }
 
     setIsLoading(false);
@@ -289,20 +364,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cross-tab sync
+  // Cross-tab sync — logout broadcast only (no localStorage token sync)
   useEffect(() => {
-    return onAuthBroadcast(
-      (token) => setAccessToken(token),
-      () => {
-        setUser(null);
-        setAccessToken(null);
-        setStep('login_form');
-      }
-    );
+    return onAuthBroadcast(() => {
+      clearAccessToken();
+      setTokenVersion((v) => v + 1);
+      setUser(null);
+      setStep('login_form');
+    });
   }, []);
 
   // ═══════════════════════════════════════════════════════════
-  // VALUE
+  // NAVIGATION HELPERS
   // ═══════════════════════════════════════════════════════════
 
   const goToLogin = useCallback(() => {
@@ -326,6 +399,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     accessToken,
     isServerReachable,
+    submitting,
     login,
     verifyOtp,
     resendOtp,

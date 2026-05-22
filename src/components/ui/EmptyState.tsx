@@ -12,6 +12,7 @@ interface EmptyStateProps {
   title?: string;
   description?: string;
   action?: React.ReactNode;
+  className?: string;
 }
 
 export function EmptyState({
@@ -19,13 +20,14 @@ export function EmptyState({
   title = 'No data found.',
   description,
   action,
+  className = '',
 }: EmptyStateProps) {
   return (
-    <div className="flex flex-col items-center justify-center py-16 text-slate-400">
-      {icon || <Package className="w-10 h-10 mb-2 opacity-20" />}
-      <p className="text-sm font-medium">{title}</p>
+    <div className={`flex flex-col items-center justify-center py-16 text-text-muted ${className}`}>
+      {icon || <Package className="w-10 h-10 mb-2 opacity-30" />}
+      <p className="text-sm font-medium text-text-default">{title}</p>
       {description && (
-        <p className="text-xs text-slate-300 dark:text-slate-600 mt-1 text-center max-w-xs">
+        <p className="text-xs text-text-muted mt-1 text-center max-w-xs">
           {description}
         </p>
       )}

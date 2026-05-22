@@ -13,7 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { isValidOtp } from '../../utils/validation';
 
 export function OtpVerification() {
-  const { verifyOtp, resendOtp, isLoading, error, clearError } = useAuth();
+  const { verifyOtp, resendOtp, submitting, error, clearError } = useAuth();
   const [otp, setOtp] = useState('');
   const [resendCount, setResendCount] = useState(0);
   const [cooldown, setCooldown] = useState(0);
@@ -48,7 +48,7 @@ export function OtpVerification() {
 
   async function handleVerify(codeOverride?: string) {
     const finalOtp = codeOverride || otp;
-    if (!isValidOtp(finalOtp) || isLoading) return;
+    if (!isValidOtp(finalOtp) || submitting) return;
 
     clearError();
     await verifyOtp(finalOtp);
@@ -56,7 +56,7 @@ export function OtpVerification() {
   }
 
   async function handleResend() {
-    if (!canResend || isLoading) return;
+    if (!canResend || submitting) return;
     await resendOtp();
     setResendCount((prev) => prev + 1);
     setCooldown(60);
@@ -94,17 +94,17 @@ export function OtpVerification() {
           className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-center text-2xl tracking-[0.5em] font-mono"
           placeholder="000000"
           autoComplete="one-time-code"
-          disabled={isLoading}
+          disabled={submitting}
         />
       </div>
 
       <button
         type="button"
         onClick={() => handleVerify()}
-        disabled={isLoading || otp.length < 6}
+        disabled={submitting || otp.length < 6}
         className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50"
       >
-        {isLoading ? 'Verifying...' : 'Verify OTP'}
+        {submitting ? 'Verifying...' : 'Verify OTP'}
       </button>
 
       <div className="text-center">
@@ -114,7 +114,7 @@ export function OtpVerification() {
           <button
             type="button"
             onClick={handleResend}
-            disabled={isLoading}
+            disabled={submitting}
             className="text-sm text-emerald-600 font-semibold hover:underline"
           >
             Resend Code

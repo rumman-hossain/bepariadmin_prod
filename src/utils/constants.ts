@@ -23,9 +23,6 @@ export const PBKDF2_DIGEST = 'SHA-256';
 /** Output prefix for client-side password hash */
 export const PBKDF2_PREFIX = 'pbkdf2v2';
 
-/** Access token localStorage key */
-export const ACCESS_TOKEN_KEY = 'bepari_access_token';
-
 /** Max request body size in bytes (64 KiB — matches backend) */
 export const MAX_BODY_SIZE = 64 * 1024;
 

@@ -1,0 +1,280 @@
+# BepariBDAdmin-prod Memory Bank
+# Last updated: 2026-05-21
+# Purpose: Persistent knowledge base for AI-assisted development
+
+## Quick Reference Paths
+
+```
+src/design-system/
+├── tokens/tokens.ts         ← All design tokens (252 lines)
+├── theme/ThemeProvider.tsx  ← Dark/light theme context + persistence
+├── utils/cn.ts              ← clsx + tailwind-merge utility
+├── DESIGN_SYSTEM.md         ← Full documentation (354 lines)
+└── index.ts                 ← Barrel export (tokens, ThemeProvider, useTheme, cn)
+
+src/components/
+├── ui/                      ← 15 reusable primitives
+│   ├── Button.tsx           ← 5 variants, 3 sizes, icons, loading
+│   ├── Input.tsx            ← 5 types, password toggle, error/success
+│   ├── Select.tsx           ← Native select, label/error/helper
+│   ├── Textarea.tsx         ← Same pattern as Input
+│   ├── Checkbox.tsx         ← Custom check/indeterminate indicator
+│   ├── Radio.tsx            ← Custom dot indicator
+│   ├── Switch.tsx           ← Apple-style toggle, role="switch"
+│   ├── Modal.tsx            ← 5 sizes, glass backdrop, focus trap
+│   ├── Toast.tsx            ← Context + provider + hook (useToast)
+│   ├── DatePicker.tsx       ← Native date input, same API as Input
+│   ├── Card.tsx             ← Container with glass variant
+│   ├── StatusBadge.tsx      ← Status pill (success/warning/danger/info/neutral)
+│   ├── EmptyState.tsx       ← Empty placeholder with icon/title/description/action
+│   ├── DataTable.tsx        ← Generic sortable table with columns config
+│   ├── SearchFilterBar.tsx  ← Search input + filter controls bar
+│   ├── ErrorBoundary.tsx    ← React error boundary with retry
+│   └── index.ts             ← Barrel export (components + types + hooks)
+├── layout/
+│   ├── Header.tsx
+│   ├── Sidebar.tsx
+│   └── index.ts
+├── auth/                    ← Auth forms (Login, Forgot, Reset, OTP, ProtectedRoute)
+├── forms/                   ← FormField, FormSection (compositions)
+├── shared/                  ← BankDetailsForm, ConfirmDialog, DocumentList, etc.
+└── features/                ← (empty)
+
+components/                  ← 27 LEGACY page components (DO NOT MODIFY - being replaced)
+index.css                    ← Tailwind v4 @theme with CSS custom properties
+```
+
+## Design Tokens (tokens.ts)
+
+### Colors
+- **accent**: primary=#007AFF, primaryHover=#0062CC, primaryLight=#E8F2FF, primaryContent=#FFFFFF
+- **semantic**: success=#34C759, warning=#FF9500, danger=#FF3B30, info=#007AFF (each with *Light variant)
+- **surface.light**: primary=#FFFFFF, secondary=#F2F2F7, tertiary=#E5E5EA, glass=rgba(255,255,255,0.72)
+- **surface.dark**: primary=#1C1C1E, secondary=#2C2C2E, tertiary=#3A3A3C, glass=rgba(28,28,30,0.72)
+- **text.light**: primary=#1C1C1E, secondary=#6D6D72, tertiary=#AEAEB2, placeholder=#C7C7CC
+- **text.dark**: primary=#FFFFFF, secondary=#AEAEB2, tertiary=#6D6D72, placeholder=#48484A
+- **border.light**: default=rgba(60,60,67,0.12), prominent=rgba(60,60,67,0.24), focus=#007AFF
+- **border.dark**: default=rgba(255,255,255,0.08), prominent=rgba(255,255,255,0.16), focus=#0A84FF
+
+### Spacing (4px base scale)
+0, 0.5(2px), 1(4px), 1.5(6px), 2(8px), 2.5(10px), 3(12px), 3.5(14px), 4(16px), 5(20px), 6(24px), 7(28px), 8(32px), 9(36px), 10(40px), 11(44px), 12(48px), 14(56px), 16(64px), 20(80px), 24(96px)
+
+### Radius
+none(0), xs(4px), sm(8px), md(12px), lg(16px), xl(20px), 2xl(24px), 3xl(32px), full(9999px)
+- Inputs/buttons use md(12px) or 2xl(24px)
+- Modals use 3xl(32px)
+- Checkboxes use md(12px)
+
+### Shadow (Apple-style soft layered shadows)
+sm (cards/inputs), md (dropdowns/tooltips), lg (modals/popovers), xl (floating elements)
+
+### Animation
+- duration: instant(0ms), fast(100ms), normal(200ms), slow(300ms), slower(500ms)
+- easing: easeOut(0.16,1,0.3,1), easeIn(0.4,0,1,1), easeInOut(0.4,0,0.2,1), spring(0.34,1.56,0.64,1)
+
+### Component Sizes
+- componentHeight: sm=36px, md=44px, lg=52px
+- iconSize: sm=16px, md=20px, lg=24px
+- touchTarget: 44px (WCAG 2.5.5)
+
+### Typography
+- fontFamily.sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif
+- fontFamily.mono: 'SF Mono', 'JetBrains Mono', 'Fira Code', monospace
+- fontSize: xs(12), sm(14), base(16), lg(18), xl(20), 2xl(24), 3xl(30), 4xl(36)
+- lineHeight: tight(1.25), normal(1.5), relaxed(1.75)
+- fontWeight: regular(400), medium(500), semibold(600), bold(700)
+
+## Theme System (ThemeProvider.tsx)
+
+```tsx
+interface ThemeContextValue {
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
+  setTheme: (theme: 'light' | 'dark') => void;
+  isDark: boolean;
+}
+```
+
+- Storage key: 'beparibd-theme' in localStorage
+- Initial: localStorage → system preference (prefers-color-scheme: dark) → 'light'
+- Syncs 'dark' class to document.documentElement
+- Listens for live system preference changes (only if user hasn't set explicit preference)
+- All components use Tailwind `dark:` variants
+
+## Component API Patterns
+
+### Universal Pattern (every component)
+1. Parent controlled — all behavior via props, no internal state
+2. forwardRef — all interactive components support ref
+3. cn() merge — className always merged safely (clsx + tailwind-merge)
+4. Dark mode — every color has `dark:` variant
+5. Accessible — aria-* attributes, role, linked labels
+6. Type safe — full TypeScript interfaces, no `any`
+
+
+### Button
+- Variants: primary | secondary | ghost | danger | outline
+- Sizes: sm | md | lg
+- Props: variant, size, loading, disabled, fullWidth, iconLeft, iconRight, asChild, className
+- Loading: shows spinner + disables + aria-busy
+- Icons: LucideIcon type for iconLeft/iconRight
+- Score: 9/10 — missing asChild full integration
+
+### Input
+- Types: text | email | password | number | search
+- Sizes: sm | md | lg
+- Props: type, size, label, error, success, helperText, loading, prefixIcon, suffixIcon, fullWidth
+- Auto: password toggle when type="password", Search icon when type="search"
+- Number: native spinners hidden via CSS
+- Score: 9/10 — missing maxLength counter
+
+### Select
+- Props: label, error, helperText, options ({label,value,disabled?}[]), placeholder, size, fullWidth
+- Same pattern as Input BUT missing: success variant
+- Score: 8/10 — missing success, JIT bug (see below)
+
+### Textarea
+- Props: label, error, helperText, fullWidth
+- Same pattern as Input BUT missing: success variant, size prop, loading state
+- Score: 8/10 — missing success/size/loading, JIT bug (see below)
+
+### Checkbox
+- Props: label, description, error, checked (all standard HTML input props)
+- Custom indicator: sr-only native input + styled div overlay with Check/Minus icons
+- Indeterminate: handled via CSS peer-indeterminate
+- Score: 8/10
+
+### Radio
+- Same API as Checkbox
+- Custom dot indicator (circle inside styled div)
+- Score: 8/10
+
+### Switch
+- Props: label, description
+- role="switch" for accessibility
+- Green when checked (#34C759/#30D158), gray when off
+- Score: 8/10 — missing error state
+
+### Modal
+- Parent toggle via open + onClose props
+- Sizes: sm | md | lg | xl | full
+- Props: open, onClose, title, subtitle, size, closeOnBackdrop, closeOnEscape
+- Features: focus trap, focus restore, scroll lock, escape key, glass backdrop
+- Accessibility: aria-modal, aria-label, role="dialog"
+- Score: 9/10
+
+### Toast
+- Pattern: context + provider + hook
+- Methods: toast.success(title, message?), .error(), .warning(), .info()
+- Auto-dismiss: 5 seconds, manual dismiss via X button
+- Accessibility: aria-live="polite"
+- Score: 9/10
+
+### DatePicker
+- Native <input type="date"> for mobile-friendly date picker
+- Same API pattern as Input: label, error, helperText, size
+- Props: value(string|null), onChange, min, max, placeholder, required, disabled
+- Calendar icon via Lucide Calendar component
+- Score: 8/10 — JIT bug (see below), browser-dependent styling
+
+### StatusBadge
+- Variants: success | warning | danger | info | neutral
+- Uses design tokens for all colors
+- Score: 8/10
+
+### Card
+- Variants: default | glass
+- Glass: backdrop-blur-xl with rgba background
+- Props: children, className, variant, onClick, padding
+- Score: 8/10
+
+### DataTable
+- Generic sortable table
+- Props: columns (Column[] with key, title, sortable?, render?), data, keyField, loading, emptyState
+- Score: 8/10
+
+### SearchFilterBar
+- Search input + filter controls bar
+- Composes Input + other controls
+- Score: 7/10
+
+## 🔴 CRITICAL BUGS — Tailwind JIT Template Literals
+
+**These components use dynamic class strings invisible to Tailwind JIT compiler. Will silently fail in production.**
+
+```typescript
+// ❌ components/ui/Select.tsx — uses componentHeight.sm / radius.lg / radius['2xl'] in template literals
+sizeClasses = {
+  sm: `h-[${componentHeight.sm}] text-sm rounded-[${radius.lg}] pl-3.5 pr-9`,
+  md: `h-[${componentHeight.md}] text-[15px] rounded-[${radius['2xl']}] pl-4 pr-10`,
+  lg: `h-[${componentHeight.lg}] text-[17px] rounded-[${radius['2xl']}] pl-5 pr-12`,
+}
+
+// ❌ components/ui/DatePicker.tsx — same pattern
+sizeClasses = {
+  sm: `h-[${componentHeight.sm}] text-sm rounded-[${radius.lg}]`,
+  ...
+}
+
+// ❌ components/ui/Textarea.tsx — uses radius['2xl'] in template literal
+className with `rounded-[${radius['2xl']}] border`
+```
+
+**Correct pattern (Input.tsx, Button.tsx do this correctly):**
+```typescript
+// ✅ Static strings that Tailwind JIT CAN see
+const sizeClasses: Record<string, string> = {
+  sm: 'h-9 text-sm rounded-lg',      // 36px, 16px
+  md: 'h-11 text-[15px] rounded-2xl', // 44px, 24px
+  lg: 'h-[52px] text-[17px] rounded-2xl',
+};
+```
+
+## CSS Custom Properties (index.css)
+
+Tailwind v4 `@theme` block maps design tokens to CSS custom properties:
+- `--color-accent-*` → accent
+- `--color-semantic-*` → semantic
+- `--color-surface-*` → surface
+- `--color-text-*` → text
+- `--color-border-*` → border
+- `--radius-*` → radius scale
+- `--shadow-*` → shadow scale
+- `--ease-*` → easing curves
+
+Dark mode overrides in `.dark {}` CSS class block.
+
+## Import Paths
+
+```tsx
+// Design system foundation
+import { tokens, ThemeProvider, useTheme, cn } from '@/src/design-system';
+import { accent, semantic, spacing, radius } from '@/src/design-system/tokens/tokens';
+
+// UI components
+import { Button, Input, Select, Modal, useToast } from '@/src/components/ui';
+
+// Layout
+import { Header, Sidebar } from '@/src/components/layout';
+```
+
+## Legacy Components (components/ directory)
+
+27 page components in root `components/` directory. These are being replaced by src/ route-based pages. Do NOT modify these — they use raw HTML elements instead of design system components and will be deleted after migration.
+
+## Architecture Rules
+
+1. Never create huge component first — build smallest stable unit
+2. Test after every change
+3. Refactor immediately if bad design found
+4. Prefer composition over massive props
+5. Parent must control behavior via props
+6. No duplicated styles — use design tokens
+7. No inline magic numbers — use tokens
+8. No dead code
+9. No unnecessary abstraction
+10. No unnecessary state
+11. All interactive components: forwardRef + cn() + dark mode + accessibility
+12. Import from barrel exports (src/components/ui, src/design-system)
+13. TypeScript strict — no `any`
+14. Token values in class strings must be STATIC (Tailwind JIT requirement)

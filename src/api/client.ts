@@ -4,48 +4,20 @@
  * Handles all API communication with automatic token attachment,
  * silent refresh on 401, request deduplication, and retries.
  *
- * Refresh token is handled via httpOnly cookie (set by backend).
- * Access token is stored in localStorage.
+ * Refresh token: httpOnly cookie (set by backend, JS-inaccessible).
+ * Access token: module-scope closure variable (memoryTokenStore) —
+ *   NEVER touches localStorage or sessionStorage (XSS-proof).
  */
 
-import { API_BASE_URL, ACCESS_TOKEN_KEY, REQUEST_TIMEOUT } from '../utils/constants';
+import { API_BASE_URL, REQUEST_TIMEOUT } from '../utils/constants';
+import {
+  getAccessToken,
+  setAccessToken,
+  clearAccessToken,
+  isTokenExpired,
+  isTokenExpiringSoon,
+} from '../auth/memoryTokenStore';
 import type { ApiResponse } from '../types/api';
-
-// ═══════════════════════════════════════════════════════════════
-// Token Helpers
-// ═══════════════════════════════════════════════════════════════
-
-function getAccessToken(): string | null {
-  return localStorage.getItem(ACCESS_TOKEN_KEY);
-}
-
-function saveAccessToken(token: string): void {
-  localStorage.setItem(ACCESS_TOKEN_KEY, token);
-}
-
-function clearAccessToken(): void {
-  localStorage.removeItem(ACCESS_TOKEN_KEY);
-}
-
-/** Decode JWT payload to get expiry timestamp */
-function getTokenExpiry(token: string): number | null {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.exp ? payload.exp * 1000 : null;
-  } catch {
-    return null;
-  }
-}
-
-function isTokenExpired(token: string): boolean {
-  const exp = getTokenExpiry(token);
-  return exp ? Date.now() > exp : true;
-}
-
-function isTokenExpiringSoon(token: string, seconds = 60): boolean {
-  const exp = getTokenExpiry(token);
-  return exp ? Date.now() > exp - seconds * 1000 : true;
-}
 
 // ═══════════════════════════════════════════════════════════════
 // Token Refresh — Singleton with Queued Waiters
@@ -79,7 +51,7 @@ async function refreshAccessToken(): Promise<string | null> {
       const newToken = json.data?.accessToken;
 
       if (newToken) {
-        saveAccessToken(newToken);
+        setAccessToken(newToken);
       }
 
       return newToken;
@@ -101,7 +73,7 @@ async function refreshAccessToken(): Promise<string | null> {
 
 async function getValidAccessToken(): Promise<string | null> {
   const currentToken = getAccessToken();
-  if (currentToken && !isTokenExpired(currentToken)) {
+  if (currentToken && !isTokenExpired()) {
     return currentToken;
   }
   return refreshAccessToken();
@@ -166,7 +138,7 @@ export async function request<T>(
     if (options.auth) {
       // Preemptive refresh if token expiring soon
       const currentToken = getAccessToken();
-      if (currentToken && isTokenExpiringSoon(currentToken, 60)) {
+      if (currentToken && isTokenExpiringSoon(60)) {
         await refreshAccessToken();
       }
 
@@ -241,4 +213,4 @@ export async function request<T>(
 // Public API
 // ═══════════════════════════════════════════════════════════════
 
-export { getAccessToken, saveAccessToken, clearAccessToken, getValidAccessToken, isTokenExpired };
+export { getAccessToken, getValidAccessToken };

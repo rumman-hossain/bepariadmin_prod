@@ -6,7 +6,8 @@
  * (wholesaleapp-client/src/services/api/client.ts).
  */
 
-import { request, clearAccessToken } from './client';
+import { request } from './client';
+import { clearAccessToken } from '../auth/memoryTokenStore';
 import type {
   ApiResponse,
   LoginPayload,
@@ -47,8 +48,9 @@ export function apiRefresh(): Promise<ApiResponse<RefreshResponseData>> {
 }
 
 export function apiLogout(): Promise<ApiResponse<string>> {
-  clearAccessToken();
-  return request<string>('POST', '/api/v1/auth/logout', { auth: true });
+  return request<string>('POST', '/api/v1/auth/logout', { auth: true }).finally(() => {
+    clearAccessToken();
+  });
 }
 
 export function apiForgotPassword(
