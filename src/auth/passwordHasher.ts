@@ -25,10 +25,12 @@ export async function hashPassword(password: string, salt: string): Promise<stri
     ['deriveBits']
   );
 
+  const normalizedSalt = salt.trim().toLowerCase();
+
   const derivedBits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
-      salt: encoder.encode(salt),
+      salt: encoder.encode(normalizedSalt),
       iterations: PBKDF2_ITERATIONS,
       hash: PBKDF2_DIGEST,
     },
