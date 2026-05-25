@@ -12,18 +12,22 @@
 
 let accessToken: string | null = null;
 let tokenExpiresAt: number = 0;
+let localExpiresAt: number = 0;
 const subscribers = new Set<(token: string | null) => void>();
 
 // ─── Helpers ────────────────────────────────────────────────────────────
 
-function decodeJwtExpiry(token: string): number {
+function decodeJwtClaims(token: string): { exp: number; iat: number } | null {
   try {
     const [, payloadB64] = token.split('.');
-    if (!payloadB64) return 0;
-    const payload = JSON.parse(atob(payloadB64));
-    return typeof payload.exp === 'number' ? payload.exp * 1000 : 0; // ms
+    if (!payloadB64) return null;
+    const payload = JSON.parse(atob(payloadB64.replace(/-/g, '+').replace(/_/g, '/')));
+    return {
+      exp: typeof payload.exp === 'number' ? payload.exp * 1000 : 0, // ms
+      iat: typeof payload.iat === 'number' ? payload.iat * 1000 : 0, // ms
+    };
   } catch {
-    return 0;
+    return null;
   }
 }
 
@@ -35,13 +39,32 @@ export function getAccessToken(): string | null {
 
 export function setAccessToken(token: string | null): void {
   accessToken = token;
-  tokenExpiresAt = token ? decodeJwtExpiry(token) : 0;
+  if (token) {
+    const claims = decodeJwtClaims(token);
+    if (claims && claims.exp > 0 && claims.iat > 0) {
+      tokenExpiresAt = claims.exp;
+      const lifespan = claims.exp - claims.iat;
+      // Safeguard lifespan values: must be between 0 and 2 hours
+      if (lifespan > 0 && lifespan < 7200 * 1000) {
+        localExpiresAt = Date.now() + lifespan;
+      } else {
+        localExpiresAt = claims.exp;
+      }
+    } else {
+      tokenExpiresAt = 0;
+      localExpiresAt = 0;
+    }
+  } else {
+    tokenExpiresAt = 0;
+    localExpiresAt = 0;
+  }
   for (const fn of subscribers) fn(token);
 }
 
 export function clearAccessToken(): void {
   accessToken = null;
   tokenExpiresAt = 0;
+  localExpiresAt = 0;
   for (const fn of subscribers) fn(null);
 }
 
@@ -53,8 +76,8 @@ export function getTokenExpiry(): number {
  * Returns true when token is expired (with 30-second buffer).
  */
 export function isTokenExpired(): boolean {
-  if (!accessToken || tokenExpiresAt === 0) return true;
-  return Date.now() > tokenExpiresAt - 30_000;
+  if (!accessToken || localExpiresAt === 0) return true;
+  return Date.now() > localExpiresAt - 30_000;
 }
 
 /**
@@ -62,8 +85,8 @@ export function isTokenExpired(): boolean {
  * Default 120 seconds (2 minutes) — ideal for silent refresh.
  */
 export function isTokenExpiringSoon(thresholdSeconds: number = 120): boolean {
-  if (!accessToken || tokenExpiresAt === 0) return false;
-  return Date.now() > tokenExpiresAt - thresholdSeconds * 1000;
+  if (!accessToken || localExpiresAt === 0) return false;
+  return Date.now() > localExpiresAt - thresholdSeconds * 1000;
 }
 
 /**
