@@ -1,48 +1,46 @@
-import { useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useWholesalerStore } from '../store';
+import { useWholesalerNavigation } from './useWholesalerNavigation';
 import type { Wholesaler } from '@/src/types/domain';
 
-interface UseWholesalerDetailReturn {
-  selectedWholesaler: Wholesaler | null;
-  select: (id: string) => void;
-  goBack: () => void;
-  updateStatus: (id: string, status: 'Active' | 'Suspended') => void;
-  updateCommission: (id: string, rate: number) => void;
-}
-
-export function useWholesalerDetail(): UseWholesalerDetailReturn {
-  const selectWholesaler = useWholesalerStore((s) => s.selectWholesaler);
+export function useWholesalerDetail(wholesalerId: string | null) {
+  const { goBackToList, goToEdit, navigate } = useWholesalerNavigation();
+  const selectedWholesaler = useWholesalerStore((s) => s.selectedWholesaler);
+  const isDetailLoading = useWholesalerStore((s) => s.isDetailLoading);
+  const isMutating = useWholesalerStore((s) => s.isMutating);
+  const error = useWholesalerStore((s) => s.error);
+  const fetchWholesalerById = useWholesalerStore((s) => s.fetchWholesalerById);
   const clearSelection = useWholesalerStore((s) => s.clearSelection);
-  const updateWholesaler = useWholesalerStore((s) => s.updateWholesaler);
+  const clearError = useWholesalerStore((s) => s.clearError);
 
-  const selectedWholesaler = useWholesalerStore((s) => {
-    if (!s.selectedId) return null;
-    return s.wholesalers.find((w) => w.id === s.selectedId) ?? null;
-  });
+  const refetch = useCallback(async () => {
+    if (wholesalerId) {
+      await fetchWholesalerById(wholesalerId);
+    }
+  }, [wholesalerId, fetchWholesalerById]);
 
-  const select = useCallback(
-    (id: string) => selectWholesaler(id),
-    [selectWholesaler],
-  );
+  useEffect(() => {
+    if (wholesalerId) {
+      fetchWholesalerById(wholesalerId);
+    } else {
+      clearSelection();
+    }
+  }, [wholesalerId, fetchWholesalerById, clearSelection]);
 
-  const goBack = useCallback(() => clearSelection(), [clearSelection]);
+  const goBack = goBackToList;
 
-  const updateStatus = useCallback(
-    (id: string, status: 'Active' | 'Suspended') => {
-      updateWholesaler({ ...useWholesalerStore.getState().wholesalers.find((w) => w.id === id)!, status });
-    },
-    [updateWholesaler],
-  );
+  const wholesaler: Wholesaler | null =
+    wholesalerId && selectedWholesaler?.id === wholesalerId ? selectedWholesaler : null;
 
-  const updateCommission = useCallback(
-    (id: string, rate: number) => {
-      const current = useWholesalerStore.getState().wholesalers.find((w) => w.id === id);
-      if (current) {
-        updateWholesaler({ ...current, commissionRate: rate });
-      }
-    },
-    [updateWholesaler],
-  );
-
-  return { selectedWholesaler, select, goBack, updateStatus, updateCommission };
+  return {
+    wholesaler,
+    isLoading: isDetailLoading,
+    isMutating,
+    error,
+    refetch,
+    goBack,
+    goToEdit,
+    clearError,
+    navigate,
+  };
 }

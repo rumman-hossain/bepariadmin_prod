@@ -47,19 +47,10 @@ const LazyProductForm = React.lazy(() =>
 );
 
 // { Wrappers that inject onNavigate via useNavigate }
-const WholesalerListRoute: React.FC = () => {
-  const n = useNavigate();
-  return <LazyList onNavigate={(p: string) => n(p)} />;
-};
-const WholesalerCreateRoute: React.FC = () => {
-  const n = useNavigate();
-  return <LazyCreate onNavigate={(p: string) => n(p)} />;
-};
+const WholesalerListRoute: React.FC = () => <LazyList />;
+const WholesalerCreateRoute: React.FC = () => <LazyCreate />;
 const WholesalerDetailsRoute: React.FC = () => <LazyDetails />;
-const WholesalerEditRoute: React.FC = () => {
-  const n = useNavigate();
-  return <LazyEdit onNavigate={(p: string) => n(p)} />;
-};
+const WholesalerEditRoute: React.FC = () => <LazyEdit />;
 
 // ─── Placeholder pages for routes not yet migrated ─────
 /** Lazy page wrapper with Suspense fallback */

@@ -54,9 +54,7 @@ export const wholesalerSchema = z.object({
   id: z.string().optional(),
   companyName: z.string().min(2, 'Company name is required (min 2 chars)'),
   categories: z.array(z.string()).min(1, 'At least one category is required'),
-  status: z.enum(['Active', 'Review', 'Suspended']).default('Active'),
-  acceptanceRate: z.number().min(0).max(100).default(100),
-  dispatchSpeed: z.string().default('24h'),
+  status: z.enum(['Active', 'Review', 'Suspended', 'Rejected']).default('Active'),
   riskScore: z.number().min(0).max(100).optional(),
   createdAt: z.string().optional(),
 
@@ -68,7 +66,7 @@ export const wholesalerSchema = z.object({
     .regex(/^01[3-9]\d{8}$/, 'Invalid Bangladeshi mobile number'),
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
   logoUrl: z.string().optional().or(z.literal('')),
-  commissionRate: z.float32().min(0).max(100).optional().default(9.5),
+  commissionRate: z.number().min(0).max(100).optional().default(15),
 
   // Array Structures (Aligned with Backend)
   addresses: z.array(addressItemSchema).min(1, 'At least one address is required'),

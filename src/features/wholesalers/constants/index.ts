@@ -14,7 +14,7 @@ export const WHOLESALER_LOCATIONS = [
   'Khulna',
 ] as const;
 
-export const WHOLESALER_STATUSES = ['Active', 'Review', 'Suspended'] as const;
+export const WHOLESALER_STATUSES = ['Active', 'Review', 'Suspended', 'Rejected'] as const;
 
 export const DEFAULT_COMMISSION_RATE = 15;
 

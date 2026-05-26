@@ -89,12 +89,14 @@ export interface Retailer {
 
 export interface Wholesaler {
   id: string;
+  /** Human-readable supplier code from backend (e.g. WHL-00042) */
+  code?: string;
   companyName: string;
   category: string;
   location: string;
-  status: 'Active' | 'Review' | 'Suspended';
-  acceptanceRate: number;
-  dispatchSpeed: string;
+  status: 'Active' | 'Review' | 'Suspended' | 'Rejected';
+  acceptanceRate?: number;
+  dispatchSpeed?: string;
   riskScore?: number;
   createdAt?: string;
   

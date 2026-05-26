@@ -1,26 +1,19 @@
-import { useCallback } from 'react';
-import { useForm } from '@/src/hooks/useForm';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { wholesalerSchema, type WholesalerFormData } from '../schemas/wholesalerSchema';
 import { useWholesalerStore } from '../store';
-import { createWholesaler, updateWholesaler as apiUpdateWholesaler } from '../api/wholesalerApi';
-import { useToast } from '@/src/components/ui/Toast';
+import { validateWholesalerForm } from '../utils/formErrors';
+import { DEFAULT_COMMISSION_RATE } from '../constants';
+import { wholesalerDebugLog } from '../utils/debugLog';
 
-interface UseWholesalerFormOptions {
-  initialData?: Partial<WholesalerFormData>;
-  onSuccess?: () => void;
-}
-
-const emptyInitial: WholesalerFormData = {
+export const EMPTY_WHOLESALER_FORM: WholesalerFormData = {
   companyName: '',
   categories: [],
   status: 'Active',
-  acceptanceRate: 100,
-  dispatchSpeed: '24h',
   ownerName: '',
   mobile: '',
   email: '',
   logoUrl: '',
-  commissionRate: 9.5,
+  commissionRate: DEFAULT_COMMISSION_RATE,
   addresses: [
     {
       addressType: 'primary',
@@ -29,7 +22,7 @@ const emptyInitial: WholesalerFormData = {
       postalCode: '',
       addressLine: '',
       isDefault: true,
-    }
+    },
   ],
   bankDetailsList: [],
   digitalWallets: [],
@@ -37,41 +30,90 @@ const emptyInitial: WholesalerFormData = {
   password: '',
 };
 
+interface UseWholesalerFormOptions {
+  initialData?: Partial<WholesalerFormData>;
+  onSuccess?: (createdOrUpdated: { id: string }) => void | Promise<void>;
+}
+
 export function useWholesalerForm({ initialData, onSuccess }: UseWholesalerFormOptions = {}) {
-  const addWholesaler = useWholesalerStore((s) => s.addWholesaler);
-  const updateWholesaler = useWholesalerStore((s) => s.updateWholesaler);
-  const isEditing = !!initialData?.id;
-  const toast = useToast();
+  const createWholesalerFromForm = useWholesalerStore((s) => s.createWholesalerFromForm);
+  const updateWholesalerFromForm = useWholesalerStore((s) => s.updateWholesalerFromForm);
+  const isMutating = useWholesalerStore((s) => s.isMutating);
 
-  const handleSubmit = useCallback(
-    async (values: WholesalerFormData) => {
-      try {
-        if (isEditing && values.id) {
-          // Real API call for edit
-          const updated = await apiUpdateWholesaler(values.id, values);
-          // Sync local store
-          updateWholesaler(updated);
-          toast.success('Supplier Profile Updated', `${values.companyName} profile has been saved successfully.`);
-        } else {
-          // Real API call for onboarding
-          const created = await createWholesaler(values);
-          // Sync local store
-          addWholesaler(created);
-          toast.success('Supplier Onboarded', `${values.companyName} has been registered successfully.`);
-        }
-        onSuccess?.();
-      } catch (err: unknown) {
-        console.error('Submit Wholesaler Form error:', err);
-        const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please check your network or try again.';
-        toast.error('Failed to Save', errMsg);
-      }
-    },
-    [isEditing, addWholesaler, updateWholesaler, onSuccess, toast],
-  );
-
-  return useForm<WholesalerFormData>({
-    initialValues: { ...emptyInitial, ...initialData },
-    schema: wholesalerSchema,
-    onSubmit: handleSubmit,
+  const [values, setValues] = useState<WholesalerFormData>({
+    ...EMPTY_WHOLESALER_FORM,
+    ...initialData,
   });
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const hydratedIdRef = useRef<string | undefined>(undefined);
+  /** Must follow values.id — initialData is undefined while edit page loads */
+  const isEditing = !!values.id;
+
+  useEffect(() => {
+    if (!initialData?.id) return;
+    if (hydratedIdRef.current === initialData.id) return;
+    hydratedIdRef.current = initialData.id;
+    setValues({ ...EMPTY_WHOLESALER_FORM, ...initialData });
+    setErrors({});
+  }, [initialData]);
+
+  const setField = useCallback(<K extends keyof WholesalerFormData>(field: K, value: WholesalerFormData[K]) => {
+    setValues((prev) => ({ ...prev, [field]: value }));
+    setErrors((prev) => {
+      const next = { ...prev };
+      delete next[field as string];
+      return next;
+    });
+  }, []);
+
+  const setFields = useCallback((partial: Partial<WholesalerFormData>) => {
+    setValues((prev) => ({ ...prev, ...partial }));
+  }, []);
+
+  const validate = useCallback((): boolean => {
+    const result = validateWholesalerForm(wholesalerSchema, values);
+    if (result.success === false) {
+      setErrors(result.errors);
+      return false;
+    }
+    setErrors({});
+    return true;
+  }, [values]);
+
+  const handleSubmit = useCallback(async (): Promise<boolean> => {
+    if (!validate()) return false;
+
+    try {
+      const branch = values.id ? 'update' : 'create';
+      wholesalerDebugLog('useWholesalerForm.ts:handleSubmit', 'submit branch', 'A', {
+        branch,
+        valuesId: values.id ?? null,
+        isEditing,
+      });
+      if (values.id) {
+        const updated = await updateWholesalerFromForm(values.id, values);
+        await onSuccess?.({ id: updated.id });
+      } else {
+        const created = await createWholesalerFromForm(values);
+        await onSuccess?.({ id: created.id });
+      }
+      return true;
+    } catch {
+      wholesalerDebugLog('useWholesalerForm.ts:handleSubmit', 'submit failed', 'A', {
+        valuesId: values.id ?? null,
+      });
+      return false;
+    }
+  }, [validate, values, isEditing, updateWholesalerFromForm, createWholesalerFromForm, onSuccess]);
+
+  return {
+    values,
+    errors,
+    isSubmitting: isMutating,
+    setField,
+    setFields,
+    validate,
+    handleSubmit,
+    isEditing,
+  };
 }
