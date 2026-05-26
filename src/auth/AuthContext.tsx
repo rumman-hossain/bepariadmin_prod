@@ -267,7 +267,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     async function fetchWithTimeout(
       url: string,
       options: RequestInit = {},
-      timeoutMs = 3000,
+      timeoutMs = 15000,
     ): Promise<Response | null> {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -284,7 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Run health check and silent refresh in PARALLEL (not sequential)
       const [healthRes, refreshRes] = await Promise.all([
-        fetchWithTimeout('/health', {}, 3000),
+        fetchWithTimeout('/health', {}, 15000),
         fetchWithTimeout(
           `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/auth/refresh`,
           {
@@ -292,7 +292,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             credentials: 'include',
             headers: { 'Content-Type': 'application/json' },
           },
-          3000,
+          15000,
         ),
       ]);
 
