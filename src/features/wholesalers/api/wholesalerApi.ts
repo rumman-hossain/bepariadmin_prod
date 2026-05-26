@@ -134,14 +134,19 @@ function mapProfileToWholesaler(profile: Record<string, unknown>): Wholesaler {
 function mapStatus(s: string): Wholesaler['status'] {
   switch (s.toUpperCase()) {
     case 'ACTIVE':
+    case 'APPROVED':
       return 'Active';
     case 'INIT':
     case 'REVIEW':
+    case 'PENDING_REVIEW':
+    case 'STORE_CREATED':
+    case 'RESUBMIT_REQUIRED':
       return 'Review';
     case 'REJECTED':
     case 'SUSPENDED':
-    default:
       return 'Suspended';
+    default:
+      return 'Review';
   }
 }
 
