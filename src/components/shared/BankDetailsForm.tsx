@@ -1,5 +1,6 @@
 import React from 'react';
 import { Input } from '@/src/components/ui/Input';
+import { Select } from '@/src/components/ui/Select';
 
 interface BankDetails {
   bankName: string;
@@ -9,11 +10,16 @@ interface BankDetails {
   routing: string;
 }
 
+interface DigitalWallet {
+  walletType: 'bkash' | 'nagad' | 'rocket' | 'upay';
+  accountNumber: string;
+}
+
 interface BankDetailsFormProps {
   value: BankDetails;
-  bkashNumber: string;
+  digitalWallet: DigitalWallet;
   onChange: (bankDetails: BankDetails) => void;
-  onBkashChange: (bkash: string) => void;
+  onWalletChange: (wallet: DigitalWallet) => void;
   isEditing: boolean;
 }
 
@@ -25,14 +31,40 @@ const emptyBank: BankDetails = {
   routing: '',
 };
 
+const emptyWallet: DigitalWallet = {
+  walletType: 'bkash',
+  accountNumber: '',
+};
+
 export function BankDetailsForm({
   value = emptyBank,
-  bkashNumber = '',
+  digitalWallet = emptyWallet,
   onChange,
-  onBkashChange,
+  onWalletChange,
   isEditing,
 }: BankDetailsFormProps) {
   const bank = value || emptyBank;
+  const wallet = digitalWallet || emptyWallet;
+
+  const getWalletLabel = (type: string) => {
+    switch (type) {
+      case 'bkash': return 'bKash';
+      case 'nagad': return 'Nagad';
+      case 'rocket': return 'Rocket';
+      case 'upay': return 'Upay';
+      default: return 'Digital Wallet';
+    }
+  };
+
+  const getWalletColor = (type: string) => {
+    switch (type) {
+      case 'bkash': return 'text-pink-600 dark:text-pink-400 font-bold';
+      case 'nagad': return 'text-orange-600 dark:text-orange-400 font-bold';
+      case 'rocket': return 'text-purple-600 dark:text-purple-400 font-bold';
+      case 'upay': return 'text-blue-600 dark:text-blue-400 font-bold';
+      default: return 'text-slate-600 dark:text-slate-400 font-bold';
+    }
+  };
 
   if (!isEditing) {
     return (
@@ -43,10 +75,10 @@ export function BankDetailsForm({
         {bank.accountName && <p className="text-xs text-[#6D6D72] dark:text-[#AEAEB2]">{bank.accountName}</p>}
         {bank.accountNumber && <p className="text-xs text-[#6D6D72] dark:text-[#AEAEB2] font-mono mt-1">{bank.accountNumber}</p>}
         {bank.branch && <p className="text-xs text-[#6D6D72] dark:text-[#AEAEB2] mt-0.5">{bank.branch}</p>}
-        {bkashNumber && (
+        {wallet.accountNumber && (
           <div className="mt-2 flex items-center gap-2 text-xs">
-            <span className="font-bold text-pink-600">bKash:</span>
-            <span className="font-mono text-[#1C1C1E] dark:text-[#AEAEB2]">{bkashNumber}</span>
+            <span className={getWalletColor(wallet.walletType)}>{getWalletLabel(wallet.walletType)}:</span>
+            <span className="font-mono text-[#1C1C1E] dark:text-[#AEAEB2]">{wallet.accountNumber}</span>
           </div>
         )}
       </div>
@@ -92,13 +124,32 @@ export function BankDetailsForm({
           onChange={(e) => onChange({ ...bank, routing: e.target.value })}
         />
       </div>
-      <Input
-        size="sm"
-        label="bKash Number (Optional)"
-        placeholder="e.g. 01712345678"
-        value={bkashNumber}
-        onChange={(e) => onBkashChange(e.target.value)}
-      />
+      
+      <div className="grid grid-cols-3 gap-3 items-end">
+        <div className="col-span-1">
+          <Select
+            size="sm"
+            label="Wallet Type"
+            options={[
+              { label: 'bKash', value: 'bkash' },
+              { label: 'Nagad', value: 'nagad' },
+              { label: 'Rocket', value: 'rocket' },
+              { label: 'Upay', value: 'upay' },
+            ]}
+            value={wallet.walletType}
+            onChange={(e) => onWalletChange({ ...wallet, walletType: e.target.value as 'bkash' | 'nagad' | 'rocket' | 'upay' })}
+          />
+        </div>
+        <div className="col-span-2">
+          <Input
+            size="sm"
+            label="Wallet Number (Optional)"
+            placeholder="e.g. 01712345678"
+            value={wallet.accountNumber}
+            onChange={(e) => onWalletChange({ ...wallet, accountNumber: e.target.value })}
+          />
+        </div>
+      </div>
     </div>
   );
 }

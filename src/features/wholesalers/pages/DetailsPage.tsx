@@ -5,12 +5,12 @@ import { StatusBadge } from '@/src/components/ui/StatusBadge';
 import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { ConfirmDialog } from '@/src/components/shared/ConfirmDialog';
 import { EntityDetailsCard } from '@/src/components/shared/EntityDetailsCard';
-import { BankDetailsForm } from '@/src/components/shared/BankDetailsForm';
+//import { BankDetailsForm } from '@/src/components/shared/BankDetailsForm';
 import { DocumentList } from '@/src/components/shared/DocumentList';
 import { IdCard } from '@/src/components/shared/IdCard';
 import { useWholesalerDetail } from '../hooks/useWholesalerDetail';
 //import { MOCK_ORDERS, WHOLESALER_PAYMENTS } from '@/services/mockData';
-import { Package, DollarSign, Star, Zap, Edit2, Save, X, MapPin, Building, FileText, Smartphone, ThumbsUp, ThumbsDown, AlertTriangle } from 'lucide-react';
+import { Package, DollarSign, Star, Zap, Edit2, Save, X, MapPin, Building, FileText, Smartphone, ThumbsUp, ThumbsDown, AlertTriangle, Image } from 'lucide-react';
 import type { Order, PaymentRecord } from '@/src/types/domain';
 
 export function DetailsPage() {
@@ -129,9 +129,114 @@ export function DetailsPage() {
           <EntityDetailsCard
             title="Business Profile"
             sections={[
-              { icon: MapPin, title: 'Address', content: w.address || <span className="italic text-slate-400">Not Added</span> },
+              { 
+                icon: Image, 
+                title: 'Company Logo', 
+                content: (() => {
+                  if (!w.logoUrl) return <span className="italic text-slate-400">Not Added</span>;
+                  const displayUrl = w.logoUrl.startsWith('gs://') 
+                    ? `https://storage.googleapis.com/${w.logoUrl.replace('gs://', '')}` 
+                    : w.logoUrl.startsWith('mock-gcs://')
+                      ? 'https://placehold.co/100x100?text=Uploaded+Logo' 
+                      : w.logoUrl;
+                  return (
+                    <div className="flex items-center gap-3">
+                      <img 
+                        src={displayUrl} 
+                        alt="Company Logo" 
+                        className="w-14 h-14 object-cover rounded-xl border border-[rgba(60,60,67,0.12)] shadow-sm bg-white"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).src = 'https://placehold.co/100x100?text=Logo';
+                        }}
+                      />
+                      {w.logoUrl.startsWith('gs://') && <span className="text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-500 font-bold px-1.5 py-0.5 rounded">GCS URL</span>}
+                    </div>
+                  );
+                })()
+              },
+              { 
+                icon: Package, 
+                title: 'Business Categories', 
+                content: w.category ? (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {w.category.split(',').map((c, i) => (
+                      <span key={i} className="px-2.5 py-0.5 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-[#007AFF] text-[10px] font-bold border border-blue-100 dark:border-blue-900/30 uppercase tracking-wider">{c.trim()}</span>
+                    ))}
+                  </div>
+                ) : <span className="italic text-slate-400">None Specified</span>
+              },
               { icon: Smartphone, title: 'Contact', content: <><span>{w.mobile || '—'}</span><br /><span className="text-xs text-slate-400">{w.email || '—'}</span></> },
-              { icon: Building, title: 'Bank Details', content: <BankDetailsForm value={w.bankDetails || { bankName: '', accountName: '', accountNumber: '', branch: '', routing: '' }} bkashNumber={w.bkash || ''} onChange={() => {}} onBkashChange={() => {}} isEditing={isEditing} /> },
+              { 
+                icon: MapPin, 
+                title: 'Addresses', 
+                content: (w.addresses && w.addresses.length > 0) ? (
+                  <div className="space-y-2 mt-1">
+                    {w.addresses.map((a, i) => (
+                      <div key={i} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-[rgba(60,60,67,0.06)] flex flex-col gap-0.5">
+                        <div className="flex items-center justify-between text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                          <span>{a.addressType} address</span>
+                          {a.isDefault && <span className="text-[9px] text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.2 rounded font-bold">Default</span>}
+                        </div>
+                        <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{a.addressLine}</div>
+                        <div className="text-[10px] text-slate-400">{a.district} - {a.postalCode}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (w.address || <span className="italic text-slate-400">Not Added</span>) 
+              },
+              { 
+                icon: Building, 
+                title: 'Financial Information', 
+                content: (
+                  <div className="space-y-4 mt-1 w-full">
+                    {/* Banks */}
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-wider">Bank Accounts</div>
+                      {(w.bankDetailsList && w.bankDetailsList.length > 0) ? (
+                        w.bankDetailsList.map((b, i) => (
+                          <div key={i} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-[rgba(60,60,67,0.06)] flex flex-col gap-0.5">
+                            <div className="flex items-center justify-between text-[10px] font-bold text-slate-500">
+                              <span className="font-bold">{b.bankName}</span>
+                              {b.isDefault && <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.2 rounded">Default</span>}
+                            </div>
+                            <div className="text-xs font-mono text-slate-800 dark:text-slate-200">{b.accountNumber}</div>
+                            <div className="text-[10px] text-slate-400">{b.accountName} {b.branch ? `• ${b.branch} Branch` : ''}</div>
+                          </div>
+                        ))
+                      ) : (
+                        w.bankDetails?.bankName ? (
+                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-[rgba(60,60,67,0.06)]">
+                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200">{w.bankDetails.bankName}</div>
+                            <div className="text-xs text-slate-500">{w.bankDetails.accountNumber}</div>
+                          </div>
+                        ) : <span className="text-xs italic text-slate-400">No bank accounts configured</span>
+                      )}
+                    </div>
+
+                    {/* Mobile Wallets */}
+                    <div className="space-y-2">
+                      <div className="text-[10px] font-bold text-[#8E8E93] uppercase tracking-wider">Mobile Wallets</div>
+                      {(w.digitalWallets && w.digitalWallets.length > 0) ? (
+                        w.digitalWallets.map((wallet, i) => (
+                          <div key={i} className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-[rgba(60,60,67,0.06)] flex items-center justify-between">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase">{wallet.walletType}</span>
+                              <span className="text-xs font-mono font-bold text-slate-800 dark:text-slate-200">{wallet.accountNumber}</span>
+                            </div>
+                            {wallet.isDefault && <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.5 rounded">Default</span>}
+                          </div>
+                        ))
+                      ) : (
+                        w.digitalWallet?.accountNumber ? (
+                          <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-[rgba(60,60,67,0.06)] flex items-center justify-between">
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{w.digitalWallet.accountNumber} ({w.digitalWallet.walletType})</span>
+                          </div>
+                        ) : <span className="text-xs italic text-slate-400">No mobile wallets configured</span>
+                      )}
+                    </div>
+                  </div>
+                ) 
+              },
               { icon: FileText, title: 'Documents', content: <DocumentList documents={w.documents || []} /> },
             ]}
           />
@@ -142,8 +247,8 @@ export function DetailsPage() {
 
         {/* Right — Tables */}
         <div className="lg:col-span-2 space-y-6">
-          <DataTable columns={orderColumns as unknown as Column<Record<string, unknown>>[]} data={0 as unknown as Record<string, unknown>[]} keyField={'id' as keyof Record<string, unknown>} emptyMessage="No orders found." />
-          <DataTable columns={payoutColumns as unknown as Column<Record<string, unknown>>[]} data={0 as unknown as Record<string, unknown>[]} keyField={'id' as keyof Record<string, unknown>} emptyMessage="No payouts yet." />
+          <DataTable columns={orderColumns as unknown as Column<Record<string, unknown>>[]} data={[] as unknown as Record<string, unknown>[]} keyField={'id' as keyof Record<string, unknown>} emptyMessage="No orders found." />
+          <DataTable columns={payoutColumns as unknown as Column<Record<string, unknown>>[]} data={[] as unknown as Record<string, unknown>[]} keyField={'id' as keyof Record<string, unknown>} emptyMessage="No payouts yet." />
 
           {/* Decision History Tabs */}
           <div className="bg-white/50 dark:bg-[#1C1C1E]/50 rounded-2xl border p-0 overflow-hidden">
@@ -157,7 +262,7 @@ export function DetailsPage() {
             </div>
             <DataTable
               columns={orderColumns as unknown as Column<Record<string, unknown>>[]}
-              data={(historyTab === 'Accepted' ? 0 : 0) as unknown as Record<string, unknown>[]}
+              data={[]}
               keyField={'id' as keyof Record<string, unknown>}
               emptyMessage={`No ${historyTab.toLowerCase()} orders found.`}
             />

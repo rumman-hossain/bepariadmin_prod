@@ -15,6 +15,7 @@ import { Select } from '@/src/components/ui/Select';
 import { Textarea } from '@/src/components/ui/Textarea';
 import { Modal } from '@/src/components/ui/Modal';
 import { useProductForm } from '../hooks/useProductForm';
+import type { ProductFormData } from '../types';
 
 // ─── Constants ──────────────────────────────────────────────────
 
@@ -115,28 +116,25 @@ export function ProductFormPage() {
   // ── Input change helpers (explicit per field, avoids union type issues) ──
 
   const handleText = useCallback(
-    (field: string) =>
+    (field: keyof ProductFormData) =>
       (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ProductFormData is a union type; event handlers use string keys
-        setField(field as any, e.target.value);
+        setField(field, e.target.value as never);
       },
     [setField],
   );
 
   const handleNumber = useCallback(
-    (field: string) =>
+    (field: keyof ProductFormData) =>
       (e: React.ChangeEvent<HTMLInputElement>) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ProductFormData is a union type; event handlers use string keys
-        setField(field as any, Number(e.target.value));
+        setField(field, Number(e.target.value) as never);
       },
     [setField],
   );
 
   const handleSelect = useCallback(
-    (field: string) =>
+    (field: keyof ProductFormData) =>
       (e: React.ChangeEvent<HTMLSelectElement>) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- ProductFormData is a union type; event handlers use string keys
-        setField(field as any, e.target.value);
+        setField(field, e.target.value as never);
       },
     [setField],
   );

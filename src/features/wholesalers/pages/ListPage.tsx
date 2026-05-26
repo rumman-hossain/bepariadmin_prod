@@ -6,8 +6,10 @@ import { DataTable, type Column } from '@/src/components/ui/DataTable';
 import { StatusBadge } from '@/src/components/ui/StatusBadge';
 import { useWholesalerList } from '../hooks/useWholesalerList';
 import { useWholesalerStore } from '../store';
-import { Plus, Star, Zap, ShieldAlert, ExternalLink, Clock } from 'lucide-react';
+import { listWholesalers } from '../api/wholesalerApi';
+import { Plus, Star, Zap, ShieldAlert, ExternalLink, Clock, Loader2 } from 'lucide-react';
 import type { Wholesaler } from '@/src/types/domain';
+import { useToast } from '@/src/components/ui/Toast';
 
 export interface ListPageProps {
   onNavigate: (path: string) => void;
@@ -19,7 +21,35 @@ export function ListPage({ onNavigate }: ListPageProps) {
   const setFilter = useWholesalerStore((s) => s.setFilter);
   const clearFilters = useWholesalerStore((s) => s.clearFilters);
   const selectWholesaler = useWholesalerStore((s) => s.selectWholesaler);
+  const setWholesalers = useWholesalerStore((s) => s.setWholesalers);
   const wholesalers = useWholesalerStore((s) => s.wholesalers);
+  
+  const [loading, setLoading] = React.useState(true);
+  const toast = useToast();
+
+  React.useEffect(() => {
+    let active = true;
+    async function loadData() {
+      try {
+        setLoading(true);
+        const data = await listWholesalers();
+        if (active) {
+          setWholesalers(data);
+        }
+      } catch (err: unknown) {
+        console.error('Failed to load wholesalers:', err);
+        if (active) {
+          toast.error('Network Error', 'Failed to retrieve wholesalers from backend.');
+        }
+      } finally {
+        if (active) {
+          setLoading(false);
+        }
+      }
+    }
+    loadData();
+    return () => { active = false; };
+  }, [setWholesalers]);
 
   const columns: Column<Wholesaler>[] = [
     {
@@ -163,13 +193,20 @@ export function ListPage({ onNavigate }: ListPageProps) {
         </div>
       </div>
 
-      <DataTable
-        columns={tableColumns}
-        data={tableData}
-        keyField={'id' as keyof Record<string, unknown>}
-        emptyMessage="No wholesalers found."
-        onRowClick={(row) => { selectWholesaler(row.id as string); onNavigate(`/wholesalers/${row.id as string}`); }}
-      />
+      {loading ? (
+        <div className="flex flex-col items-center justify-center h-64 text-slate-400 gap-3">
+          <Loader2 className="w-8 h-8 text-[#007AFF] animate-spin" />
+          <p className="text-sm font-medium">Fetching wholesalers from backend...</p>
+        </div>
+      ) : (
+        <DataTable
+          columns={tableColumns}
+          data={tableData}
+          keyField={'id' as keyof Record<string, unknown>}
+          emptyMessage="No wholesalers found."
+          onRowClick={(row) => { selectWholesaler(row.id as string); onNavigate(`/wholesalers/${row.id as string}`); }}
+        />
+      )}
     </div>
   );
 }

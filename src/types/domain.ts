@@ -100,11 +100,17 @@ export interface Wholesaler {
   
   // Extended Details for Onboarding
   ownerName?: string;
+  shopName?: string;
   mobile?: string;
   email?: string;
   address?: string;
   bkash?: string;
   commissionRate?: number;
+  logoUrl?: string;
+  digitalWallet?: {
+    walletType: string;
+    accountNumber: string;
+  };
   bankDetails?: {
       bankName: string;
       accountName: string;
@@ -116,6 +122,31 @@ export interface Wholesaler {
       name: string;
       date?: string;
       status: string;
+      fileUrl?: string;
+  }[];
+  addresses?: {
+    id?: string;
+    addressType: 'primary' | 'warehouse' | 'return' | 'billing';
+    division?: string;
+    district: string;
+    postalCode: string;
+    addressLine: string;
+    isDefault: boolean;
+  }[];
+  bankDetailsList?: {
+    id?: string;
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+    branch?: string;
+    routing?: string;
+    isDefault: boolean;
+  }[];
+  digitalWallets?: {
+    id?: string;
+    walletType: 'bkash' | 'nagad' | 'rocket' | 'upay';
+    accountNumber: string;
+    isDefault: boolean;
   }[];
 }
 

@@ -106,34 +106,34 @@ interface CategoryNode {
 
 /**
  * Fetch all root categories.
- * GET /categories
+ * GET /api/v1/catalog/categories
  */
 export async function getCategories(): Promise<ApiResponse<CategoryNode[]>> {
-  return request<CategoryNode[]>('GET', '/categories', { auth: true });
+  return request<CategoryNode[]>('GET', '/api/v1/catalog/categories', { auth: true });
 }
 
 /**
  * Fetch sub-categories for a given category.
- * GET /sub-categories?categoryId=
+ * GET /api/v1/catalog/sub-categories?categoryId=
  */
 export async function getSubCategories(categoryId: string): Promise<ApiResponse<CategoryNode[]>> {
-  return request<CategoryNode[]>('GET', `/sub-categories?categoryId=${encodeURIComponent(categoryId)}`, { auth: true });
+  return request<CategoryNode[]>('GET', `/api/v1/catalog/sub-categories?categoryId=${encodeURIComponent(categoryId)}`, { auth: true });
 }
 
 /**
  * Fetch product groups for a given sub-category.
- * GET /product-groups?subCategoryId=
+ * GET /api/v1/catalog/product-groups?subCategoryId=
  */
 export async function getProductGroups(subCategoryId: string): Promise<ApiResponse<CategoryNode[]>> {
-  return request<CategoryNode[]>('GET', `/product-groups?subCategoryId=${encodeURIComponent(subCategoryId)}`, { auth: true });
+  return request<CategoryNode[]>('GET', `/api/v1/catalog/product-groups?subCategoryId=${encodeURIComponent(subCategoryId)}`, { auth: true });
 }
 
 /**
  * Fetch classifications for a given product group.
- * GET /classifications?productGroupId=
+ * GET /api/v1/catalog/classifications?productGroupId=
  */
 export async function getClassifications(productGroupId: string): Promise<ApiResponse<CategoryNode[]>> {
-  return request<CategoryNode[]>('GET', `/classifications?productGroupId=${encodeURIComponent(productGroupId)}`, { auth: true });
+  return request<CategoryNode[]>('GET', `/api/v1/catalog/classifications?productGroupId=${encodeURIComponent(productGroupId)}`, { auth: true });
 }
 
 // ─── SKU & Margins ───────────────────────────────────────────────
@@ -144,7 +144,7 @@ interface SkuResponse {
 
 /**
  * Reserve a SKU code.
- * GET /sku?wholesaler_code=&category_id=&sub_category_id=&product_group_id=&classification_id=
+ * GET /api/v1/catalog/sku?wholesaler_code=&category_id=&sub_category_id=&product_group_id=&classification_id=
  */
 export async function getSku(params: {
   wholesalerCode: string;
@@ -160,7 +160,7 @@ export async function getSku(params: {
     product_group_id: params.productGroupId,
     classification_id: params.classificationId,
   });
-  return request<SkuResponse>('GET', `/sku?${sp.toString()}`, { auth: true });
+  return request<SkuResponse>('GET', `/api/v1/catalog/sku?${sp.toString()}`, { auth: true });
 }
 
 interface PlatformMarginResponse {
@@ -169,10 +169,10 @@ interface PlatformMarginResponse {
 
 /**
  * Fetch platform margin configuration.
- * GET /platform-margin
+ * GET /api/v1/catalog/platform-margin
  */
 export async function getPlatformMargin(): Promise<ApiResponse<PlatformMarginResponse>> {
-  return request<PlatformMarginResponse>('GET', '/platform-margin', { auth: true });
+  return request<PlatformMarginResponse>('GET', '/api/v1/catalog/platform-margin', { auth: true });
 }
 
 // ─── Size Configuration ──────────────────────────────────────────
@@ -183,8 +183,8 @@ interface SizeConfig {
 
 /**
  * Fetch available sizes for a product group.
- * GET /product-groups/:id/size-config
+ * GET /api/v1/catalog/product-groups/:id/size-config
  */
 export async function getSizeConfig(productGroupId: string): Promise<ApiResponse<SizeConfig>> {
-  return request<SizeConfig>('GET', `/product-groups/${encodeURIComponent(productGroupId)}/size-config`, { auth: true });
+  return request<SizeConfig>('GET', `/api/v1/catalog/product-groups/${encodeURIComponent(productGroupId)}/size-config`, { auth: true });
 }

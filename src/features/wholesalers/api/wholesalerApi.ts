@@ -21,8 +21,8 @@ import { request } from '@/src/api/client';
 import { hashPassword } from '@/src/auth/passwordHasher';
 import type { Wholesaler } from '@/src/types/domain';
 import type {
-  CreateWholesalerDTO,
-  UpdateWholesalerDTO,
+  //CreateWholesalerDTO,
+  //UpdateWholesalerDTO,
   WholesalerFilters,
 } from '../types';
 
@@ -40,30 +40,59 @@ import type {
  *   documents: [{id, docType, docName, fileUrl, status, verifiedBy, verifiedAt}]
  */
 function mapProfileToWholesaler(profile: Record<string, unknown>): Wholesaler {
-  const primaryAddress =
-    (profile.addresses as Record<string, unknown>[] | undefined)?.find(
-      (a) =>
-        (a as Record<string, unknown>).isDefault ||
-        (a as Record<string, unknown>).addressType === 'primary',
-    ) ?? (profile.addresses as Record<string, unknown>[] | undefined)?.[0];
+  const rawAddresses = Array.isArray(profile.addresses) ? (profile.addresses as Record<string, unknown>[]) : [];
+  const primaryAddress = rawAddresses.find(a => a.isDefault || a.addressType === 'primary') ?? rawAddresses[0];
 
-  const primaryBank =
-    (profile.bankDetails as Record<string, unknown>[] | undefined)?.find(
-      (b) => (b as Record<string, unknown>).isDefault,
-    ) ?? (profile.bankDetails as Record<string, unknown>[] | undefined)?.[0];
+  const rawBanks = Array.isArray(profile.bankDetails) ? (profile.bankDetails as Record<string, unknown>[]) : [];
+  const primaryBank = rawBanks.find(b => b.isDefault) ?? rawBanks[0];
 
-  const primaryBkash =
-    (profile.bkashWallets as Record<string, unknown>[] | undefined)?.find(
-      (w) => (w as Record<string, unknown>).isDefault,
-    ) ?? (profile.bkashWallets as Record<string, unknown>[] | undefined)?.[0];
+  const rawWallets = Array.isArray(profile.bkashWallets) ? (profile.bkashWallets as Record<string, unknown>[]) : [];
+  const primaryWallet = rawWallets.find(w => w.isDefault) ?? rawWallets[0];
+
+  // Split comma-separated category string
+  const categoryStr = (profile.category as string) || '';
+
+  const addresses = rawAddresses.map(a => ({
+    id: a.id as string | undefined,
+    addressType: (a.addressType as 'primary' | 'warehouse' | 'return' | 'billing') || 'primary',
+    division: a.division as string | undefined,
+    district: (a.district as string) || 'Dhaka',
+    postalCode: (a.postalCode as string) || '',
+    addressLine: (a.addressLine as string) || '',
+    isDefault: !!a.isDefault,
+  }));
+
+  const bankDetailsList = rawBanks.map(b => ({
+    id: b.id as string | undefined,
+    bankName: (b.bankName as string) || '',
+    accountName: (b.accountName as string) || '',
+    accountNumber: (b.accountNumber as string) || '',
+    branch: (b.branch as string) || '',
+    routing: (b.routing as string) || '',
+    isDefault: !!b.isDefault,
+  }));
+
+  const digitalWallets = rawWallets.map(w => ({
+    id: w.id as string | undefined,
+    walletType: (w.walletType as 'bkash' | 'nagad' | 'rocket' | 'upay') || 'bkash',
+    accountNumber: (w.accountNumber as string) || '',
+    isDefault: !!w.isDefault,
+  }));
+
+  const rawDocs = Array.isArray(profile.documents) ? (profile.documents as Record<string, unknown>[]) : [];
+  const documents = rawDocs.map(d => ({
+    id: d.id as string | undefined,
+    name: (d.docName as string) || '',
+    date: (d.createdAt as string) || '',
+    status: (d.status as string) || 'Pending',
+    fileUrl: (d.fileUrl as string) || undefined,
+  }));
 
   return {
     id: profile.id as string,
     companyName: (profile.companyName ?? profile.name) as string,
-    category: (profile.category as string) || '',
-    location:
-      ((primaryAddress as Record<string, unknown> | undefined)
-        ?.district as string) || 'Dhaka',
+    category: categoryStr, // Keep for backward compatibility
+    location: (primaryAddress?.district as string) || 'Dhaka',
     status: mapStatus((profile.status as string) || 'INIT'),
     acceptanceRate: 100,
     dispatchSpeed: '24h',
@@ -72,33 +101,28 @@ function mapProfileToWholesaler(profile: Record<string, unknown>): Wholesaler {
     ownerName: (profile.name as string) || '',
     mobile: (profile.phone as string) || '',
     email: (profile.email as string) || undefined,
-    address:
-      ((primaryAddress as Record<string, unknown> | undefined)
-        ?.addressLine as string) || undefined,
-    bkash:
-      ((primaryBkash as Record<string, unknown> | undefined)
-        ?.accountNumber as string) || undefined,
+    address: (primaryAddress?.addressLine as string) || undefined, // Keep for backward compatibility
+    logoUrl: (profile.logoUrl as string) || undefined,
+    digitalWallet: primaryWallet
+      ? {
+          walletType: (primaryWallet.walletType as string) || 'bkash',
+          accountNumber: (primaryWallet.accountNumber as string) || '',
+        }
+      : { walletType: 'bkash', accountNumber: '' },
     commissionRate: (profile.margin as number) || undefined,
     bankDetails: primaryBank
       ? {
-          bankName: (primaryBank as Record<string, unknown>).bankName as string,
-          accountName: (primaryBank as Record<string, unknown>)
-            .accountName as string,
-          accountNumber: (primaryBank as Record<string, unknown>)
-            .accountNumber as string,
-          branch:
-            ((primaryBank as Record<string, unknown>).branch as string) || '',
-          routing:
-            ((primaryBank as Record<string, unknown>).routing as string) || '',
+          bankName: primaryBank.bankName as string,
+          accountName: primaryBank.accountName as string,
+          accountNumber: primaryBank.accountNumber as string,
+          branch: (primaryBank.branch as string) || '',
+          routing: (primaryBank.routing as string) || '',
         }
       : undefined,
-    documents: (
-      (profile.documents as Record<string, unknown>[] | undefined) ?? []
-    ).map((d: Record<string, unknown>) => ({
-      name: (d.docName as string) || '',
-      date: (d.createdAt as string) || '',
-      status: (d.status as string) || 'Pending',
-    })),
+    documents,
+    addresses,
+    bankDetailsList,
+    digitalWallets,
   };
 }
 
@@ -111,8 +135,10 @@ function mapStatus(s: string): Wholesaler['status'] {
   switch (s.toUpperCase()) {
     case 'ACTIVE':
       return 'Active';
+    case 'INIT':
     case 'REVIEW':
       return 'Review';
+    case 'REJECTED':
     case 'SUSPENDED':
     default:
       return 'Suspended';
@@ -147,7 +173,8 @@ export async function listWholesalers(
   const data = res.data;
   const profiles: Record<string, unknown>[] = Array.isArray(res.data)
     ? (res.data as unknown as Record<string, unknown>[])
-    : ((data as unknown as Record<string, unknown>)?.wholesalers as Record<string, unknown>[]) ?? [];
+    : ((data as Record<string, unknown>)?.data as Record<string, unknown>[]) ??
+      ((data as Record<string, unknown>)?.wholesalers as Record<string, unknown>[]) ?? [];
 
   return profiles.map(mapProfileToWholesaler);
 }
@@ -162,7 +189,9 @@ export async function getWholesaler(id: string): Promise<Wholesaler> {
     `/api/v1/admin/wholesalers/${encodeURIComponent(id)}`,
     { auth: true },
   );
-  return mapProfileToWholesaler(res.data as Record<string, unknown>);
+  const data = res.data as Record<string, unknown> | undefined;
+  const profile = (data?.data as Record<string, unknown>) ?? data ?? {};
+  return mapProfileToWholesaler(profile);
 }
 
 /**
@@ -182,61 +211,104 @@ export async function getWholesaler(id: string): Promise<Wholesaler> {
  * Backend creates auth account → returns 201.
  * Then PATCH profile details via updateWholesaler().
  */
-export async function createWholesaler(
-  dto: CreateWholesalerDTO,
-): Promise<Wholesaler> {
-  // Step 1: Create auth account
-  // Hash password client-side with PBKDF2-SHA256 (matching mobile app)
-  // so admin-created wholesalers have the same hash chain as self-registered ones:
-  // stored = Argon2id(PBKDF2(plaintext)) — login works from both admin & mobile.
-  const passwordHash = await hashPassword(dto.password, dto.email.toLowerCase().trim());
+import type { WholesalerFormData } from '../schemas/wholesalerSchema';
 
-  const createRes = await request<Record<string, unknown>>(
+export async function createWholesaler(
+  dto: WholesalerFormData,
+): Promise<Wholesaler> {
+  // Step 0: Pre-check duplicate email/mobile across active wholesaler list
+  const allWholesalers = await listWholesalers();
+  
+  const emailDuplicate = allWholesalers.find(
+    (w) => (w.email || '').toLowerCase().trim() === dto.email.toLowerCase().trim()
+  );
+  if (emailDuplicate) {
+    throw new Error(`The email address "${dto.email}" is already registered to an onboarded supplier. Duplicate emails are not allowed.`);
+  }
+
+  const cleanDtoMobile = dto.mobile.replace(/\D/g, '');
+  const mobileDuplicate = allWholesalers.find(
+    (w) => (w.mobile || '').replace(/\D/g, '') === cleanDtoMobile
+  );
+  if (mobileDuplicate) {
+    throw new Error(`The mobile number "${dto.mobile}" is already registered to an onboarded supplier. Duplicate mobile numbers are not allowed.`);
+  }
+
+  // Step 1: Create auth account & profile (now in a single backend transaction!)
+  const passwordHash = dto.password
+    ? await hashPassword(dto.password, dto.email.toLowerCase().trim())
+    : '';
+
+  // Pack the full request shape matching our new backend AdminCreateWholesalerRequest struct!
+  const fullPayload = {
+    email: dto.email,
+    password_hash: passwordHash,
+    name: dto.ownerName,
+    shopName: dto.companyName,
+    companyName: dto.companyName,
+    phone: dto.mobile,
+    category: dto.categories.join(', '),
+    margin: dto.commissionRate ?? 9.5,
+    logoUrl: dto.logoUrl || '',
+    addresses: (dto.addresses || []).map(a => ({
+      addressType: a.addressType,
+      division: a.division || '',
+      district: a.district,
+      postalCode: a.postalCode,
+      addressLine: a.addressLine,
+      isDefault: a.isDefault,
+    })),
+    bankDetails: (dto.bankDetailsList || []).map(b => ({
+      bankName: b.bankName,
+      accountName: b.accountName,
+      accountNumber: b.accountNumber,
+      branch: b.branch || '',
+      routing: b.routing || '',
+      isDefault: b.isDefault,
+    })),
+    bkashWallets: (dto.digitalWallets || []).map(w => ({
+      walletType: w.walletType,
+      accountNumber: w.accountNumber,
+      isDefault: w.isDefault,
+    })),
+    documents: (dto.documents || []).map((d) => ({
+      docType: d.name === 'Trade License' ? 'trade_license'
+             : d.name === 'TIN Certificate' ? 'tin'
+             : d.name === 'VAT Registration' ? 'vat'
+             : d.name === 'Owner NID Photo' ? 'nid'
+             : 'other',
+      docName: d.name,
+      status: d.status || 'pending',
+      fileUrl: d.fileUrl || '',
+    })),
+  };
+
+  const res1 = await request<{ data: Record<string, unknown> }>(
     'POST',
     '/api/v1/auth/admin/create-wholesaler',
     {
       auth: true,
-      body: {
-        email: dto.email,
-        password_hash: passwordHash,
-      },
+      body: fullPayload,
     },
   );
 
-  const created =
-    (createRes.data as Record<string, unknown>) ??
-    (createRes as unknown as Record<string, unknown>);
-  const wholesalerId = created.id as string;
+  if (!res1.ok) {
+    type ErrorResponse = { error?: { message?: string }; message?: string };
+    const errObj = res1.data as ErrorResponse | undefined;
+    const errMsg = errObj?.error?.message ?? errObj?.message ?? `Failed to onboard supplier (HTTP ${res1.status})`;
+    throw new Error(errMsg);
+  }
 
-  // Step 2: Update profile with full details via PATCH
-  const profilePayload: Record<string, unknown> = {
-    name: dto.name,
-    shopName: dto.shopName,
-    companyName: dto.shopName,
-    category: dto.category,
-    bkashWallets: dto.bkashNumber
-      ? [
-          {
-            walletType: 'bkash',
-            accountNumber: dto.bkashNumber,
-            isDefault: true,
-          },
-        ]
-      : [],
-  };
+  // Retrieve the newly created wholesaler ID from the single-step response
+  const responseData = res1.data?.data;
+  const wholesalerId = responseData?.id as string | undefined;
 
-  const profileRes = await request<Record<string, unknown>>(
-    'PATCH',
-    `/api/v1/admin/wholesalers/${encodeURIComponent(wholesalerId)}`,
-    {
-      auth: true,
-      body: profilePayload,
-    },
-  );
+  if (!wholesalerId) {
+    throw new Error('Supplier onboarded successfully, but backend returned an incomplete session state. Please refresh the page.');
+  }
 
-  return mapProfileToWholesaler(
-    (profileRes.data ?? profileRes) as Record<string, unknown>,
-  );
+  // Step 2: Fetch the full profile (just to map it to the frontend's expected Wholesaler structure)
+  return getWholesaler(wholesalerId);
 }
 
 /**
@@ -245,55 +317,98 @@ export async function createWholesaler(
  */
 export async function updateWholesaler(
   id: string,
-  dto: UpdateWholesalerDTO,
+  dto: WholesalerFormData,
 ): Promise<Wholesaler> {
-  const payload: Record<string, unknown> = {};
-  if (dto.name !== undefined) payload.name = dto.name;
-  if (dto.shopName !== undefined) payload.shopName = dto.shopName;
-  if (dto.category !== undefined) payload.category = dto.category;
-  if (dto.bkashNumber !== undefined) {
-    payload.bkashWallets = [
-      {
-        walletType: 'bkash',
-        accountNumber: dto.bkashNumber,
-        isDefault: true,
-      },
-    ];
+  // Step 0: Pre-check duplicate email/mobile across active wholesaler list (excluding current wholesaler)
+  const allWholesalers = await listWholesalers();
+
+  const emailDuplicate = allWholesalers.find(
+    (w) => w.id !== id && (w.email || '').toLowerCase().trim() === dto.email.toLowerCase().trim()
+  );
+  if (emailDuplicate) {
+    throw new Error(`The email address "${dto.email}" is already registered to another supplier. Duplicate emails are not allowed.`);
   }
+
+  const cleanDtoMobile = dto.mobile.replace(/\D/g, '');
+  const mobileDuplicate = allWholesalers.find(
+    (w) => w.id !== id && (w.mobile || '').replace(/\D/g, '') === cleanDtoMobile
+  );
+  if (mobileDuplicate) {
+    throw new Error(`The mobile number "${dto.mobile}" is already registered to another supplier. Duplicate mobile numbers are not allowed.`);
+  }
+
+  const payload: Record<string, unknown> = {
+    name: dto.ownerName,
+    shopName: dto.companyName,
+    companyName: dto.companyName,
+    phone: dto.mobile,
+    category: dto.categories.join(', '),
+    addresses: (dto.addresses || []).map(a => ({
+      addressType: a.addressType,
+      division: a.division || '',
+      district: a.district,
+      postalCode: a.postalCode,
+      addressLine: a.addressLine,
+      isDefault: a.isDefault,
+    })),
+    logoUrl: dto.logoUrl || '',
+    bkashWallets: (dto.digitalWallets || []).map(w => ({
+      walletType: w.walletType,
+      accountNumber: w.accountNumber,
+      isDefault: w.isDefault,
+    })),
+    bankDetails: (dto.bankDetailsList || []).map(b => ({
+      bankName: b.bankName,
+      accountName: b.accountName,
+      accountNumber: b.accountNumber,
+      branch: b.branch || '',
+      routing: b.routing || '',
+      isDefault: b.isDefault,
+    })),
+    documents: (dto.documents || []).map((d) => ({
+      docType: d.name === 'Trade License' ? 'trade_license'
+             : d.name === 'TIN Certificate' ? 'tin'
+             : d.name === 'VAT Registration' ? 'vat'
+             : d.name === 'Owner NID Photo' ? 'nid'
+             : 'other',
+      docName: d.name,
+      status: d.status || 'pending',
+      fileUrl: d.fileUrl || '',
+    })),
+  };
 
   const res = await request<Record<string, unknown>>(
     'PATCH',
     `/api/v1/admin/wholesalers/${encodeURIComponent(id)}`,
-    {
-      auth: true,
-      body: payload,
-    },
+    { auth: true, body: payload },
   );
 
-  return mapProfileToWholesaler(
-    (res.data ?? res) as Record<string, unknown>,
-  );
+  if (!res.ok) {
+    type ErrorResponse = { error?: { message?: string }; message?: string };
+    const errObj = res.data as ErrorResponse | undefined;
+    const errMsg = errObj?.error?.message ?? errObj?.message ?? `Failed to update wholesaler profile (HTTP ${res.status})`;
+    throw new Error(errMsg);
+  }
+
+  // PATCH only returns {"data": "updated"} — fetch the full profile after update
+  return getWholesaler(id);
 }
 
 /**
  * Approve a wholesaler.
  * POST /api/v1/admin/wholesalers/{id}/approve
+ * Returns {"data": "approved"} — fetch fresh profile after action.
  */
 export async function approveWholesaler(
   id: string,
   reviewedBy: string,
 ): Promise<Wholesaler> {
-  const res = await request<Record<string, unknown>>(
+  await request<Record<string, unknown>>(
     'POST',
     `/api/v1/admin/wholesalers/${encodeURIComponent(id)}/approve`,
-    {
-      auth: true,
-      body: { reviewedBy },
-    },
+    { auth: true, body: { reviewedBy } },
   );
-  return mapProfileToWholesaler(
-    (res.data ?? res) as Record<string, unknown>,
-  );
+  return getWholesaler(id);
 }
 
 /**
@@ -305,17 +420,12 @@ export async function rejectWholesaler(
   reviewedBy: string,
   reason: string,
 ): Promise<Wholesaler> {
-  const res = await request<Record<string, unknown>>(
+  await request<Record<string, unknown>>(
     'POST',
     `/api/v1/admin/wholesalers/${encodeURIComponent(id)}/reject`,
-    {
-      auth: true,
-      body: { reviewedBy, reason },
-    },
+    { auth: true, body: { reviewedBy, reason } },
   );
-  return mapProfileToWholesaler(
-    (res.data ?? res) as Record<string, unknown>,
-  );
+  return getWholesaler(id);
 }
 
 /**
@@ -327,17 +437,12 @@ export async function suspendWholesaler(
   reviewedBy: string,
   reason: string,
 ): Promise<Wholesaler> {
-  const res = await request<Record<string, unknown>>(
+  await request<Record<string, unknown>>(
     'POST',
     `/api/v1/admin/wholesalers/${encodeURIComponent(id)}/suspend`,
-    {
-      auth: true,
-      body: { reviewedBy, reason },
-    },
+    { auth: true, body: { reviewedBy, reason } },
   );
-  return mapProfileToWholesaler(
-    (res.data ?? res) as Record<string, unknown>,
-  );
+  return getWholesaler(id);
 }
 
 /**
@@ -348,17 +453,12 @@ export async function unsuspendWholesaler(
   id: string,
   reviewedBy: string,
 ): Promise<Wholesaler> {
-  const res = await request<Record<string, unknown>>(
+  await request<Record<string, unknown>>(
     'POST',
     `/api/v1/admin/wholesalers/${encodeURIComponent(id)}/unsuspend`,
-    {
-      auth: true,
-      body: { reviewedBy },
-    },
+    { auth: true, body: { reviewedBy } },
   );
-  return mapProfileToWholesaler(
-    (res.data ?? res) as Record<string, unknown>,
-  );
+  return getWholesaler(id);
 }
 
 /**
@@ -370,15 +470,10 @@ export async function requestResubmitWholesaler(
   reviewedBy: string,
   reason: string,
 ): Promise<Wholesaler> {
-  const res = await request<Record<string, unknown>>(
+  await request<Record<string, unknown>>(
     'POST',
     `/api/v1/admin/wholesalers/${encodeURIComponent(id)}/request-resubmit`,
-    {
-      auth: true,
-      body: { reviewedBy, reason },
-    },
+    { auth: true, body: { reviewedBy, reason } },
   );
-  return mapProfileToWholesaler(
-    (res.data ?? res) as Record<string, unknown>,
-  );
+  return getWholesaler(id);
 }

@@ -14,7 +14,7 @@ interface UseFormReturn<T> {
   setField: <K extends keyof T>(field: K, value: T[K]) => void;
   setFields: (partial: Partial<T>) => void;
   validate: () => boolean;
-  handleSubmit: (e?: React.FormEvent) => Promise<void>;
+  handleSubmit: (e?: React.FormEvent) => Promise<boolean>;
   reset: () => void;
 }
 
@@ -59,13 +59,15 @@ export function useForm<T extends Record<string, unknown>>({
 
   const handleSubmit = useCallback(async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!validate()) return;
+    if (!validate()) return false;
     setIsSubmitting(true);
     try {
       await onSubmit(values);
+      return true;
     } finally {
       setIsSubmitting(false);
     }
+    return false;
   }, [values, validate, onSubmit]);
 
   const reset = useCallback(() => {

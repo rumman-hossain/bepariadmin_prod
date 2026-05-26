@@ -2,6 +2,8 @@ import { useCallback } from 'react';
 import { useForm } from '@/src/hooks/useForm';
 import { wholesalerSchema, type WholesalerFormData } from '../schemas/wholesalerSchema';
 import { useWholesalerStore } from '../store';
+import { createWholesaler, updateWholesaler as apiUpdateWholesaler } from '../api/wholesalerApi';
+import { useToast } from '@/src/components/ui/Toast';
 
 interface UseWholesalerFormOptions {
   initialData?: Partial<WholesalerFormData>;
@@ -10,25 +12,28 @@ interface UseWholesalerFormOptions {
 
 const emptyInitial: WholesalerFormData = {
   companyName: '',
-  category: 'Apparel',
-  location: 'Dhaka',
+  categories: [],
   status: 'Active',
   acceptanceRate: 100,
   dispatchSpeed: '24h',
   ownerName: '',
   mobile: '',
   email: '',
-  address: '',
-  bkash: '',
-  bankDetails: {
-    bankName: '',
-    accountName: '',
-    accountNumber: '',
-    branch: '',
-    routing: '',
-  },
+  logoUrl: '',
+  commissionRate: 15,
+  addresses: [
+    {
+      addressType: 'primary',
+      division: '',
+      district: '',
+      postalCode: '',
+      addressLine: '',
+      isDefault: true,
+    }
+  ],
+  bankDetailsList: [],
+  digitalWallets: [],
   documents: [],
-  username: '',
   password: '',
 };
 
@@ -36,66 +41,32 @@ export function useWholesalerForm({ initialData, onSuccess }: UseWholesalerFormO
   const addWholesaler = useWholesalerStore((s) => s.addWholesaler);
   const updateWholesaler = useWholesalerStore((s) => s.updateWholesaler);
   const isEditing = !!initialData?.id;
+  const toast = useToast();
 
   const handleSubmit = useCallback(
     async (values: WholesalerFormData) => {
-      const now = new Date().toISOString().split('T')[0];
-
-      if (isEditing && values.id) {
-        updateWholesaler({
-          id: values.id,
-          companyName: values.companyName,
-          category: values.category,
-          location: values.location,
-          status: values.status,
-          acceptanceRate: values.acceptanceRate ?? 100,
-          dispatchSpeed: values.dispatchSpeed ?? '24h',
-          riskScore: values.riskScore,
-          createdAt: values.createdAt,
-          ownerName: values.ownerName,
-          mobile: values.mobile,
-          email: values.email || undefined,
-          address: values.address || undefined,
-          bkash: values.bkash || undefined,
-          commissionRate: values.commissionRate,
-          bankDetails: values.bankDetails ? {
-            bankName: values.bankDetails.bankName,
-            accountName: values.bankDetails.accountName,
-            accountNumber: values.bankDetails.accountNumber,
-            branch: values.bankDetails.branch ?? '',
-            routing: values.bankDetails.routing ?? '',
-          } : undefined,
-          documents: values.documents,
-        });
-      } else {
-        addWholesaler({
-          id: `WHL-${Date.now().toString().slice(-4)}`,
-          companyName: values.companyName,
-          category: values.category,
-          location: values.location,
-          status: 'Active',
-          acceptanceRate: 100,
-          dispatchSpeed: '24h',
-          createdAt: now,
-          ownerName: values.ownerName,
-          mobile: values.mobile,
-          email: values.email || undefined,
-          address: values.address || undefined,
-          bkash: values.bkash || undefined,
-          bankDetails: values.bankDetails ? {
-            bankName: values.bankDetails.bankName,
-            accountName: values.bankDetails.accountName,
-            accountNumber: values.bankDetails.accountNumber,
-            branch: values.bankDetails.branch ?? '',
-            routing: values.bankDetails.routing ?? '',
-          } : undefined,
-          documents: values.documents,
-        });
+      try {
+        if (isEditing && values.id) {
+          // Real API call for edit
+          const updated = await apiUpdateWholesaler(values.id, values);
+          // Sync local store
+          updateWholesaler(updated);
+          toast.success('Supplier Profile Updated', `${values.companyName} profile has been saved successfully.`);
+        } else {
+          // Real API call for onboarding
+          const created = await createWholesaler(values);
+          // Sync local store
+          addWholesaler(created);
+          toast.success('Supplier Onboarded', `${values.companyName} has been registered successfully.`);
+        }
+        onSuccess?.();
+      } catch (err: unknown) {
+        console.error('Submit Wholesaler Form error:', err);
+        const errMsg = err instanceof Error ? err.message : 'Something went wrong. Please check your network or try again.';
+        toast.error('Failed to Save', errMsg);
       }
-
-      onSuccess?.();
     },
-    [isEditing, addWholesaler, updateWholesaler, onSuccess],
+    [isEditing, addWholesaler, updateWholesaler, onSuccess, toast],
   );
 
   return useForm<WholesalerFormData>({
