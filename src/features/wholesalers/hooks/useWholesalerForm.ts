@@ -20,7 +20,7 @@ const emptyInitial: WholesalerFormData = {
   mobile: '',
   email: '',
   logoUrl: '',
-  commissionRate: 15,
+  commissionRate: 9.5,
   addresses: [
     {
       addressType: 'primary',

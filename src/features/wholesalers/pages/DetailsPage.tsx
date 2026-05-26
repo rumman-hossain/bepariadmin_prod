@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@/src/components/shared/PageHeader';
 import { Button } from '@/src/components/ui/Button';
 import { StatusBadge } from '@/src/components/ui/StatusBadge';
@@ -17,8 +17,14 @@ export function DetailsPage() {
   const { selectedWholesaler, goBack, updateStatus, updateCommission } = useWholesalerDetail();
   const [isEditing, setIsEditing] = useState(false);
   const [showSuspend, setShowSuspend] = useState(false);
-  const [commissionRate, setCommissionRate] = useState(15);
+  const [commissionRate, setCommissionRate] = useState(9.5);
   const [historyTab, setHistoryTab] = useState<'Accepted' | 'Rejected'>('Accepted');
+
+  useEffect(() => {
+    if (selectedWholesaler?.commissionRate !== undefined) {
+      setCommissionRate(selectedWholesaler.commissionRate);
+    }
+  }, [selectedWholesaler]);
 
   if (!selectedWholesaler) {
     return (
