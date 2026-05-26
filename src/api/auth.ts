@@ -53,6 +53,10 @@ export function apiLogout(): Promise<ApiResponse<string>> {
   });
 }
 
+export function apiLogoutSession(): Promise<ApiResponse<string>> {
+  return request<string>('POST', '/api/v1/auth/logout-session');
+}
+
 export function apiForgotPassword(
   email: string
 ): Promise<ApiResponse<ForgotPasswordResponseData>> {

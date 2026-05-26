@@ -20,8 +20,10 @@ import {
   apiVerifyLoginOtp,
   apiGetMe,
   apiLogout,
+  apiLogoutSession,
   apiResendLoginOtp,
 } from '../api/auth';
+import { restoreSession, checkServerHealth } from './sessionRestore';
 import { friendlyError, errorCode } from '../utils/errors';
 import type { AuthState, AuthUser, AuthStep } from '../types/auth';
 
@@ -244,11 +246,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await apiLogout();
     } catch {
-      // Backend logout failure is non-critical
+      // Bearer logout may fail when access token is expired — fall through.
+    } finally {
+      try {
+        await apiLogoutSession();
+      } catch {
+        // Cookie-only logout is best-effort; local state is cleared regardless.
+      }
     }
 
-    // apiLogout already calls clearAccessToken() in its .finally(),
-    // but call it again defensively in case the request never fires.
     clearAccessToken();
     setTokenVersion((v) => v + 1);
     setUser(null);
@@ -263,51 +269,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const bootstrap = useCallback(async () => {
     setIsLoading(true);
 
-    // Helper: fetch with timeout
-    async function fetchWithTimeout(
-      url: string,
-      options: RequestInit = {},
-      timeoutMs = 15000,
-    ): Promise<Response | null> {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      try {
-        const res = await fetch(url, { ...options, signal: controller.signal });
-        return res;
-      } catch {
-        return null; // Timeout or network error
-      } finally {
-        clearTimeout(timer);
-      }
-    }
-
     try {
-      // Run health check and silent refresh in PARALLEL (not sequential)
-      const [healthRes, refreshRes] = await Promise.all([
-        fetchWithTimeout('/health', {}, 15000),
-        fetchWithTimeout(
-          `${import.meta.env.VITE_API_BASE_URL ?? ''}/api/v1/auth/refresh`,
-          {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-          },
-          15000,
-        ),
+      const [serverUp, session] = await Promise.all([
+        checkServerHealth(),
+        restoreSession(),
       ]);
 
-      // 1. Handle health check result
-      if (!healthRes || !healthRes.ok) {
-        setIsServerReachable(false);
-        setStep('login_form');
-        setIsLoading(false);
-        return;
-      }
-      setIsServerReachable(true);
+      setIsServerReachable(serverUp);
 
-      // 2. Handle refresh token result
-      if (!refreshRes || !refreshRes.ok) {
-        // No valid refresh cookie — show login form (common case for new sessions)
+      if (!session.ok) {
         clearAccessToken();
         setTokenVersion((v) => v + 1);
         setStep('login_form');
@@ -315,41 +285,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      let refreshJson: Record<string, unknown>;
-      try {
-        refreshJson = await refreshRes.json() as Record<string, unknown>;
-      } catch {
-        setStep('login_form');
-        setIsLoading(false);
-        return;
-      }
-
-      const token = (refreshJson as Record<string, unknown>).data as Record<string, unknown> | undefined;
-      const newAccessToken = (token as Record<string, unknown> | undefined)?.accessToken as string | undefined;
-
-      if (!newAccessToken) {
-        setStep('login_form');
-        setIsLoading(false);
-        return;
-      }
-
-      // 3. Store the new access token and validate via GET /me
-      setAccessToken(newAccessToken);
-      setTokenVersion((v) => v + 1);
-
-      const meRes = await apiGetMe();
-
-      if (!meRes.ok) {
-        clearAccessToken();
-        setTokenVersion((v) => v + 1);
-        setStep('login_form');
-        setIsLoading(false);
-        return;
-      }
-
-      const me = (meRes.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
-      setUser(mapUser(me));
+      setUser(session.user);
       setStep('dashboard');
+      setTokenVersion((v) => v + 1);
     } catch {
       setIsServerReachable(false);
       setStep('login_form');
