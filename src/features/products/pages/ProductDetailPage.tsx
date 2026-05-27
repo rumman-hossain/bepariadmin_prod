@@ -4,7 +4,7 @@
  * Architecture:
  * - Reads productId from URL params
  * - Uses useProductDetail hook
- * - Uses useProductForm for edit action
+ * - Uses route navigation for edit action
  * - Zero props — fully self-contained
  * - Handles: loading, not-found, error, success states
  */
@@ -33,7 +33,6 @@ import { Button } from '@/src/components/ui/Button';
 import { StatusBadge } from '@/src/components/ui/StatusBadge';
 import { Card } from '@/src/components/ui/Card';
 import { useProductDetail } from '../hooks/useProductDetail';
-import { useProductForm } from '../hooks/useProductForm';
 import { PRODUCT_ROUTES } from '../routes';
 import { formatCurrency } from '@/src/utils/formatCurrency';
 
@@ -133,11 +132,15 @@ export function ProductDetailPage() {
   const { productId } = useParams<{ productId: string }>();
   const navigate = useNavigate();
   const { product, isLoading, error, refetch } = useProductDetail(productId ?? null);
-  const { openEdit } = useProductForm();
 
   const handleBack = useCallback(() => {
     navigate(PRODUCT_ROUTES.LIST);
   }, [navigate]);
+
+  const handleEdit = useCallback(() => {
+    if (!productId) return;
+    navigate(PRODUCT_ROUTES.EDIT.replace(':productId', productId));
+  }, [navigate, productId]);
 
   // ── Loading ─────────────────────────────────────────
   if (isLoading) {
@@ -189,7 +192,7 @@ export function ProductDetailPage() {
             variant="primary"
             size="sm"
             iconLeft={Pencil}
-            onClick={() => openEdit(product)}
+            onClick={handleEdit}
           >
             Edit
           </Button>

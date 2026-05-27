@@ -34,7 +34,7 @@ export const productSchema = z.object({
   subCategory: z.string().optional().or(z.literal('')),
   productGroup: z.string().optional().or(z.literal('')),
   basePrice: z.number().min(0, 'Base price must be 0 or more'),
-  margin: z.number().min(0).max(100, 'Margin must be between 0-100%').default(15),
+  margin: z.number().min(0).max(100, 'Margin must be between 0-100%').default(0),
   sellingPrice: z.number().min(0).optional(),
   stock: z.number().min(0, 'Stock cannot be negative').default(0),
   availableStock: z.number().min(0).optional(),
@@ -92,7 +92,7 @@ export type ProductFormData = z.infer<typeof productSchema>;
 
 // ─── Backend API Response Schemas ──────────────────────────────
 
-/** Validates a single product from backend API responses */
+/** Validates a single product from backend API responses (normalized admin shape) */
 export const productResponseSchema = z.object({
   id: z.string(),
   name: z.string(),
@@ -101,25 +101,17 @@ export const productResponseSchema = z.object({
   subCategory: z.string().optional().nullable(),
   productGroup: z.string().optional().nullable(),
   basePrice: z.number(),
-  margin: z.number(),
-  sellingPrice: z.number(),
+  margin: z.number().optional().default(0),
+  sellingPrice: z.number().optional().default(0),
   stock: z.number(),
   availableStock: z.number().optional().nullable(),
   reservedStock: z.number().optional().nullable(),
-  moq: z.number(),
-  dispatchTime: z.string(),
+  moq: z.number().optional().default(1),
+  dispatchTime: z.string().optional().default(''),
   trendTags: z.array(z.string()).optional().nullable(),
-  visibility: z.enum(['Public', 'Private']),
+  visibility: z.string(),
   wholesalerId: z.string(),
-  status: z.enum([
-    'Draft',
-    'Pending Approval',
-    'Approved',
-    'Rejected',
-    'Out of Stock',
-    'Archived',
-    'Suspended',
-  ]),
+  status: z.string(),
   imageUrl: z.string().optional().nullable(),
   imageUrls: z.array(z.string()).optional().nullable(),
   rejectionReason: z.string().optional().nullable(),

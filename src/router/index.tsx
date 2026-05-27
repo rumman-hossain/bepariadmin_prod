@@ -42,8 +42,8 @@ const LazyProductList = React.lazy(() =>
 const LazyProductDetail = React.lazy(() =>
   import('@/src/features/products/pages/ProductDetailPage').then((m) => ({ default: m.ProductDetailPage })),
 );
-const LazyProductForm = React.lazy(() =>
-  import('@/src/features/products/pages/ProductFormPage').then((m) => ({ default: m.ProductFormPage })),
+const LazyAddProduct = React.lazy(() =>
+  import('@/src/features/products/add-product/pages/AddProductPage').then((m) => ({ default: m.AddProductPage })),
 );
 
 // { Wrappers that inject onNavigate via useNavigate }
@@ -214,9 +214,9 @@ export const router = createBrowserRouter([
         path: 'products',
         children: [
           { index: true, element: <LazyPage><LazyProductList /></LazyPage> },
-          { path: 'new', element: <LazyPage><LazyProductForm /></LazyPage> },
+          { path: 'new', element: <LazyPage><LazyAddProduct /></LazyPage> },
           { path: ':productId', element: <LazyPage><LazyProductDetail /></LazyPage> },
-          { path: ':productId/edit', element: <LazyPage><LazyProductForm /></LazyPage> },
+          { path: ':productId/edit', element: <LazyPage><LazyAddProduct /></LazyPage> },
         ],
       },
 

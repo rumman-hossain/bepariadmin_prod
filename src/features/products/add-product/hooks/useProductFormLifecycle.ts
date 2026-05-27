@@ -1,0 +1,154 @@
+import { useState, useEffect, useCallback } from 'react';
+import { useParams } from 'react-router-dom';
+import {
+  useAddProductStore,
+  emptyProductMedia,
+  emptyVariationMedia,
+  type WizardState,
+} from '../store/useAddProductStore';
+import { getProductById, getReservedSku } from '@/src/api/products';
+import type { Product } from '@/src/features/products/types';
+
+export interface LifecycleState {
+  editingProductId: string | null;
+  isHydrating: boolean;
+  isEditMode: boolean;
+}
+
+function mapProductToWizardState(p: Product): Partial<WizardState> {
+  const selectedSizes = p.availableSizes || [];
+  const sizeStockSet: Record<string, string> = {};
+  const moqSet: Record<string, string> = {};
+  const sizeLowStockAlertSet: Record<string, string> = {};
+  const stockedOutSizes: string[] = [];
+
+  const inv = (p as Product & { inventory?: Array<{ size: string; stock: number; moq: number; lowStockAlert: number }> }).inventory;
+  if (inv?.length) {
+    inv.forEach((item) => {
+      sizeStockSet[item.size] = String(item.stock);
+      moqSet[item.size] = String(item.moq);
+      sizeLowStockAlertSet[item.size] = String(item.lowStockAlert);
+      if (item.stock === 0 && item.moq === 0 && item.lowStockAlert === 0) stockedOutSizes.push(item.size);
+    });
+  }
+
+  const productMedia = emptyProductMedia();
+  const media = (p as Product & { media?: Array<{ url: string; position: number }> }).media;
+  if (media) {
+    media.forEach((m) => {
+      const slot = { localUri: m.url, uploadedUrl: m.url, uploadStatus: 'done' as const };
+      if (m.position === 0) productMedia.poster = slot;
+      else if (m.position === 1) productMedia.front = slot;
+      else if (m.position === 2) productMedia.back = slot;
+      else if (m.position === 3) productMedia.left = slot;
+      else if (m.position === 4) productMedia.right = slot;
+      else productMedia.more.push(slot);
+    });
+  }
+  if (p.videoUrl) {
+    productMedia.video = {
+      localUri: p.videoUrl,
+      uploadedUrl: p.videoUrl,
+      uploadStatus: 'done',
+      thumbnail: '',
+    };
+  }
+
+  return {
+    name: p.name,
+    brandName: p.brandName || '',
+    unitType: p.unitType || '',
+    categoryId: (p as Product & { categoryId?: string }).categoryId || '',
+    subCategoryId: (p as Product & { subCategoryId?: string }).subCategoryId || '',
+    productGroupId: (p as Product & { productGroupId?: string }).productGroupId || '',
+    classificationId: (p as Product & { classificationId?: string }).classificationId || '',
+    productDetailId: (p as Product & { productDetailId?: string }).productDetailId || '',
+    description: p.description || '',
+    material: (p as Product & { material?: string }).material || '',
+    weight: String((p as Product & { weight?: number }).weight || ''),
+    volume: String((p as Product & { volume?: number }).volume || ''),
+    selectedSizes,
+    tags: (p as Product & { productTags?: string[] }).productTags || [],
+    basePrice: String(p.basePrice || ''),
+    margin: String(p.margin || ''),
+    stock: String(p.stock || ''),
+    moq: String(p.moq || ''),
+    dispatchTime: p.dispatchTime || '',
+    sku: p.sku || '',
+    hasVariant: (p as Product & { hasVariant?: boolean }).hasVariant ?? null,
+    sizeType: (p as Product & { sizeType?: string }).sizeType || 'UNIQUE',
+    sizeStockSet,
+    moqSet,
+    sizeLowStockAlertSet,
+    stockedOutSizes,
+    variationColors: (p as Product & { variationColors?: string[] }).variationColors || [],
+    variationDesigns: (p as Product & { variationDesigns?: string[] }).variationDesigns || [],
+    variations: ((p as Product & { variations?: unknown[] }).variations || []) as WizardState['variations'],
+    productMedia,
+    draftId: p.id,
+    wholesalerId: p.wholesalerId,
+  };
+}
+
+export function useProductFormLifecycle() {
+  const { productId: routeProductId } = useParams<{ productId?: string }>();
+  const { reset, hydrate } = useAddProductStore();
+  const store = useAddProductStore();
+
+  const [state, setState] = useState<LifecycleState>({
+    editingProductId: null,
+    isHydrating: false,
+    isEditMode: false,
+  });
+
+  const refetch = useCallback(async () => {
+    if (!routeProductId) return;
+    reset();
+    setState((prev) => ({ ...prev, isHydrating: true }));
+    try {
+      const res = await getProductById(routeProductId);
+      if (res.ok && res.data?.data) {
+        const mapped = mapProductToWizardState(res.data.data);
+        hydrate(mapped);
+        if (res.data.data.classificationId && store.wholesalerCode) {
+          try {
+            const skuRes = await getReservedSku({
+              wholesalerCode: store.wholesalerCode,
+              categoryId: mapped.categoryId || '',
+              subCategoryId: mapped.subCategoryId || '',
+              productGroupId: mapped.productGroupId || '',
+              classificationId: mapped.classificationId || '',
+            });
+            if (skuRes.ok && skuRes.data.details) {
+              useAddProductStore.getState().setField('classificationDetails', skuRes.data.details);
+            }
+          } catch {
+            /* optional */
+          }
+        }
+        setState({ editingProductId: routeProductId, isHydrating: false, isEditMode: true });
+      } else {
+        setState((prev) => ({ ...prev, isHydrating: false }));
+      }
+    } catch {
+      setState((prev) => ({ ...prev, isHydrating: false }));
+    }
+  }, [routeProductId, reset, hydrate, store.wholesalerCode]);
+
+  useEffect(() => {
+    if (routeProductId) {
+      void refetch();
+    } else {
+      reset();
+      setState({ editingProductId: null, isHydrating: false, isEditMode: false });
+    }
+  }, [routeProductId]);
+
+  return {
+    editingProductId: state.editingProductId,
+    isHydrating: state.isHydrating,
+    isEditMode: state.isEditMode,
+    refetch,
+    routeProductId: routeProductId ?? null,
+  };
+}

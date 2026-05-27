@@ -99,7 +99,8 @@ export interface ProductFilters {
 export const INITIAL_FILTERS: ProductFilters = {
   search: '',
   category: 'All',
-  status: 'All',
+  /** Default to pending queue — wholesaler new products are pending_review, not approved */
+  status: 'Pending Approval',
   wholesalerId: 'All',
   visibility: 'All',
   lowStock: false,
@@ -118,14 +119,3 @@ export const INITIAL_PAGINATION: ProductPagination = {
   limit: 20,
   total: 0,
 };
-
-// ─── AI Suggestion ─────────────────────────────────────────────
-
-export interface AIProductSuggestion {
-  name: string;
-  description: string;
-  category: string;
-  tags: string[];
-  predictedMargin: number;
-  confidence: number;
-}

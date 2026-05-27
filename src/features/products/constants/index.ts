@@ -1,35 +1,35 @@
-export const PRODUCT_CATEGORIES = [
-  'Apparel',
-  'Electronics',
-  'FMCG',
-  'Footwear',
-  'Bags',
-  'Accessories',
-  'Home & Living',
-  'Beauty',
-  'Sports',
-  'Toys',
-] as const;
-
-export const PRODUCT_SUB_CATEGORIES: Record<string, string[]> = {
-  Apparel: ['T-Shirts', 'Polo Shirts', 'Hoodies', 'Jackets', 'Pants', 'Shorts'],
-  Electronics: ['Smartphones', 'Accessories', 'Audio', 'Wearables'],
-  FMCG: ['Food', 'Beverages', 'Personal Care', 'Household'],
-  Footwear: ['Sneakers', 'Formal', 'Sandals', 'Sports'],
-  Bags: ['Backpacks', 'Handbags', 'Wallets', 'Luggage'],
-  Accessories: ['Watches', 'Jewelry', 'Sunglasses', 'Hats'],
-};
-
+/** Statuses supported by backend list filters (DB values mapped to display labels) */
 export const PRODUCT_STATUSES = [
-  'Draft',
   'Pending Approval',
   'Approved',
   'Rejected',
-  'Out of Stock',
-  'Archived',
-  'Suspended',
 ] as const;
 
-export const STOCK_LOW_THRESHOLD = 10;
+/** Shown first in filter — matches wholesaler submit status in DB */
+export const DEFAULT_ADMIN_LIST_STATUS = 'Pending Approval' as const;
 
-export const DEFAULT_MARGIN = 15;
+export const BACKEND_STATUS_TO_DISPLAY: Record<string, string> = {
+  pending_review: 'Pending Approval',
+  approved: 'Approved',
+  rejected: 'Rejected',
+  draft: 'Draft',
+};
+
+export const DISPLAY_STATUS_TO_BACKEND: Record<string, string> = {
+  'Pending Approval': 'pending_review',
+  Approved: 'approved',
+  Rejected: 'rejected',
+  Draft: 'draft',
+};
+
+export const BACKEND_VISIBILITY_TO_DISPLAY: Record<string, string> = {
+  public: 'Public',
+  private: 'Private',
+};
+
+export const DISPLAY_VISIBILITY_TO_BACKEND: Record<string, string> = {
+  Public: 'public',
+  Private: 'private',
+};
+
+export const STOCK_LOW_THRESHOLD = 10;

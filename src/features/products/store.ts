@@ -28,6 +28,9 @@ interface ProductStore {
   /** Pagination state */
   pagination: ProductPagination;
 
+  /** Category id → name map for list normalization */
+  categoryNameMap: Record<string, string>;
+
   /** Loading / error states */
   isLoading: boolean;
   isDetailLoading: boolean;
@@ -57,6 +60,8 @@ interface ProductStore {
   setPage: (page: number) => void;
   /** Change page size */
   setLimit: (limit: number) => void;
+  /** Set category id → name lookup for API normalization */
+  setCategoryNameMap: (map: Record<string, string>) => void;
   /** Select a product by ID */
   selectProduct: (id: string) => void;
   /** Clear selected product */
@@ -72,6 +77,7 @@ export const useProductStore = create<ProductStore>((set, get) => ({
 
   filters: { ...INITIAL_FILTERS },
   pagination: { ...INITIAL_PAGINATION },
+  categoryNameMap: {},
 
   isLoading: true,
   isDetailLoading: false,
@@ -80,23 +86,25 @@ export const useProductStore = create<ProductStore>((set, get) => ({
   // ── Fetch List ─────────────────────────────────────────────────
 
   fetchProducts: async () => {
-    const { filters, pagination } = get();
+    const { filters, pagination, categoryNameMap } = get();
 
     set({ isLoading: true, error: null });
 
     try {
-      const res = await getProducts({
-        page: pagination.page,
-        limit: pagination.limit,
-        search: filters.search || undefined,
-        category: filters.category !== 'All' ? filters.category : undefined,
-        status: filters.status !== 'All' ? filters.status : undefined,
-        wholesalerId: filters.wholesalerId !== 'All' ? filters.wholesalerId : undefined,
-        visibility: filters.visibility !== 'All' ? filters.visibility : undefined,
-      });
+      const res = await getProducts(
+        {
+          page: pagination.page,
+          limit: pagination.limit,
+          search: filters.search || undefined,
+          category: filters.category !== 'All' ? filters.category : undefined,
+          status: filters.status !== 'All' ? filters.status : undefined,
+          visibility: filters.visibility !== 'All' ? filters.visibility : undefined,
+        },
+        { categoryNames: categoryNameMap },
+      );
 
       if (!res.ok) {
-        set({ isLoading: false, error: `Failed to load products (${res.status})` });
+        set({ isLoading: false, error: `Failed to load products (${res.status}) — check that the backend is running and the dev proxy is configured` });
         return;
       }
 
@@ -230,6 +238,13 @@ export const useProductStore = create<ProductStore>((set, get) => ({
     set((state) => ({
       pagination: { ...state.pagination, limit, page: 1 },
     })),
+
+  setCategoryNameMap: (map) => {
+    set({ categoryNameMap: map });
+    if (Object.keys(map).length > 0) {
+      void get().fetchProducts();
+    }
+  },
 
   selectProduct: (id) => set({ selectedId: id }),
 
