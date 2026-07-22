@@ -87,4 +87,24 @@ export const wholesalerSchema = z.object({
   path: ['password'],
 });
 
-export type WholesalerFormData = z.infer<typeof wholesalerSchema>;
+/**
+ * Transient, UI-only stable key for React list rendering of add/remove-able
+ * sub-records. It is NOT part of the zod schema (API contract) and never reaches
+ * the API payload — the create/update mappers in `wholesalerApi.ts` pick fields
+ * explicitly, so `_key` is dropped. Keeping it out of the zod schema also prevents
+ * a client-generated value from being misread by the backend as an existing id.
+ */
+type WithClientKey<T> = T & { _key?: string };
+
+export type WholesalerAddressItem = WithClientKey<z.infer<typeof addressItemSchema>>;
+export type WholesalerBankItem = WithClientKey<z.infer<typeof bankItemSchema>>;
+export type WholesalerWalletItem = WithClientKey<z.infer<typeof walletItemSchema>>;
+
+export type WholesalerFormData = Omit<
+  z.infer<typeof wholesalerSchema>,
+  'addresses' | 'bankDetailsList' | 'digitalWallets'
+> & {
+  addresses: WholesalerAddressItem[];
+  bankDetailsList: WholesalerBankItem[];
+  digitalWallets: WholesalerWalletItem[];
+};

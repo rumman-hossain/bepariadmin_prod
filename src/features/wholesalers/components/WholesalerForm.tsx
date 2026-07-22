@@ -154,7 +154,7 @@ export function WholesalerForm({
   const addAddress = () => {
     const nextAddresses = [
       ...(values.addresses || []),
-      { addressType: 'warehouse' as const, division: '', district: '', postalCode: '', addressLine: '', isDefault: false }
+      { addressType: 'warehouse' as const, division: '', district: '', postalCode: '', addressLine: '', isDefault: false, _key: crypto.randomUUID() }
     ];
     setField('addresses', nextAddresses);
   };
@@ -184,7 +184,7 @@ export function WholesalerForm({
   const addBankAccount = () => {
     const nextBanks = [
       ...(values.bankDetailsList || []),
-      { bankName: '', accountName: '', accountNumber: '', branch: '', routing: '', isDefault: (values.bankDetailsList || []).length === 0 }
+      { bankName: '', accountName: '', accountNumber: '', branch: '', routing: '', isDefault: (values.bankDetailsList || []).length === 0, _key: crypto.randomUUID() }
     ];
     setField('bankDetailsList', nextBanks);
   };
@@ -214,7 +214,7 @@ export function WholesalerForm({
   const addWallet = () => {
     const nextWallets = [
       ...(values.digitalWallets || []),
-      { walletType: 'bkash' as const, accountNumber: '', isDefault: (values.digitalWallets || []).length === 0 }
+      { walletType: 'bkash' as const, accountNumber: '', isDefault: (values.digitalWallets || []).length === 0, _key: crypto.randomUUID() }
     ];
     setField('digitalWallets', nextWallets);
   };
@@ -457,8 +457,8 @@ export function WholesalerForm({
         <FormSection icon={MapPin} title="Addresses (Multi-Address)">
           <div className="space-y-6">
             {(values.addresses || []).map((addr, index) => (
-              <div 
-                key={index} 
+              <div
+                key={addr.id ?? addr._key ?? `idx-${index}`}
                 className="p-5 rounded-2xl bg-white/40 dark:bg-white/5 border border-[rgba(60,60,67,0.08)] dark:border-white/5 relative group animate-slide-up"
               >
                 <div className="absolute top-4 right-4 flex items-center gap-2">
@@ -576,14 +576,14 @@ export function WholesalerForm({
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {(values.bankDetailsList || []).map((bank, index) => (
-                    <div 
-                      key={index}
+                    <div
+                      key={bank.id ?? bank._key ?? `idx-${index}`}
                       className="p-4 rounded-xl border border-[rgba(60,60,67,0.08)] dark:border-white/5 bg-white/40 dark:bg-white/5 relative"
                     >
                       <div className="absolute top-3 right-3 flex items-center gap-2">
                         <label className="flex items-center gap-1 cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={bank.isDefault}
                             onChange={(e) => handleBankChange(index, 'isDefault', e.target.checked)}
                             className="rounded text-[#007AFF] w-3.5 h-3.5 border-slate-300"
@@ -672,14 +672,14 @@ export function WholesalerForm({
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   {(values.digitalWallets || []).map((wallet, index) => (
-                    <div 
-                      key={index}
+                    <div
+                      key={wallet.id ?? wallet._key ?? `idx-${index}`}
                       className="p-4 rounded-xl border border-[rgba(60,60,67,0.08)] dark:border-white/5 bg-white/40 dark:bg-white/5 relative"
                     >
                       <div className="absolute top-3 right-3 flex items-center gap-2">
                         <label className="flex items-center gap-1 cursor-pointer">
-                          <input 
-                            type="checkbox" 
+                          <input
+                            type="checkbox"
                             checked={wallet.isDefault}
                             onChange={(e) => handleWalletChange(index, 'isDefault', e.target.checked)}
                             className="rounded text-[#007AFF] w-3.5 h-3.5 border-slate-300"
