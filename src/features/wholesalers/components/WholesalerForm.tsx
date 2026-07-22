@@ -116,6 +116,13 @@ export function WholesalerForm({
     valuesRef.current = values;
   }, [values]);
 
+  // Per-slot request-generation counters (keyed by 'logo' and each document key).
+  // Selecting a new file for a slot bumps its generation; an in-flight upload only
+  // applies its result/status if its captured generation is still current — so a
+  // stale late response from an earlier (e.g. wrong-file) selection can never
+  // overwrite a newer selection for the SAME slot.
+  const uploadGenRef = React.useRef<Record<string, number>>({});
+
   const logoInputRef = React.useRef<HTMLInputElement>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = React.useState<string | null>(null);
   const [pendingLogoFile, setPendingLogoFile] = React.useState<File | null>(null);
@@ -150,6 +157,9 @@ export function WholesalerForm({
     setLogoPreviewUrl(URL.createObjectURL(file));
     setField('logoUrl', '');
     setLogoUpload({ status: 'uploading', error: undefined });
+    const gen = (uploadGenRef.current.logo ?? 0) + 1;
+    uploadGenRef.current.logo = gen;
+    const isCurrent = () => uploadGenRef.current.logo === gen;
     try {
       await uploadSlot({
         file,
@@ -160,6 +170,7 @@ export function WholesalerForm({
         draftPurpose: 'wholesaler',
         onDraftId: setAssetDraftId,
         onSlotUpdate: (s) => {
+          if (!isCurrent()) return; // superseded by a newer logo selection
           if (s.uploadStatus) {
             setLogoUpload({ status: s.uploadStatus, error: s.uploadError });
           }
@@ -169,7 +180,9 @@ export function WholesalerForm({
         },
       });
     } catch {
-      setLogoUpload({ status: 'error', error: 'Logo upload failed. Please try again.' });
+      if (isCurrent()) {
+        setLogoUpload({ status: 'error', error: 'Logo upload failed. Please try again.' });
+      }
     } finally {
       // Allow re-selecting the same file to retry.
       e.target.value = '';
@@ -197,6 +210,9 @@ export function WholesalerForm({
       delete docResultsRef.current[key];
       const currentDocs = (valuesRef.current.documents || []).filter((d) => d.name !== label);
       setField('documents', currentDocs);
+      const gen = (uploadGenRef.current[key] ?? 0) + 1;
+      uploadGenRef.current[key] = gen;
+      const isCurrent = () => uploadGenRef.current[key] === gen;
       try {
         await uploadSlot({
           file,
@@ -207,10 +223,11 @@ export function WholesalerForm({
           draftPurpose: 'wholesaler',
           onDraftId: setAssetDraftId,
           onSlotUpdate: (s) => {
+            if (!isCurrent()) return; // superseded by a newer selection for this slot
             if (s.uploadStatus) {
               setPendingDocs((prev) => ({
                 ...prev,
-                [key]: { ...prev[key], status: s.uploadStatus as UploadStatus, error: s.uploadError },
+                [key]: { ...prev[key], status: s.uploadStatus, error: s.uploadError },
               }));
             }
             if (s.uploadStatus === 'done' && s.uploadedUrl) {
@@ -226,10 +243,12 @@ export function WholesalerForm({
           },
         });
       } catch {
-        setPendingDocs((prev) => ({
-          ...prev,
-          [key]: { ...prev[key], status: 'error', error: 'Upload failed. Please try again.' },
-        }));
+        if (isCurrent()) {
+          setPendingDocs((prev) => ({
+            ...prev,
+            [key]: { ...prev[key], status: 'error', error: 'Upload failed. Please try again.' },
+          }));
+        }
       } finally {
         e.target.value = '';
       }
