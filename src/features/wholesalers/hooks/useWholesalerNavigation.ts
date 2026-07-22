@@ -2,7 +2,6 @@ import { useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WHOLESALER_ROUTES } from '../routes';
 import { useWholesalerStore } from '../store';
-import { wholesalerDebugLog } from '../utils/debugLog';
 
 export function useWholesalerNavigation() {
   const navigate = useNavigate();
@@ -10,9 +9,6 @@ export function useWholesalerNavigation() {
   const selectWholesaler = useWholesalerStore((s) => s.selectWholesaler);
 
   const goToList = useCallback(() => {
-    wholesalerDebugLog('useWholesalerNavigation.ts:goToList', 'navigate list', 'C', {
-      path: WHOLESALER_ROUTES.LIST,
-    });
     clearSelection();
     navigate(WHOLESALER_ROUTES.LIST);
   }, [navigate, clearSelection]);
@@ -23,10 +19,6 @@ export function useWholesalerNavigation() {
 
   const goToDetail = useCallback(
     (id: string) => {
-      wholesalerDebugLog('useWholesalerNavigation.ts:goToDetail', 'navigate detail', 'C', {
-        id,
-        path: WHOLESALER_ROUTES.DETAIL(id),
-      });
       selectWholesaler(id);
       navigate(WHOLESALER_ROUTES.DETAIL(id));
     },
@@ -44,10 +36,6 @@ export function useWholesalerNavigation() {
 
   const goBackToDetail = useCallback(
     (id: string) => {
-      wholesalerDebugLog('useWholesalerNavigation.ts:goBackToDetail', 'navigate detail from edit', 'C', {
-        id,
-        path: WHOLESALER_ROUTES.DETAIL(id),
-      });
       selectWholesaler(id);
       navigate(WHOLESALER_ROUTES.DETAIL(id));
     },

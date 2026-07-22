@@ -3,7 +3,6 @@ import { wholesalerSchema, type WholesalerFormData } from '../schemas/wholesaler
 import { useWholesalerStore } from '../store';
 import { validateWholesalerForm } from '../utils/formErrors';
 import { DEFAULT_COMMISSION_RATE } from '../constants';
-import { wholesalerDebugLog } from '../utils/debugLog';
 
 export const EMPTY_WHOLESALER_FORM: WholesalerFormData = {
   companyName: '',
@@ -84,12 +83,6 @@ export function useWholesalerForm({ initialData, onSuccess }: UseWholesalerFormO
     if (!validate()) return false;
 
     try {
-      const branch = values.id ? 'update' : 'create';
-      wholesalerDebugLog('useWholesalerForm.ts:handleSubmit', 'submit branch', 'A', {
-        branch,
-        valuesId: values.id ?? null,
-        isEditing,
-      });
       if (values.id) {
         const updated = await updateWholesalerFromForm(values.id, values);
         await onSuccess?.({ id: updated.id });
@@ -99,12 +92,9 @@ export function useWholesalerForm({ initialData, onSuccess }: UseWholesalerFormO
       }
       return true;
     } catch {
-      wholesalerDebugLog('useWholesalerForm.ts:handleSubmit', 'submit failed', 'A', {
-        valuesId: values.id ?? null,
-      });
       return false;
     }
-  }, [validate, values, isEditing, updateWholesalerFromForm, createWholesalerFromForm, onSuccess]);
+  }, [validate, values, updateWholesalerFromForm, createWholesalerFromForm, onSuccess]);
 
   return {
     values,

@@ -148,9 +148,6 @@ export const useProductStore = create<ProductStore>((set, get) => ({
 
       const product = res.data.data;
       const parsed = productResponseSchema.safeParse(product);
-      // #region agent log
-      fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'store.ts:fetchProductDetail',message:'detail normalized',data:{id,parseSuccess:parsed.success,category:product.category,subCategory:product.subCategory,productGroup:product.productGroup,classification:product.classification,productDetail:product.productDetail},timestamp:Date.now(),hypothesisId:'A',runId:'post-fix'})}).catch(()=>{});
-      // #endregion
 
       if (!parsed.success) {
         console.error('[Products] Detail schema validation failed:', parsed.error.flatten());

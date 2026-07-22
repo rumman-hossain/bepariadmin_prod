@@ -119,9 +119,6 @@ export function useProductFormLifecycle() {
     setState((prev) => ({ ...prev, isHydrating: true }));
     try {
       const res = await getProductById(routeProductId);
-      // #region agent log
-      fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'useProductFormLifecycle.ts:refetch',message:'edit hydrate attempt',data:{routeProductId,ok:res.ok,hasData:Boolean(res.data?.data),name:res.data?.data?.name,categoryId:(res.data?.data as {categoryId?:string})?.categoryId,status:res.data?.data?.status},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
-      // #endregion
       if (res.ok && res.data?.data) {
         const mapped = mapProductToWizardState(res.data.data);
         hydrate(mapped);

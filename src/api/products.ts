@@ -96,10 +96,6 @@ export async function getProductById(
 
   const normalized = normalizeBackendProduct(raw, labels);
 
-  // #region agent log
-  fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'products.ts:getProductById',message:'getProductById normalized',data:{id,category:normalized.category,subCategory:normalized.subCategory,productGroup:normalized.productGroup,classification:normalized.classification,productDetail:normalized.productDetail},timestamp:Date.now(),hypothesisId:'B',runId:'post-fix'})}).catch(()=>{});
-  // #endregion
-
   return { ok: true, status: res.status, data: { data: normalized } };
 }
 

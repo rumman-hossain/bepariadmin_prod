@@ -4,7 +4,6 @@ import { Button } from '@/src/components/ui/Button';
 import { Modal } from '@/src/components/ui/Modal';
 import { useAddProductLogic, type WizardStep } from '../hooks/useAddProductLogic';
 import { useFormValidation } from '../hooks/useFormValidation';
-import { useAddProductStore } from '../store/useAddProductStore';
 import { SelectionModal } from './SelectionModal';
 import { Step1BasicInfo } from './steps/Step1BasicInfo';
 import { Step2Details } from './steps/Step2Details';
@@ -29,8 +28,7 @@ interface Props {
 
 export function AddProductFlow({ onBack, onReset }: Props) {
   const logic = useAddProductLogic();
-  const { validateStep, hasVariant: resolvedHasVariant } = useFormValidation();
-  const hasVariantStore = useAddProductStore((s) => s.hasVariant);
+  const { validateStep } = useFormValidation();
 
   const {
     currentStep,
@@ -73,9 +71,6 @@ export function AddProductFlow({ onBack, onReset }: Props) {
   const isSaving = registrationState === 'saving';
 
   const goNext = () => {
-    // #region agent log
-    fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'AddProductFlow.tsx:goNext',message:'step advance attempt',data:{currentStep,isValid:validation.isValid,errors:validation.errors,hasVariantRaw:hasVariantStore,resolvedHasVariant,isEditMode},timestamp:Date.now(),hypothesisId:'B',runId:'footer-variant-fix'})}).catch(()=>{});
-    // #endregion
     if (!validation.isValid) return;
     if (isLastStep) {
       setShowSubmitPrompt(true);

@@ -5,9 +5,11 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "npm run guard:no-debug-beacons",
     "build": "vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "guard:no-debug-beacons": "! grep -rn '127.0.0.1:7294' src"
   },
   "dependencies": {
     "@google/genai": "^1.41.0",
