@@ -5,6 +5,7 @@ import { router } from '@/src/router';
 import { AuthProvider } from '@/src/auth/AuthContext';
 import { ThemeProvider } from '@/src/design-system';
 import { ToastProvider } from '@/src/components/ui/Toast';
+import { AppErrorBoundary } from '@/src/app/AppErrorBoundary';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -14,12 +15,14 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <ThemeProvider>
-      <AuthProvider>
-        <ToastProvider>
-          <RouterProvider router={router} />
-        </ToastProvider>
-      </AuthProvider>
-    </ThemeProvider>
+    <AppErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <RouterProvider router={router} />
+          </ToastProvider>
+        </AuthProvider>
+      </ThemeProvider>
+    </AppErrorBoundary>
   </React.StrictMode>,
 );
