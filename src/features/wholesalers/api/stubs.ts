@@ -33,16 +33,3 @@ export async function listWholesalerDecisionOrders(
 ): Promise<WholesalerDecisionOrders> {
   return { accepted: [], rejected: [] };
 }
-
-export interface UploadWholesalerAssetResult {
-  fileUrl: string;
-}
-
-/** File upload — wire when admin storage API exists */
-export async function uploadWholesalerAsset(
-  _wholesalerId: string,
-  _file: File,
-  _purpose: 'logo' | 'document',
-): Promise<UploadWholesalerAssetResult> {
-  throw new Error('File upload API is not connected yet.');
-}

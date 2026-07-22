@@ -6,6 +6,8 @@ import { Textarea } from '@/src/components/ui/Textarea';
 import { FormSection } from '@/src/components/forms/FormSection';
 import { FormField } from '@/src/components/forms/FormField';
 import { getCategories } from '@/src/api/products';
+import { useUpload } from '@/src/services/upload/useUpload';
+import type { UploadStatus } from '@/src/features/products/types/registration';
 import type { WholesalerFormData } from '../schemas/wholesalerSchema';
 import {
   User, ShieldAlert, FileText, Plus, Trash2,
@@ -102,9 +104,24 @@ export function WholesalerForm({
     setField('categories', next);
   };
 
+  const { uploadSlot } = useUpload();
+  // One draft id is shared across the logo and all documents so they attach to a
+  // single upload draft (first upload creates it, later uploads reuse it).
+  const [assetDraftId, setAssetDraftId] = React.useState<string | null>(null);
+
+  // Always-current snapshot of `values` for use inside async upload callbacks
+  // (closures capture a stale `values`; the ref reads the latest committed state).
+  const valuesRef = React.useRef(values);
+  React.useEffect(() => {
+    valuesRef.current = values;
+  }, [values]);
+
   const logoInputRef = React.useRef<HTMLInputElement>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = React.useState<string | null>(null);
   const [pendingLogoFile, setPendingLogoFile] = React.useState<File | null>(null);
+  const [logoUpload, setLogoUpload] = React.useState<{ status: UploadStatus; error?: string }>({
+    status: 'idle',
+  });
 
   React.useEffect(() => {
     if (values.logoUrl && !values.logoUrl.startsWith('data:')) {
@@ -123,7 +140,7 @@ export function WholesalerForm({
     };
   }, [logoPreviewUrl]);
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleLogoChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     if (logoPreviewUrl?.startsWith('blob:')) {
@@ -132,23 +149,91 @@ export function WholesalerForm({
     setPendingLogoFile(file);
     setLogoPreviewUrl(URL.createObjectURL(file));
     setField('logoUrl', '');
+    setLogoUpload({ status: 'uploading', error: undefined });
+    try {
+      await uploadSlot({
+        file,
+        purpose: 'wholesaler:logo',
+        position: 0,
+        mediaType: 'image',
+        draftId: assetDraftId,
+        draftPurpose: 'wholesaler',
+        onDraftId: setAssetDraftId,
+        onSlotUpdate: (s) => {
+          if (s.uploadStatus) {
+            setLogoUpload({ status: s.uploadStatus, error: s.uploadError });
+          }
+          if (s.uploadStatus === 'done' && s.uploadedUrl) {
+            setField('logoUrl', s.uploadedUrl);
+          }
+        },
+      });
+    } catch {
+      setLogoUpload({ status: 'error', error: 'Logo upload failed. Please try again.' });
+    } finally {
+      // Allow re-selecting the same file to retry.
+      e.target.value = '';
+    }
   };
 
   const [pendingDocs, setPendingDocs] = React.useState<
-    Record<string, { fileName: string; fileSize: string }>
+    Record<string, { fileName: string; fileSize: string; status: UploadStatus; error?: string }>
   >({});
+  // Authoritative map of successfully-uploaded documents keyed by slot key. The
+  // documents array is always rebuilt from this ref so concurrent uploads of
+  // different slots can't clobber each other via a stale `values.documents` read.
+  const docResultsRef = React.useRef<Record<string, { name: string; fileUrl: string; status: string }>>({});
 
-  const handleDocChange = (key: string, label: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const sizeStr = (file.size / 1024 / 1024).toFixed(2) + ' MB';
-    setPendingDocs((prev) => ({
-      ...prev,
-      [key]: { fileName: file.name, fileSize: sizeStr },
-    }));
-    const currentDocs = (values.documents || []).filter((d) => d.name !== label);
-    setField('documents', currentDocs);
-  };
+  const handleDocChange =
+    (key: string, label: string, position: number) => async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const sizeStr = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+      setPendingDocs((prev) => ({
+        ...prev,
+        [key]: { fileName: file.name, fileSize: sizeStr, status: 'uploading' },
+      }));
+      // Drop any prior entry for this slot until the new upload completes.
+      delete docResultsRef.current[key];
+      const currentDocs = (valuesRef.current.documents || []).filter((d) => d.name !== label);
+      setField('documents', currentDocs);
+      try {
+        await uploadSlot({
+          file,
+          purpose: `wholesaler:document:${key}`,
+          position,
+          mediaType: 'image',
+          draftId: assetDraftId,
+          draftPurpose: 'wholesaler',
+          onDraftId: setAssetDraftId,
+          onSlotUpdate: (s) => {
+            if (s.uploadStatus) {
+              setPendingDocs((prev) => ({
+                ...prev,
+                [key]: { ...prev[key], status: s.uploadStatus as UploadStatus, error: s.uploadError },
+              }));
+            }
+            if (s.uploadStatus === 'done' && s.uploadedUrl) {
+              docResultsRef.current[key] = { name: label, fileUrl: s.uploadedUrl, status: 'uploaded' };
+              const uploadedNames = new Set(
+                Object.values(docResultsRef.current).map((d) => d.name),
+              );
+              const preserved = (valuesRef.current.documents || []).filter(
+                (d) => !uploadedNames.has(d.name),
+              );
+              setField('documents', [...preserved, ...Object.values(docResultsRef.current)]);
+            }
+          },
+        });
+      } catch {
+        setPendingDocs((prev) => ({
+          ...prev,
+          [key]: { ...prev[key], status: 'error', error: 'Upload failed. Please try again.' },
+        }));
+      } finally {
+        e.target.value = '';
+      }
+    };
 
   // Addresses handlers
   const addAddress = () => {
@@ -435,8 +520,24 @@ export function WholesalerForm({
               {displayLogo ? (
                 <div className="flex flex-col items-center gap-2">
                   <img src={displayLogo} alt="Logo preview" className="w-16 h-16 object-cover rounded-xl border border-slate-200 shadow-sm" />
-                  <span className="text-xs text-slate-500">
-                    {pendingLogoFile ? 'Selected — will upload when storage API is connected' : 'Current logo'}
+                  <span
+                    className={`text-xs ${
+                      logoUpload.status === 'error'
+                        ? 'text-[#FF3B30] font-bold'
+                        : logoUpload.status === 'done'
+                          ? 'text-[#34C759] font-bold'
+                          : 'text-slate-500'
+                    }`}
+                  >
+                    {pendingLogoFile
+                      ? logoUpload.status === 'uploading'
+                        ? 'Uploading…'
+                        : logoUpload.status === 'done'
+                          ? 'Uploaded'
+                          : logoUpload.status === 'error'
+                            ? logoUpload.error || 'Upload failed'
+                            : 'Selected'
+                      : 'Current logo'}
                   </span>
                   <span className="text-xs text-slate-400 hover:text-[#FF3B30] underline mt-1">Change Logo</span>
                 </div>
@@ -444,7 +545,7 @@ export function WholesalerForm({
                 <>
                   <Image className="w-8 h-8 text-slate-400 mb-2" />
                   <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Click to select company logo</p>
-                  <p className="text-xs text-slate-400 mt-1">PNG, JPG or WEBP (upload when storage API is connected)</p>
+                  <p className="text-xs text-slate-400 mt-1">PNG, JPG or WEBP — uploads immediately on select</p>
                 </>
               )}
             </div>
@@ -732,7 +833,7 @@ export function WholesalerForm({
         {/* 5. Documents Uploads */}
         <FormSection icon={FileText} title="Documents Upload">
           <p className="text-xs text-slate-500 mb-4 -mt-2">
-            Files are selected locally. They will upload when the document storage API is connected.
+            Each file uploads immediately on select. PDF or high-res image format.
           </p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {[
@@ -740,14 +841,14 @@ export function WholesalerForm({
               { key: 'tin', label: 'TIN Certificate' },
               { key: 'vat', label: 'VAT Registration' },
               { key: 'nid', label: 'Owner NID Photo' }
-            ].map((doc) => (
+            ].map((doc, docIndex) => (
               <DocumentUploadSlot
                 key={doc.key}
                 docKey={doc.key}
                 label={doc.label}
                 pending={pendingDocs[doc.key]}
                 existing={values.documents?.find((d) => d.name === doc.label)}
-                onFileSelect={handleDocChange(doc.key, doc.label)}
+                onFileSelect={handleDocChange(doc.key, doc.label, docIndex)}
               />
             ))}
           </div>
@@ -775,7 +876,7 @@ function DocumentUploadSlot({
 }: {
   docKey: string;
   label: string;
-  pending?: { fileName: string; fileSize: string };
+  pending?: { fileName: string; fileSize: string; status: UploadStatus; error?: string };
   existing?: { name: string; fileUrl?: string; status: string };
   onFileSelect: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
@@ -789,12 +890,18 @@ function DocumentUploadSlot({
           <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">{label}</h4>
           <p className="text-xs text-slate-400">PDF or high-res Image format</p>
         </div>
-        {pending ? (
+        {pending?.status === 'uploading' ? (
+          <span className="text-xs text-[#007AFF] font-bold">Uploading…</span>
+        ) : pending?.status === 'error' ? (
+          <span className="text-xs text-[#FF3B30] font-bold">Upload failed</span>
+        ) : pending?.status === 'done' || hasServerFile ? (
+          <span className="text-xs text-[#34C759] font-bold flex items-center gap-0.5">
+            <Check className="w-3.5 h-3.5" /> Uploaded
+          </span>
+        ) : pending ? (
           <span className="text-xs text-[#007AFF] font-bold flex items-center gap-0.5">
             <Check className="w-3.5 h-3.5" /> Selected
           </span>
-        ) : hasServerFile ? (
-          <span className="text-xs text-[#34C759] font-bold">On file</span>
         ) : (
           <span className="text-xs text-slate-400">Not uploaded</span>
         )}
@@ -814,6 +921,9 @@ function DocumentUploadSlot({
             </span>
             <span className="text-slate-400">{pending.fileSize}</span>
           </div>
+          {pending.status === 'error' && pending.error && (
+            <p className="text-xs text-[#FF3B30]">{pending.error}</p>
+          )}
         </div>
       )}
       <Button
