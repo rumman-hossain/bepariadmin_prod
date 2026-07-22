@@ -53,7 +53,16 @@ function formatDate(value: unknown): string | undefined {
 export function mapProfileToWholesaler(profile: WholesalerProfilePayload | Record<string, unknown>): Wholesaler {
   const p = profile as Record<string, unknown>;
   const rawAddresses = Array.isArray(p.addresses) ? (p.addresses as Record<string, unknown>[]) : [];
-  const primaryAddress = rawAddresses.find((a) => a.isDefault || a.addressType === 'primary') ?? rawAddresses[0];
+  const primaryAddress =
+    rawAddresses.find((a) => a.isDefault || a.addressType === 'primary') ?? rawAddresses[0];
+  const districtFromAddresses = (addr: Record<string, unknown> | undefined) => {
+    const d = addr?.district ?? addr?.District;
+    return typeof d === 'string' ? d.trim() : '';
+  };
+  const locationDistrict =
+    districtFromAddresses(primaryAddress) ||
+    rawAddresses.map((a) => districtFromAddresses(a)).find((d) => d.length > 0) ||
+    '';
 
   const rawBanks = Array.isArray(p.bankDetails) ? (p.bankDetails as Record<string, unknown>[]) : [];
   const primaryBank = rawBanks.find((b) => b.isDefault) ?? rawBanks[0];
@@ -104,7 +113,7 @@ export function mapProfileToWholesaler(profile: WholesalerProfilePayload | Recor
     code: (p.code as string) || undefined,
     companyName: ((p.companyName ?? p.shopName ?? p.name) as string) || '',
     category: categoryStr,
-    location: (primaryAddress?.district as string) || '',
+    location: locationDistrict,
     status: mapStatus((p.status as string) || 'INIT'),
     createdAt: formatDate(p.createdAt),
     ownerName: (p.name as string) || '',

@@ -308,6 +308,7 @@ export function WholesalerForm({
                   <Input
                     id="password"
                     type="password"
+                    autoComplete="new-password"
                     placeholder="Enter a secure password (min 8 characters)"
                     value={values.password || ''}
                     onChange={(e) => setField('password', e.target.value)}
@@ -348,13 +349,16 @@ export function WholesalerForm({
                 onChange={(e) => setField('mobile', e.target.value)} 
               />
             </FormField>
-            <FormField label="Platform Commission Rate (%)" htmlFor="commissionRate" error={errors.commissionRate}>
+            <FormField
+              label="Platform Commission Rate (%)"
+              htmlFor="commissionRate"
+              error={errors.commissionRate}
+            >
               <Input 
                 id="commissionRate" 
                 type="number" 
                 step="any"
                 min="0" 
-                max="100" 
                 value={values.commissionRate === undefined || isNaN(values.commissionRate) ? '' : values.commissionRate} 
                 onChange={(e) => {
                   const val = e.target.value;
@@ -362,10 +366,13 @@ export function WholesalerForm({
                     setField('commissionRate', undefined);
                   } else {
                     const parsed = parseFloat(val);
-                    setField('commissionRate', isNaN(parsed) ? undefined : parsed);
+                    setField('commissionRate', isNaN(parsed) ? undefined : Math.max(0, parsed));
                   }
                 }} 
               />
+              <p className="text-xs text-text-muted mt-1">
+                Defaults to 9.5% if blank. 0 is allowed; negatives are blocked.
+              </p>
             </FormField>
           </div>
 

@@ -57,7 +57,10 @@ export function useWholesalerList() {
   }, [wholesalers]);
 
   const uniqueLocations = useMemo(
-    () => Array.from(new Set(wholesalers.map((w) => w.location || 'Dhaka'))),
+    () =>
+      Array.from(
+        new Set(wholesalers.map((w) => w.location?.trim()).filter((loc): loc is string => !!loc)),
+      ),
     [wholesalers],
   );
 

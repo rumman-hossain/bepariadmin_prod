@@ -8,6 +8,7 @@
  * - Handles: loading, empty, error, success states
  */
 import React from 'react';
+import { ChartContainer, CHART_HEIGHT_PX } from '../components/ChartContainer';
 import {
   TrendingUp,
   TrendingDown,
@@ -25,7 +26,6 @@ import {
   YAxis,
   CartesianGrid,
   Tooltip,
-  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
@@ -153,14 +153,17 @@ function StatCard({ kpi }: { kpi: Kpi }) {
 function SalesChart({ data }: { data: ChartDataPoint[] }) {
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[250px] text-text-tertiary text-sm">
+      <div
+        className="flex items-center justify-center text-text-tertiary text-sm"
+        style={{ height: CHART_HEIGHT_PX }}
+      >
         No sales data yet
       </div>
     );
   }
 
   return (
-    <ResponsiveContainer width="100%" height={250}>
+    <ChartContainer>
       <AreaChart data={data} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
         <defs>
           <linearGradient id="salesGradient" x1="0" y1="0" x2="0" y2="1">
@@ -189,7 +192,7 @@ function SalesChart({ data }: { data: ChartDataPoint[] }) {
           activeDot={{ r: 5, strokeWidth: 2, fill: CHART_COLORS[0] }}
         />
       </AreaChart>
-    </ResponsiveContainer>
+    </ChartContainer>
   );
 }
 
@@ -197,14 +200,17 @@ function SalesChart({ data }: { data: ChartDataPoint[] }) {
 function StatusPie({ data }: { data: ChartDataPoint[] }) {
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-[250px] text-text-tertiary text-sm">
+      <div
+        className="flex items-center justify-center text-text-tertiary text-sm"
+        style={{ height: CHART_HEIGHT_PX }}
+      >
         No status data yet
       </div>
     );
   }
 
   return (
-    <ResponsiveContainer width="100%" height={250}>
+    <ChartContainer>
       <PieChart>
         <Pie
           data={data}
@@ -229,7 +235,7 @@ function StatusPie({ data }: { data: ChartDataPoint[] }) {
           }}
         />
       </PieChart>
-    </ResponsiveContainer>
+    </ChartContainer>
   );
 }
 
@@ -392,14 +398,14 @@ export function DashboardPage() {
       </div>
 
       {/* Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <Card className="p-5 lg:col-span-2">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 min-w-0">
+        <Card className="p-5 lg:col-span-2 min-w-0 overflow-hidden">
           <h2 className="text-base font-semibold text-text-primary mb-4">
             Sales Trend
           </h2>
           <SalesChart data={stats.salesChart} />
         </Card>
-        <Card className="p-5">
+        <Card className="p-5 min-w-0 overflow-hidden">
           <h2 className="text-base font-semibold text-text-primary mb-4">
             Order Status
           </h2>

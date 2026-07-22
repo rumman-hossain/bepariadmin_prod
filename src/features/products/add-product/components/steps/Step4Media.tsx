@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { ImagePlus, Loader2 } from 'lucide-react';
 import { useAddProductStore } from '../../store/useAddProductStore';
+import { resolveHasVariant } from '../../utils/resolveHasVariant';
 import { useUpload } from '@/src/services/upload/useUpload';
 import type { MediaSlot } from '../../../types/registration';
 
@@ -74,7 +75,8 @@ function MediaSlotInput({ label, slot, purpose, position, accept, mediaType }: S
 }
 
 export function Step4Media() {
-  const { productMedia, hasVariant } = useAddProductStore();
+  const { productMedia, hasVariant: hasVariantRaw, variations } = useAddProductStore();
+  const hasVariant = resolveHasVariant(hasVariantRaw, variations);
 
   if (hasVariant) {
     return (
@@ -87,6 +89,9 @@ export function Step4Media() {
           accept="image/*"
           mediaType="image"
         />
+        <p className="sm:col-span-2 text-sm text-text-secondary">
+          Variant products use poster here; per-variation images are managed in the variation manager on Step 3.
+        </p>
       </div>
     );
   }

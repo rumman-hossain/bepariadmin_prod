@@ -13,6 +13,7 @@ export interface LifecycleState {
   editingProductId: string | null;
   isHydrating: boolean;
   isEditMode: boolean;
+  productStatus: string | null;
 }
 
 function mapProductToWizardState(p: Product): Partial<WizardState> {
@@ -54,15 +55,24 @@ function mapProductToWizardState(p: Product): Partial<WizardState> {
     };
   }
 
+  const variations = ((p as Product & { variations?: unknown[] }).variations || []) as WizardState['variations'];
+  const rawHasVariant = (p as Product & { hasVariant?: boolean }).hasVariant;
+  const hasVariant =
+    rawHasVariant === true || rawHasVariant === false
+      ? rawHasVariant
+      : variations.length > 0
+        ? true
+        : false;
+
   return {
     name: p.name,
     brandName: p.brandName || '',
     unitType: p.unitType || '',
-    categoryId: (p as Product & { categoryId?: string }).categoryId || '',
-    subCategoryId: (p as Product & { subCategoryId?: string }).subCategoryId || '',
-    productGroupId: (p as Product & { productGroupId?: string }).productGroupId || '',
-    classificationId: (p as Product & { classificationId?: string }).classificationId || '',
-    productDetailId: (p as Product & { productDetailId?: string }).productDetailId || '',
+    categoryId: p.categoryId || '',
+    subCategoryId: p.subCategoryId || '',
+    productGroupId: p.productGroupId || '',
+    classificationId: p.classificationId || '',
+    productDetailId: p.productDetailId || '',
     description: p.description || '',
     material: (p as Product & { material?: string }).material || '',
     weight: String((p as Product & { weight?: number }).weight || ''),
@@ -75,15 +85,16 @@ function mapProductToWizardState(p: Product): Partial<WizardState> {
     moq: String(p.moq || ''),
     dispatchTime: p.dispatchTime || '',
     sku: p.sku || '',
-    hasVariant: (p as Product & { hasVariant?: boolean }).hasVariant ?? null,
+    hasVariant,
     sizeType: (p as Product & { sizeType?: string }).sizeType || 'UNIQUE',
     sizeStockSet,
     moqSet,
     sizeLowStockAlertSet,
     stockedOutSizes,
+    lowStockAlert: String((p as Product & { lowStockAlert?: number }).lowStockAlert ?? ''),
     variationColors: (p as Product & { variationColors?: string[] }).variationColors || [],
     variationDesigns: (p as Product & { variationDesigns?: string[] }).variationDesigns || [],
-    variations: ((p as Product & { variations?: unknown[] }).variations || []) as WizardState['variations'],
+    variations,
     productMedia,
     draftId: p.id,
     wholesalerId: p.wholesalerId,
@@ -99,6 +110,7 @@ export function useProductFormLifecycle() {
     editingProductId: null,
     isHydrating: false,
     isEditMode: false,
+    productStatus: null,
   });
 
   const refetch = useCallback(async () => {
@@ -107,6 +119,9 @@ export function useProductFormLifecycle() {
     setState((prev) => ({ ...prev, isHydrating: true }));
     try {
       const res = await getProductById(routeProductId);
+      // #region agent log
+      fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'useProductFormLifecycle.ts:refetch',message:'edit hydrate attempt',data:{routeProductId,ok:res.ok,hasData:Boolean(res.data?.data),name:res.data?.data?.name,categoryId:(res.data?.data as {categoryId?:string})?.categoryId,status:res.data?.data?.status},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+      // #endregion
       if (res.ok && res.data?.data) {
         const mapped = mapProductToWizardState(res.data.data);
         hydrate(mapped);
@@ -126,7 +141,12 @@ export function useProductFormLifecycle() {
             /* optional */
           }
         }
-        setState({ editingProductId: routeProductId, isHydrating: false, isEditMode: true });
+        setState({
+          editingProductId: routeProductId,
+          isHydrating: false,
+          isEditMode: true,
+          productStatus: res.data.data.status ?? null,
+        });
       } else {
         setState((prev) => ({ ...prev, isHydrating: false }));
       }
@@ -140,7 +160,7 @@ export function useProductFormLifecycle() {
       void refetch();
     } else {
       reset();
-      setState({ editingProductId: null, isHydrating: false, isEditMode: false });
+      setState({ editingProductId: null, isHydrating: false, isEditMode: false, productStatus: null });
     }
   }, [routeProductId]);
 
@@ -148,6 +168,7 @@ export function useProductFormLifecycle() {
     editingProductId: state.editingProductId,
     isHydrating: state.isHydrating,
     isEditMode: state.isEditMode,
+    productStatus: state.productStatus,
     refetch,
     routeProductId: routeProductId ?? null,
   };

@@ -66,7 +66,7 @@ export const wholesalerSchema = z.object({
     .regex(/^01[3-9]\d{8}$/, 'Invalid Bangladeshi mobile number'),
   email: z.string().min(1, 'Email is required').email('Invalid email address'),
   logoUrl: z.string().optional().or(z.literal('')),
-  commissionRate: z.number().min(0).max(100).optional().default(15),
+  commissionRate: z.number().min(0, 'Commission cannot be negative').optional().default(9.5),
 
   // Array Structures (Aligned with Backend)
   addresses: z.array(addressItemSchema).min(1, 'At least one address is required'),

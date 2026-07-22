@@ -34,6 +34,7 @@ import { StatusBadge } from '@/src/components/ui/StatusBadge';
 import { Card } from '@/src/components/ui/Card';
 import { useProductDetail } from '../hooks/useProductDetail';
 import { PRODUCT_ROUTES } from '../routes';
+import { formatDispatchDisplay } from '@/src/features/products/utils/dispatchTime';
 import { formatCurrency } from '@/src/utils/formatCurrency';
 
 // ─── Metadata row ───────────────────────────────────────────────
@@ -262,7 +263,7 @@ export function ProductDetailPage() {
               <MetaRow icon={<Hash className="w-3.5 h-3.5" />} label="Qty Available" value={stockAvailable} />
               <MetaRow icon={<ShoppingCart className="w-3.5 h-3.5" />} label="Reserved" value={stockReserved} />
               <MetaRow icon={<BarChart3 className="w-3.5 h-3.5" />} label="MOQ" value={product.moq} />
-              <MetaRow icon={<Clock className="w-3.5 h-3.5" />} label="Dispatch" value={product.dispatchTime} />
+              <MetaRow icon={<Clock className="w-3.5 h-3.5" />} label="Dispatch" value={formatDispatchDisplay(product.dispatchTime)} />
               <MetaRow icon={<Eye className="w-3.5 h-3.5" />} label="Visibility" value={product.visibility} />
             </div>
           </Card>
@@ -329,9 +330,10 @@ export function ProductDetailPage() {
             <h3 className="text-sm font-semibold text-text-primary mb-4">Product Information</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
               <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label="Category" value={product.category} />
-              {product.subCategory && (
-                <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label="Sub-Category" value={product.subCategory} />
-              )}
+              <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label="Sub-Category" value={product.subCategory} />
+              <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label="Product Group" value={product.productGroup} />
+              <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label="Classification" value={product.classification} />
+              <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label="Detail" value={product.productDetail} />
               {product.brandName && (
                 <MetaRow icon={<Star className="w-3.5 h-3.5" />} label="Brand" value={product.brandName} />
               )}

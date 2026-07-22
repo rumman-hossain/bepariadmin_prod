@@ -4,6 +4,7 @@ import { Input } from '@/src/components/ui/Input';
 import { Textarea } from '@/src/components/ui/Textarea';
 import { useAddProductStore } from '../../store/useAddProductStore';
 import { listWholesalers } from '@/src/features/wholesalers/api/wholesalerApi';
+import { TagInput } from '../TagInput';
 import type { SelectionType } from '../hooks/useAddProductLogic';
 
 interface Props {
@@ -63,6 +64,7 @@ export function Step1BasicInfo({ onSelect, generatedSku, isGeneratingSku }: Prop
           {isGeneratingSku && <p className="text-xs text-emerald-600">Generating...</p>}
         </div>
       )}
+      <TagInput tags={store.tags} onChange={(tags) => setField('tags', tags)} />
       <Textarea
         label="Description"
         value={store.description}

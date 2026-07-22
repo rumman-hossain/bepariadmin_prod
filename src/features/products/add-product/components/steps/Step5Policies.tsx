@@ -2,7 +2,7 @@ import React from 'react';
 import { Input } from '@/src/components/ui/Input';
 import { useAddProductStore } from '../../store/useAddProductStore';
 
-export function Step5Policies() {
+export function Step5Policies({ errors = {} }: { errors?: Record<string, string> }) {
   const store = useAddProductStore();
   const { setField } = store;
 
@@ -33,24 +33,24 @@ export function Step5Policies() {
         enabled={store.warrantyEnabled}
         onToggle={(v) => setField('warrantyEnabled', v)}
       >
-        <Input label="Duration" value={store.warrantyDuration} onChange={(e) => setField('warrantyDuration', e.target.value)} />
-        <Input label="Description" value={store.warrantyDescription} onChange={(e) => setField('warrantyDescription', e.target.value)} />
+        <Input label="Duration" value={store.warrantyDuration} onChange={(e) => setField('warrantyDuration', e.target.value)} error={errors.warrantyDuration} />
+        <Input label="Description" value={store.warrantyDescription} onChange={(e) => setField('warrantyDescription', e.target.value)} error={errors.warrantyDescription} />
       </ToggleSection>
       <ToggleSection
         title="Return Policy"
         enabled={store.returnPolicyEnabled}
         onToggle={(v) => setField('returnPolicyEnabled', v)}
       >
-        <Input label="Return Window" value={store.returnWindow} onChange={(e) => setField('returnWindow', e.target.value)} />
-        <Input label="Condition" value={store.returnCondition} onChange={(e) => setField('returnCondition', e.target.value)} />
+        <Input label="Return Window" value={store.returnWindow} onChange={(e) => setField('returnWindow', e.target.value)} error={errors.returnWindow} />
+        <Input label="Condition" value={store.returnCondition} onChange={(e) => setField('returnCondition', e.target.value)} error={errors.returnCondition} />
       </ToggleSection>
       <ToggleSection
         title="Exchange Policy"
         enabled={store.exchangeEnabled}
         onToggle={(v) => setField('exchangeEnabled', v)}
       >
-        <Input label="Exchange Window" value={store.exchangeWindow} onChange={(e) => setField('exchangeWindow', e.target.value)} />
-        <Input label="Description" value={store.exchangeDescription} onChange={(e) => setField('exchangeDescription', e.target.value)} />
+        <Input label="Exchange Window" value={store.exchangeWindow} onChange={(e) => setField('exchangeWindow', e.target.value)} error={errors.exchangeWindow} />
+        <Input label="Description" value={store.exchangeDescription} onChange={(e) => setField('exchangeDescription', e.target.value)} error={errors.exchangeDescription} />
       </ToggleSection>
       <p className="text-xs text-text-tertiary">Policies are shown for parity; backend submission does not include them yet.</p>
     </div>

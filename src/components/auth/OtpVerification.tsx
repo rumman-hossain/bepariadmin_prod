@@ -13,7 +13,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { isValidOtp } from '../../utils/validation';
 
 export function OtpVerification() {
-  const { verifyOtp, resendOtp, submitting, error, clearError } = useAuth();
+  const { verifyOtp, resendOtp, submitting, error, clearError, isLoading, step } = useAuth();
   const [otp, setOtp] = useState('');
   const [resendCount, setResendCount] = useState(0);
   const [cooldown, setCooldown] = useState(0);
@@ -22,6 +22,9 @@ export function OtpVerification() {
 
   // Focus input on mount
   useEffect(() => {
+    // #region agent log
+    fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'OtpVerification.tsx:mount',message:'OTP screen mounted',data:{submitting,isLoading,step,isDark:document.documentElement.classList.contains('dark'),inputDisabled:submitting},timestamp:Date.now(),hypothesisId:'A'})}).catch(()=>{});
+    // #endregion
     setTimeout(() => inputRef.current?.focus(), 300);
   }, []);
 
@@ -66,6 +69,9 @@ export function OtpVerification() {
 
   function handleChange(value: string) {
     const clean = value.replace(/\D/g, '').slice(0, 6);
+    // #region agent log
+    fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'OtpVerification.tsx:handleChange',message:'OTP input change',data:{rawLen:value.length,cleanLen:clean.length,cleanPreview:clean.slice(0,2)+'****',submitting,isDark:document.documentElement.classList.contains('dark')},timestamp:Date.now(),hypothesisId:'B'})}).catch(()=>{});
+    // #endregion
     setOtp(clean);
     if (clean.length === 6) {
       handleVerify(clean);
@@ -91,6 +97,11 @@ export function OtpVerification() {
           maxLength={6}
           value={otp}
           onChange={(e) => handleChange(e.target.value)}
+          onFocus={() => {
+            // #region agent log
+            fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'OtpVerification.tsx:onFocus',message:'OTP input focused',data:{disabled:submitting,otpLen:otp.length},timestamp:Date.now(),hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
+          }}
           className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none text-center text-2xl tracking-[0.5em] font-mono"
           placeholder="000000"
           autoComplete="one-time-code"

@@ -254,6 +254,9 @@ export function ProductListPage() {
 
   const handleEdit = useCallback(
     (id: string) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'ProductListPage.tsx:handleEdit',message:'edit navigation',data:{id,route:'edit'},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       navigate(PRODUCT_ROUTES.EDIT.replace(':productId', id));
     },
     [navigate],
@@ -270,6 +273,9 @@ export function ProductListPage() {
 
   const handleRowClick = useCallback(
     (row: ProductRow) => {
+      // #region agent log
+      fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'ProductListPage.tsx:handleRowClick',message:'row navigation',data:{id:row.id,route:'detail'},timestamp:Date.now(),hypothesisId:'D'})}).catch(()=>{});
+      // #endregion
       navigate(PRODUCT_ROUTES.DETAIL.replace(':productId', row.id));
     },
     [navigate],

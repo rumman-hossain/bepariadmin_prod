@@ -4,6 +4,7 @@ import { Button } from '@/src/components/ui/Button';
 import { Modal } from '@/src/components/ui/Modal';
 import { useAddProductLogic, type WizardStep } from '../hooks/useAddProductLogic';
 import { useFormValidation } from '../hooks/useFormValidation';
+import { useAddProductStore } from '../store/useAddProductStore';
 import { SelectionModal } from './SelectionModal';
 import { Step1BasicInfo } from './steps/Step1BasicInfo';
 import { Step2Details } from './steps/Step2Details';
@@ -28,13 +29,16 @@ interface Props {
 
 export function AddProductFlow({ onBack, onReset }: Props) {
   const logic = useAddProductLogic();
-  const { validateStep } = useFormValidation();
+  const { validateStep, hasVariant: resolvedHasVariant } = useFormValidation();
+  const hasVariantStore = useAddProductStore((s) => s.hasVariant);
 
   const {
     currentStep,
     handleStepChange,
     showVariantPrompt,
     handleVariantChoice,
+    showPricingReusePrompt,
+    handlePricingReuseChoice,
     showDiscardPricingPrompt,
     handleDiscardPricingConfirm,
     setShowDiscardPricingPrompt,
@@ -56,6 +60,7 @@ export function AddProductFlow({ onBack, onReset }: Props) {
     catalogLoading,
     handleGenerateSku,
     isGeneratingSku,
+    sizeConfig,
     platformMargin,
     unitTypes,
     registrationError,
@@ -68,6 +73,9 @@ export function AddProductFlow({ onBack, onReset }: Props) {
   const isSaving = registrationState === 'saving';
 
   const goNext = () => {
+    // #region agent log
+    fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'AddProductFlow.tsx:goNext',message:'step advance attempt',data:{currentStep,isValid:validation.isValid,errors:validation.errors,hasVariantRaw:hasVariantStore,resolvedHasVariant,isEditMode},timestamp:Date.now(),hypothesisId:'B',runId:'footer-variant-fix'})}).catch(()=>{});
+    // #endregion
     if (!validation.isValid) return;
     if (isLastStep) {
       setShowSubmitPrompt(true);
@@ -95,21 +103,23 @@ export function AddProductFlow({ onBack, onReset }: Props) {
           />
         );
       case 2:
-        return <Step2Details />;
+        return <Step2Details sizeConfig={sizeConfig} errors={validation.errors} />;
       case 3:
         return (
           <Step3Pricing
             sellPrice={pricing.sell}
             platformMargin={platformMargin}
             onGenerateVariations={handleGenerateVariations}
+            isEditMode={isEditMode}
+            errors={validation.errors}
           />
         );
       case 4:
         return <Step4Media />;
       case 5:
-        return <Step5Policies />;
+        return <Step5Policies errors={validation.errors} />;
       case 6:
-        return <Step6Summary sellPrice={pricing.sell} />;
+        return <Step6Summary sellPrice={pricing.sell} platformMargin={platformMargin} />;
       default:
         return null;
     }
@@ -117,15 +127,15 @@ export function AddProductFlow({ onBack, onReset }: Props) {
 
   if (isHydrating) {
     return (
-      <div className="flex items-center justify-center py-24">
+      <div className="flex items-center justify-center flex-1 py-16">
         <Loader2 className="w-8 h-8 animate-spin text-accent-primary" />
       </div>
     );
   }
 
   return (
-    <>
-      <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-6">
+    <div className="flex flex-col flex-1 min-h-0">
+      <div className="shrink-0 flex items-center gap-2 overflow-x-auto py-3 border-b border-border-subtle">
         {STEPS.map(({ num, label }) => {
           const done = num < currentStep;
           const active = num === currentStep;
@@ -152,37 +162,38 @@ export function AddProductFlow({ onBack, onReset }: Props) {
       </div>
 
       {!validation.isValid && Object.keys(validation.errors).length > 0 && (
-        <div className="mb-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+        <div className="shrink-0 mt-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
           {Object.values(validation.errors).join(' · ')}
         </div>
       )}
 
       {registrationError && (
-        <div className="mb-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
+        <div className="shrink-0 mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
           {registrationError}
         </div>
       )}
 
-      <div className="pb-24">{renderStep()}</div>
+      <div className="flex-1 overflow-y-auto min-h-0 py-4 pb-6">{renderStep()}</div>
 
-      <div className="fixed bottom-0 left-0 right-0 md:left-64 bg-white border-t border-border-default px-4 py-4 flex items-center justify-between gap-3 z-20">
-        <Button variant="ghost" iconLeft={ChevronLeft} onClick={goPrev}>
+      <div className="shrink-0 flex items-center gap-2 border-t border-border-default bg-surface-primary py-3">
+        <Button
+          variant="outline"
+          iconLeft={ChevronLeft}
+          onClick={goPrev}
+          className="shrink-0 min-w-[88px]"
+        >
           {currentStep === 1 ? 'Cancel' : 'Back'}
         </Button>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={onReset}>
-            Reset
-          </Button>
-          <Button
-            variant="primary"
-            iconRight={isLastStep ? undefined : ChevronRight}
-            onClick={goNext}
-            disabled={!validation.isValid || isSaving}
-            loading={isSaving}
-          >
-            {isLastStep ? (isEditMode ? 'Update Product' : 'Register Product') : 'Next'}
-          </Button>
-        </div>
+        <Button
+          variant="primary"
+          className="flex-1"
+          iconRight={isLastStep ? undefined : ChevronRight}
+          onClick={goNext}
+          disabled={!validation.isValid || isSaving}
+          loading={isSaving}
+        >
+          {isLastStep ? (isEditMode ? 'Update Product' : 'Register Product') : 'Continue'}
+        </Button>
       </div>
 
       {selectionType !== 'none' && (
@@ -236,6 +247,21 @@ export function AddProductFlow({ onBack, onReset }: Props) {
         </div>
       </Modal>
 
+      <Modal open={showPricingReusePrompt} onClose={() => handlePricingReuseChoice(true)} size="sm">
+        <div className="p-6 space-y-4">
+          <h3 className="text-lg font-semibold">Reuse existing pricing?</h3>
+          <p className="text-sm text-text-secondary">
+            You already entered pricing data. Keep it for this variant choice or start fresh?
+          </p>
+          <div className="flex gap-3">
+            <Button onClick={() => handlePricingReuseChoice(true)}>Keep pricing</Button>
+            <Button variant="outline" onClick={() => handlePricingReuseChoice(false)}>
+              Start fresh
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
       <Modal open={showSubmitPrompt} onClose={() => setShowSubmitPrompt(false)} size="sm">
         <div className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">
@@ -269,6 +295,6 @@ export function AddProductFlow({ onBack, onReset }: Props) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

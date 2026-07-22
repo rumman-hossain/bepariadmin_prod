@@ -13,13 +13,26 @@ import type {
 import {
   mapListQueryParams,
   normalizeProductListResponse,
+  normalizeBackendProduct,
+  extractBackendProduct,
   isBackendListResponse,
   type BackendListResponse,
 } from '@/src/features/products/utils/mapProduct';
+import {
+  mergeCatalogLabels,
+  resolveProductCatalogLabels,
+  EMPTY_CATALOG_LABELS,
+} from '@/src/features/products/utils/resolveCatalogLabels';
 import { DISPLAY_STATUS_TO_BACKEND } from '@/src/features/products/constants';
 
 export interface GetProductsOptions {
   categoryNames?: Record<string, string>;
+}
+
+export interface GetProductByIdOptions {
+  categoryNames?: Record<string, string>;
+  /** Resolve full catalog hierarchy names (detail/edit). Default true. */
+  resolveCatalog?: boolean;
 }
 
 // ─── Product CRUD ────────────────────────────────────────────────
@@ -64,16 +77,30 @@ export async function getProducts(
   return { ok: true, status: res.status, data: normalized };
 }
 
-/** TODO: admin detail — uses same path pattern as mobile until admin route exists */
-export async function getProductById(id: string): Promise<ApiResponse<{ data: Product }>> {
-  const res = await request<{ data: Product } | Product>('GET', `/api/v1/products/${id}`, { auth: true });
-  if (res.ok && res.data && 'data' in (res.data as object)) {
+/** GET /api/v1/products/:id — normalizes backend shape + resolves catalog labels */
+export async function getProductById(
+  id: string,
+  options?: GetProductByIdOptions,
+): Promise<ApiResponse<{ data: Product }>> {
+  const res = await request<{ data: unknown } | Product>('GET', `/api/v1/products/${id}`, { auth: true });
+
+  const raw = res.ok ? extractBackendProduct(res.data) : null;
+  if (!res.ok || !raw) {
     return res as ApiResponse<{ data: Product }>;
   }
-  if (res.ok && res.data && !('data' in (res.data as object))) {
-    return { ...res, data: { data: res.data as Product } };
-  }
-  return res as ApiResponse<{ data: Product }>;
+
+  const resolveCatalog = options?.resolveCatalog !== false;
+  const labels = resolveCatalog
+    ? mergeCatalogLabels(await resolveProductCatalogLabels(raw), options?.categoryNames ?? {})
+    : mergeCatalogLabels(EMPTY_CATALOG_LABELS, options?.categoryNames ?? {});
+
+  const normalized = normalizeBackendProduct(raw, labels);
+
+  // #region agent log
+  fetch('http://127.0.0.1:7294/ingest/ae423c12-13a4-45ec-a07b-20329cf2b723',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'098add'},body:JSON.stringify({sessionId:'098add',location:'products.ts:getProductById',message:'getProductById normalized',data:{id,category:normalized.category,subCategory:normalized.subCategory,productGroup:normalized.productGroup,classification:normalized.classification,productDetail:normalized.productDetail},timestamp:Date.now(),hypothesisId:'B',runId:'post-fix'})}).catch(()=>{});
+  // #endregion
+
+  return { ok: true, status: res.status, data: { data: normalized } };
 }
 
 /** Create — same endpoint as mobile wholesaler app */

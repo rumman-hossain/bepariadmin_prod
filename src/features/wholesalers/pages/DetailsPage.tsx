@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useToast } from '@/src/components/ui/Toast';
 import { toWholesalerApiError } from '../api/errors';
+import { DEFAULT_COMMISSION_RATE } from '../constants';
 
 type ReasonAction = 'suspend' | 'reject' | 'resubmit' | null;
 
@@ -52,7 +53,7 @@ export function DetailsPage() {
   const unsuspendWholesalerAction = useWholesalerStore((s) => s.unsuspendWholesalerAction);
   const requestResubmitAction = useWholesalerStore((s) => s.requestResubmitAction);
 
-  const [commissionRate, setCommissionRate] = useState(15);
+  const [commissionRate, setCommissionRate] = useState(DEFAULT_COMMISSION_RATE);
   const [reasonAction, setReasonAction] = useState<ReasonAction>(null);
   const { stats, orders, payouts, decisions } = useWholesalerActivity(id ?? null);
 
@@ -281,6 +282,15 @@ export function DetailsPage() {
                   />
                 ) : (
                   <span className="italic text-slate-400">Not Added</span>
+                ),
+              },
+              {
+                icon: MapPin,
+                title: 'Location',
+                content: w.location ? (
+                  <span className="font-medium text-sm">{w.location}</span>
+                ) : (
+                  <span className="italic text-slate-400">Not specified</span>
                 ),
               },
               {

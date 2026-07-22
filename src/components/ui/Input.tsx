@@ -89,6 +89,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
       disabled,
       className,
       id: idProp,
+      autoComplete,
       ...rest
     },
     ref,
@@ -162,6 +163,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             ref={ref}
             id={id}
             type={actualType}
+            autoComplete={autoComplete ?? (isPassword ? 'current-password' : undefined)}
             disabled={disabled || loading}
             aria-invalid={variant === 'error' || undefined}
             aria-describedby={

@@ -63,7 +63,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           onSearchChange={setSearchQuery}
         />
 
-        <main className="flex-1 overflow-y-auto p-6 md:p-8">
+        <main className="flex-1 overflow-y-auto min-h-0 p-6 md:p-8">
           {children}
         </main>
       </div>

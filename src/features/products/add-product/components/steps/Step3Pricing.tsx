@@ -1,26 +1,49 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Input } from '@/src/components/ui/Input';
-import { Select } from '@/src/components/ui/Select';
 import { useAddProductStore } from '../../store/useAddProductStore';
-
-const DISPATCH_OPTIONS = [
-  { value: '6H', label: '6 Hours' },
-  { value: '12H', label: '12 Hours' },
-  { value: '24H', label: '24 Hours' },
-  { value: '2D', label: '2 Days' },
-  { value: '3D', label: '3 Days' },
-  { value: '7D', label: '7 Days' },
-];
+import { resolveHasVariant } from '../../utils/resolveHasVariant';
+import { InventoryConfigSection } from '../InventoryConfigSection';
+import { VariationConfigSection } from '../VariationConfigSection';
 
 interface Props {
   sellPrice: number;
   platformMargin: number;
   onGenerateVariations: () => void;
+  isEditMode?: boolean;
+  errors?: Record<string, string>;
 }
 
-export function Step3Pricing({ sellPrice, platformMargin }: Props) {
+export function Step3Pricing({
+  sellPrice,
+  platformMargin,
+  onGenerateVariations,
+  isEditMode = false,
+  errors = {},
+}: Props) {
   const store = useAddProductStore();
-  const { setField, hasVariant, selectedSizes } = store;
+  const { setField, hasVariant: hasVariantRaw, selectedSizes, basePrice, sizeStockSet, stock, moqSet, moq, variations } =
+    store;
+
+  const hasVariant = resolveHasVariant(hasVariantRaw, variations);
+
+  const totalStock = useMemo(() => {
+    if (selectedSizes.length > 0) {
+      return Object.values(sizeStockSet).reduce((sum, v) => sum + (Number(v) || 0), 0);
+    }
+    return Number(stock) || 0;
+  }, [selectedSizes.length, sizeStockSet, stock]);
+
+  const totalMoq = useMemo(() => {
+    const fromSet = Object.values(moqSet).reduce((sum, v) => sum + (Number(v) || 0), 0);
+    return fromSet > 0 ? fromSet : Number(moq) || 0;
+  }, [moqSet, moq]);
+
+  const handleBasePriceChange = (value: string) => {
+    const cleaned = value.replace(/[^0-9.]/g, '');
+    const parts = cleaned.split('.');
+    const final = parts.length > 2 ? `${parts[0]}.${parts.slice(1).join('')}` : cleaned;
+    setField('basePrice', final);
+  };
 
   return (
     <div className="space-y-6">
@@ -28,65 +51,46 @@ export function Step3Pricing({ sellPrice, platformMargin }: Props) {
         <p className="text-sm font-semibold text-text-primary">Pricing Engine</p>
         <Input
           label="Base Price (৳)"
-          type="number"
-          min={0}
-          value={store.basePrice}
-          onChange={(e) => setField('basePrice', e.target.value)}
+          type="text"
+          inputMode="decimal"
+          value={basePrice}
+          onChange={(e) => handleBasePriceChange(e.target.value)}
+          error={errors.basePrice}
         />
-        <Input
-          label={`Platform Margin (${platformMargin}% default)`}
-          type="number"
-          min={0}
-          value={store.margin}
-          onChange={(e) => setField('margin', e.target.value)}
-        />
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-text-secondary">Platform Margin</span>
+          <span className="font-semibold text-text-primary">{platformMargin}%</span>
+        </div>
         <p className="text-2xl font-bold text-emerald-600">Selling: ৳ {sellPrice.toFixed(2)}</p>
       </div>
 
-      <Select
-        label="Dispatch Time"
-        options={DISPATCH_OPTIONS}
-        value={store.dispatchTime}
-        onChange={(e) => setField('dispatchTime', e.target.value)}
-        placeholder="Select dispatch time"
-      />
-
-      {hasVariant === false && selectedSizes.length === 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <Input label="Stock" type="number" value={store.stock} onChange={(e) => setField('stock', e.target.value)} />
-          <Input label="MOQ" type="number" value={store.moq} onChange={(e) => setField('moq', e.target.value)} />
-          <Input
-            label="Low Stock Alert"
-            type="number"
-            value={store.lowStockAlert}
-            onChange={(e) => setField('lowStockAlert', e.target.value)}
-          />
+      {hasVariantRaw === null && !isEditMode && (
+        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          Choose whether this product has variants when leaving Step 2.
         </div>
       )}
 
-      {hasVariant && (
-        <div className="space-y-3">
-          <Input
-            label="Variation Colors (comma separated)"
-            value={store.variationColors.join(', ')}
-            onChange={(e) =>
-              setField(
-                'variationColors',
-                e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-              )
-            }
-          />
-          <Input
-            label="Variation Designs (comma separated)"
-            value={store.variationDesigns.join(', ')}
-            onChange={(e) =>
-              setField(
-                'variationDesigns',
-                e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-              )
-            }
-          />
-        </div>
+      {!hasVariant ? (
+        <>
+          <InventoryConfigSection selectedSizes={selectedSizes} isEditMode={isEditMode} errors={errors} />
+          <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-surface-muted border border-border-subtle">
+            <div>
+              <p className="text-xs text-text-tertiary uppercase font-semibold">Total Stock</p>
+              <p className="text-xl font-bold text-text-primary">{totalStock}</p>
+            </div>
+            <div>
+              <p className="text-xs text-text-tertiary uppercase font-semibold">Global MOQ</p>
+              <p className="text-xl font-bold text-text-primary">{totalMoq}</p>
+            </div>
+          </div>
+        </>
+      ) : (
+        <VariationConfigSection
+          onGenerate={onGenerateVariations}
+          platformMargin={platformMargin}
+          isEditMode={isEditMode}
+          errorMessage={errors.variations}
+        />
       )}
     </div>
   );
