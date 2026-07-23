@@ -1,46 +1,18 @@
-import { PBKDF2_ITERATIONS, PBKDF2_KEY_LENGTH, PBKDF2_DIGEST, PBKDF2_PREFIX } from '../utils/constants';
-
 /**
- * Hashes a password using PBKDF2 (SHA-256, 310k iterations) in the browser.
+ * Admin client-side password hashing.
  *
- * This is the EXACT same algorithm as the mobile client (React Native)
- * and the super-admin-setup.html page. The backend expects this format
- * as `password_hash` and will bcrypt it before storage.
+ * This module is intentionally a THIN RE-EXPORT of the ONE canonical hasher in
+ * `@bepari/password` (PBKDF2-HMAC-SHA256, 310k iters, 32 bytes, "pbkdf2v2:"
+ * prefix, salt = identifier.trim().toLowerCase()). Keeping the algorithm in a
+ * single shared package means the admin app can never silently drift from the
+ * mobile client, super-admin-setup page, or backend verification.
  *
- * IMPORTANT: The plaintext password NEVER leaves the browser.
- * Only the PBKDF2 hash (prefixed with "pbkdf2v2:") is transmitted.
+ * The golden-vector conformance test in `__tests__/canonical-hash-conformance.test.ts`
+ * locks this to the canonical package's shipped `vectors.json`, so any divergence
+ * fails the build.
  *
- * @param password - The plaintext password (goes out of scope immediately after hashing)
- * @param salt - The unique salt (email address or phone number of the user)
- * @returns PBKDF2 hash string in format "pbkdf2v2:<64 hex chars>"
+ * IMPORTANT: The plaintext password NEVER leaves the browser — only the
+ * "pbkdf2v2:<64 hex>" hash is transmitted. `hashPassword(password, identifier)`
+ * trims+lowercases the identifier to derive the salt.
  */
-export async function hashPassword(password: string, salt: string): Promise<string> {
-  const encoder = new TextEncoder();
-
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits']
-  );
-
-  const normalizedSalt = salt.trim().toLowerCase();
-
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: encoder.encode(normalizedSalt),
-      iterations: PBKDF2_ITERATIONS,
-      hash: PBKDF2_DIGEST,
-    },
-    keyMaterial,
-    PBKDF2_KEY_LENGTH * 8 // bits = bytes * 8
-  );
-
-  const hex = Array.from(new Uint8Array(derivedBits))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-
-  return `${PBKDF2_PREFIX}:${hex}`;
-}
+export { hashPassword, normalizeIdentifier } from '@bepari/password';
