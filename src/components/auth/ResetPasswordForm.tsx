@@ -8,7 +8,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { apiResetPassword } from '../../api/auth';
-import { hashPassword } from '../../auth/passwordHasher';
+import { hashPassword, hashErrorMessage } from '../../auth/passwordHasher';
 import { validateEmail, validatePassword, validatePasswordMatch } from '../../utils/validation';
 
 export function ResetPasswordForm() {
@@ -62,7 +62,7 @@ export function ResetPasswordForm() {
 
     setIsSubmitting(true);
     try {
-      const passwordHash = await hashPassword(newPassword, email.trim().toLowerCase());
+      const passwordHash = await hashPassword(newPassword);
       const res = await apiResetPassword(token, passwordHash);
 
       if (res.ok) {
@@ -72,8 +72,8 @@ export function ResetPasswordForm() {
         const msg = err?.error?.message || 'Token invalid or expired.';
         setError(msg);
       }
-    } catch {
-      setError('Network error. Please try again.');
+    } catch (err) {
+      setError(hashErrorMessage(err) ?? 'Network error. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

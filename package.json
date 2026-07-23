@@ -13,7 +13,6 @@
     "guard:no-debug-beacons": "! grep -rn '127.0.0.1:7294' src"
   },
   "dependencies": {
-    "@bepari/password": "file:../bepari-password",
     "@types/three": "^0.183.1",
     "axios": "^1.16.1",
     "clsx": "^2.1.1",
@@ -21,6 +20,7 @@
     "jspdf": "^4.2.0",
     "jspdf-autotable": "^5.0.7",
     "lucide-react": "^0.574.0",
+    "nextgen-password": "file:../bepari-password",
     "react": "^19.2.4",
     "react-barcode": "^1.6.1",
     "react-dom": "^19.2.4",

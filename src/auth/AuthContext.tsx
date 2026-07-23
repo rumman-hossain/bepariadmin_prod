@@ -12,7 +12,7 @@
  */
 
 import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
-import { hashPassword } from './passwordHasher';
+import { hashForLogin, hashErrorMessage } from './passwordHasher';
 import { getAccessToken, setAccessToken, clearAccessToken } from './memoryTokenStore';
 import { onAuthBroadcast } from './tokenManager';
 import {
@@ -145,10 +145,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setError(null);
 
       try {
-        const passwordHash = await hashPassword(password, identifier);
+        const { primary } = await hashForLogin(password, identifier);
         const res = await apiLogin({
           identifier: identifier.trim().toLowerCase(),
-          password_hash: passwordHash,
+          password_hash: primary,
           user_type: userType as 'staff' | 'wholesaler' | 'retailer',
         });
 
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Admin app: staff accounts skip OTP (email_verified=true)
         // If no OTP required, should receive tokens directly
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Network error');
+        setError(hashErrorMessage(err) ?? (err instanceof Error ? err.message : 'Network error'));
       }
 
       setSubmitting(false);

@@ -5,7 +5,7 @@ import { Input } from '@/src/components/ui/Input';
 import { Button } from '@/src/components/ui/Button';
 import { ConfirmDialog } from '@/src/components/shared/ConfirmDialog';
 import { ShieldAlert } from 'lucide-react';
-import { hashPassword } from '@/src/auth/passwordHasher';
+import { hashPassword, hashErrorMessage } from '@/src/auth/passwordHasher';
 import { resetWholesalerPassword } from '../api/wholesalerApi';
 import { toWholesalerApiError } from '../api/errors';
 import { useToast } from '@/src/components/ui/Toast';
@@ -54,8 +54,7 @@ export function ResetWholesalerPasswordCard({
   const handleConfirmReset = async () => {
     setLoading(true);
     try {
-      const salt = loginEmail.toLowerCase().trim();
-      const passwordHash = await hashPassword(newPassword, salt);
+      const passwordHash = await hashPassword(newPassword);
       await resetWholesalerPassword(wholesalerId, passwordHash);
       toast.success(
         'Password reset',
@@ -65,7 +64,7 @@ export function ResetWholesalerPasswordCard({
       setConfirmPassword('');
       setShowConfirm(false);
     } catch (err) {
-      toast.error('Reset failed', toWholesalerApiError(err).message);
+      toast.error('Reset failed', hashErrorMessage(err) ?? toWholesalerApiError(err).message);
     } finally {
       setLoading(false);
     }

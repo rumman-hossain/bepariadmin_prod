@@ -2,17 +2,52 @@
  * Admin client-side password hashing.
  *
  * This module is intentionally a THIN RE-EXPORT of the ONE canonical hasher in
- * `@bepari/password` (PBKDF2-HMAC-SHA256, 310k iters, 32 bytes, "pbkdf2v2:"
- * prefix, salt = identifier.trim().toLowerCase()). Keeping the algorithm in a
- * single shared package means the admin app can never silently drift from the
- * mobile client, super-admin-setup page, or backend verification.
+ * `nextgen-password` (PBKDF2-HMAC-SHA256, "pbkdf2v3:" prefix, IDENTIFIER-INDEPENDENT
+ * salt = fixed DOMAIN_SALT). Keeping the algorithm in a single shared package
+ * means the admin app can never silently drift from the mobile client,
+ * super-admin-setup page, or backend verification.
  *
  * The golden-vector conformance test in `__tests__/canonical-hash-conformance.test.ts`
  * locks this to the canonical package's shipped `vectors.json`, so any divergence
  * fails the build.
  *
  * IMPORTANT: The plaintext password NEVER leaves the browser — only the
- * "pbkdf2v2:<64 hex>" hash is transmitted. `hashPassword(password, identifier)`
- * trims+lowercases the identifier to derive the salt.
+ * "pbkdf2v3:<64 hex>" hash is transmitted.
+ *   - `hashPassword(password)` — v3, identifier-independent. Use for admin-create,
+ *     reset, admin-set, and change-password writes.
+ *   - `hashForLogin(password, identifier)` — LOGIN; send its `primary` field as
+ *     password_hash. Fresh deployment (no v2 users) so no legacy hash is sent.
+ *   - `hashPasswordV2(password, identifier)` — LEGACY, retained only for the
+ *     conformance test / server-side migration reference.
  */
-export { hashPassword, normalizeIdentifier } from '@bepari/password';
+import { CryptoUnavailableError, HashTimeoutError } from 'nextgen-password';
+
+export {
+  hashPassword,
+  hashForLogin,
+  hashPasswordV2,
+  normalizeIdentifier,
+  CryptoUnavailableError,
+  HashTimeoutError,
+} from 'nextgen-password';
+
+/**
+ * Maps a password-hashing failure to a clear, user-facing message.
+ *
+ * Returns `null` for anything that is NOT a hashing-capability error, so callers
+ * can fall back to their existing (network/API) error handling:
+ *   `setError(hashErrorMessage(err) ?? <existing fallback>)`.
+ *
+ * - CryptoUnavailableError: the device fundamentally lacks SubtleCrypto — hashing
+ *   fails closed, so tell the user to update rather than retry.
+ * - HashTimeoutError: the derive was too slow on this device — retrying is fine.
+ */
+export function hashErrorMessage(err: unknown): string | null {
+  if (err instanceof CryptoUnavailableError) {
+    return 'This browser can’t securely process your password. Please update your browser or device and try again.';
+  }
+  if (err instanceof HashTimeoutError) {
+    return 'Processing your password took too long on this device. Please try again.';
+  }
+  return null;
+}

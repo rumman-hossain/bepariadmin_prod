@@ -3,7 +3,7 @@
  */
 
 import { request } from '@/src/api/client';
-import { hashPassword } from '@/src/auth/passwordHasher';
+import { hashPassword, hashErrorMessage } from '@/src/auth/passwordHasher';
 import type { Wholesaler } from '@/src/types/domain';
 import type { WholesalerFilters } from '../types';
 import type { WholesalerFormData } from '../schemas/wholesalerSchema';
@@ -263,9 +263,16 @@ export async function getWholesaler(id: string): Promise<Wholesaler> {
 }
 
 export async function createWholesaler(dto: WholesalerFormData): Promise<Wholesaler> {
-  const passwordHash = dto.password
-    ? await hashPassword(dto.password, dto.email.toLowerCase().trim())
-    : '';
+  let passwordHash = '';
+  if (dto.password) {
+    try {
+      passwordHash = await hashPassword(dto.password);
+    } catch (err) {
+      const msg = hashErrorMessage(err);
+      if (msg) throw new WholesalerApiError(msg, 0);
+      throw err;
+    }
+  }
 
   const fullPayload = {
     email: dto.email,
