@@ -65,12 +65,35 @@ export function apiForgotPassword(
   });
 }
 
+/**
+ * Confirm an emailed reset code WITHOUT consuming it, so the UI can advance to
+ * the set-new-password step and report a bad code before the user types a
+ * password. The code is consumed later, by apiResetPassword.
+ */
+export function apiVerifyResetOtp(
+  email: string,
+  code: string
+): Promise<ApiResponse<{ message: string }>> {
+  return request<{ message: string }>('POST', '/api/v1/auth/verify-reset-otp', {
+    body: { email, code },
+  });
+}
+
+/**
+ * Set a new password using the emailed OTP.
+ *
+ * This previously sent `{ token, new_password_hash }`, matching a server-rendered
+ * reset page. That path was already broken: nothing on the backend ever issued a
+ * token, so every submission failed with INVALID_TOKEN. Both the page and the
+ * token branch have since been removed, and email + code is the only reset path.
+ */
 export function apiResetPassword(
-  token: string,
+  email: string,
+  code: string,
   newPasswordHash: string
 ): Promise<ApiResponse<ResetPasswordResponseData>> {
   return request<ResetPasswordResponseData>('POST', '/api/v1/auth/reset-password', {
-    body: { token, new_password_hash: newPasswordHash },
+    body: { email, code, new_password_hash: newPasswordHash },
   });
 }
 
