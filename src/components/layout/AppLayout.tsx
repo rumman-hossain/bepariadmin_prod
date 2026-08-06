@@ -14,7 +14,6 @@ import { cn } from '@/src/design-system/utils/cn';
 import { Sidebar } from '@/src/components/layout/Sidebar';
 import { Header } from '@/src/components/layout/Header';
 import { useAuth } from '@/src/hooks/useAuth';
-import type { AppNotification } from '@/src/types/domain';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -28,11 +27,8 @@ export interface AppLayoutProps {
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
-
-  // TODO: Replace with real notification state from context/store
-  const notifications: AppNotification[] = [];
 
   const handleLogout = () => {
     logout();
@@ -40,7 +36,7 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   };
 
   return (
-    <div className="flex h-screen bg-surface-app font-sans">
+    <div className="flex h-screen bg-paper font-sans">
       <Sidebar
         isOpen={sidebarOpen}
         onToggle={() => setSidebarOpen((prev) => !prev)}
@@ -49,21 +45,19 @@ export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
       <div
         className={cn(
           'flex-1 flex flex-col',
-          'transition-all duration-300 ease-out',
-          sidebarOpen ? 'ml-0 lg:ml-64' : 'ml-0 lg:ml-[72px]',
+          'transition-[margin] duration-200 ease-out',
+          sidebarOpen ? 'ml-0 lg:ml-60' : 'ml-0 lg:ml-[68px]',
         )}
       >
         <Header
           toggleSidebar={() => setSidebarOpen((prev) => !prev)}
-          notifications={notifications}
-          onMarkNotificationRead={() => {}}
-          onMarkAllNotificationsRead={() => {}}
           onLogout={handleLogout}
+          user={user}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
         />
 
-        <main className="flex-1 overflow-y-auto min-h-0 p-6 md:p-8">
+        <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 md:px-6 md:py-6">
           {children}
         </main>
       </div>

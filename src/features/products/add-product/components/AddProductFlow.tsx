@@ -1,7 +1,6 @@
-import React from 'react';
 import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { Button } from '@/src/components/ui/Button';
-import { Modal } from '@/src/components/ui/Modal';
+import { Button } from '@/src/components/controls';
+import { Dialog } from '@/src/components/feedback';
 import { useAddProductLogic, type WizardStep } from '../hooks/useAddProductLogic';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { SelectionModal } from './SelectionModal';
@@ -11,6 +10,7 @@ import { Step3Pricing } from './steps/Step3Pricing';
 import { Step4Media } from './steps/Step4Media';
 import { Step5Policies } from './steps/Step5Policies';
 import { Step6Summary } from './steps/Step6Summary';
+import { Text } from '@/src/components/data';
 
 const STEPS: { num: WizardStep; label: string }[] = [
   { num: 1, label: 'Basic Info' },
@@ -23,10 +23,9 @@ const STEPS: { num: WizardStep; label: string }[] = [
 
 interface Props {
   onBack: () => void;
-  onReset: () => void;
 }
 
-export function AddProductFlow({ onBack, onReset }: Props) {
+export function AddProductFlow({ onBack }: Props) {
   const logic = useAddProductLogic();
   const { validateStep } = useFormValidation();
 
@@ -105,7 +104,6 @@ export function AddProductFlow({ onBack, onReset }: Props) {
             sellPrice={pricing.sell}
             platformMargin={platformMargin}
             onGenerateVariations={handleGenerateVariations}
-            isEditMode={isEditMode}
             errors={validation.errors}
           />
         );
@@ -123,14 +121,14 @@ export function AddProductFlow({ onBack, onReset }: Props) {
   if (isHydrating) {
     return (
       <div className="flex items-center justify-center flex-1 py-16">
-        <Loader2 className="w-8 h-8 animate-spin text-accent-primary" />
+        <Loader2 className="w-8 h-8 animate-spin text-brass" />
       </div>
     );
   }
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      <div className="shrink-0 flex items-center gap-2 overflow-x-auto py-3 border-b border-border-subtle">
+      <div className="shrink-0 flex items-center gap-2 overflow-x-auto py-3 border-b border-rule-subtle">
         {STEPS.map(({ num, label }) => {
           const done = num < currentStep;
           const active = num === currentStep;
@@ -139,10 +137,10 @@ export function AddProductFlow({ onBack, onReset }: Props) {
               <div
                 className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
                   active
-                    ? 'bg-accent-primary text-white'
+                    ? 'bg-brass text-white'
                     : done
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-surface-muted text-text-tertiary'
+                      ? 'bg-ok-wash text-ok'
+                      : 'bg-sheet-2 text-ink-3'
                 }`}
               >
                 <span className="w-5 h-5 rounded-full flex items-center justify-center bg-white/20">
@@ -150,27 +148,27 @@ export function AddProductFlow({ onBack, onReset }: Props) {
                 </span>
                 {label}
               </div>
-              {num < 6 && <ChevronRight className="w-4 h-4 text-text-tertiary" />}
+              {num < 6 && <ChevronRight className="w-4 h-4 text-ink-3" />}
             </div>
           );
         })}
       </div>
 
       {!validation.isValid && Object.keys(validation.errors).length > 0 && (
-        <div className="shrink-0 mt-4 p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
+        <div className="shrink-0 mt-4 p-3 rounded-xl bg-bad-wash border border-bad-border text-sm text-bad">
           {Object.values(validation.errors).join(' · ')}
         </div>
       )}
 
       {registrationError && (
-        <div className="shrink-0 mt-4 p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
+        <div className="shrink-0 mt-4 p-3 rounded-xl bg-warn-wash border border-warn-border text-sm text-warn">
           {registrationError}
         </div>
       )}
 
       <div className="flex-1 overflow-y-auto min-h-0 py-4 pb-6">{renderStep()}</div>
 
-      <div className="shrink-0 flex items-center gap-2 border-t border-border-default bg-surface-primary py-3">
+      <div className="shrink-0 flex items-center gap-2 border-t border-rule bg-sheet py-3">
         <Button
           variant="outline"
           iconLeft={ChevronLeft}
@@ -210,12 +208,12 @@ export function AddProductFlow({ onBack, onReset }: Props) {
         />
       )}
 
-      <Modal open={showVariantPrompt} onClose={() => handleVariantChoice(false)} size="sm">
+      <Dialog open={showVariantPrompt} onClose={() => handleVariantChoice(false)} size="sm">
         <div className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Does this product have variants?</h3>
-          <p className="text-sm text-text-secondary">
+          <Text as="p" variant="secondary">
             Choose whether customers can select colors, designs, or sizes as separate SKUs.
-          </p>
+          </Text>
           <div className="flex gap-3">
             <Button fullWidth onClick={() => handleVariantChoice(true)}>
               Yes, has variants
@@ -225,12 +223,12 @@ export function AddProductFlow({ onBack, onReset }: Props) {
             </Button>
           </div>
         </div>
-      </Modal>
+      </Dialog>
 
-      <Modal open={showDiscardPricingPrompt} onClose={() => setShowDiscardPricingPrompt(false)} size="sm">
+      <Dialog open={showDiscardPricingPrompt} onClose={() => setShowDiscardPricingPrompt(false)} size="sm">
         <div className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Discard pricing data?</h3>
-          <p className="text-sm text-text-secondary">Going back will clear pricing and inventory fields.</p>
+          <Text as="p" variant="secondary">Going back will clear pricing and inventory fields.</Text>
           <div className="flex gap-3">
             <Button variant="danger" onClick={handleDiscardPricingConfirm}>
               Discard & go back
@@ -240,14 +238,14 @@ export function AddProductFlow({ onBack, onReset }: Props) {
             </Button>
           </div>
         </div>
-      </Modal>
+      </Dialog>
 
-      <Modal open={showPricingReusePrompt} onClose={() => handlePricingReuseChoice(true)} size="sm">
+      <Dialog open={showPricingReusePrompt} onClose={() => handlePricingReuseChoice(true)} size="sm">
         <div className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Reuse existing pricing?</h3>
-          <p className="text-sm text-text-secondary">
+          <Text as="p" variant="secondary">
             You already entered pricing data. Keep it for this variant choice or start fresh?
-          </p>
+          </Text>
           <div className="flex gap-3">
             <Button onClick={() => handlePricingReuseChoice(true)}>Keep pricing</Button>
             <Button variant="outline" onClick={() => handlePricingReuseChoice(false)}>
@@ -255,17 +253,17 @@ export function AddProductFlow({ onBack, onReset }: Props) {
             </Button>
           </div>
         </div>
-      </Modal>
+      </Dialog>
 
-      <Modal open={showSubmitPrompt} onClose={() => setShowSubmitPrompt(false)} size="sm">
+      <Dialog open={showSubmitPrompt} onClose={() => setShowSubmitPrompt(false)} size="sm">
         <div className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">
             {isEditMode ? 'Update this product?' : 'Register this product?'}
           </h3>
-          <p className="text-sm text-text-secondary">
+          <Text as="p" variant="secondary">
             Media uploads must finish before submit. Admin JWT may block wholesaler-only APIs until backend support
             is added.
-          </p>
+          </Text>
           <div className="flex gap-3">
             <Button
               loading={isSaving}
@@ -280,12 +278,12 @@ export function AddProductFlow({ onBack, onReset }: Props) {
             </Button>
           </div>
         </div>
-      </Modal>
+      </Dialog>
 
       {registrationState === 'success' && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl p-8 text-center space-y-3">
-            <Check className="w-12 h-12 text-emerald-500 mx-auto" />
+            <Check className="w-12 h-12 text-ok mx-auto" />
             <p className="text-lg font-semibold">Product saved successfully</p>
           </div>
         </div>

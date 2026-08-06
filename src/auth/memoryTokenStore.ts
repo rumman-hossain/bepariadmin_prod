@@ -11,7 +11,6 @@
 // ─── Module-scope state (NOT exported) ──────────────────────────────────
 
 let accessToken: string | null = null;
-let tokenExpiresAt: number = 0;
 let localExpiresAt: number = 0;
 const subscribers = new Set<(token: string | null) => void>();
 
@@ -42,7 +41,6 @@ export function setAccessToken(token: string | null): void {
   if (token) {
     const claims = decodeJwtClaims(token);
     if (claims && claims.exp > 0 && claims.iat > 0) {
-      tokenExpiresAt = claims.exp;
       const lifespan = claims.exp - claims.iat;
       // Safeguard lifespan values: must be between 0 and 2 hours
       if (lifespan > 0 && lifespan < 7200 * 1000) {
@@ -51,11 +49,9 @@ export function setAccessToken(token: string | null): void {
         localExpiresAt = claims.exp;
       }
     } else {
-      tokenExpiresAt = 0;
       localExpiresAt = 0;
     }
   } else {
-    tokenExpiresAt = 0;
     localExpiresAt = 0;
   }
   for (const fn of subscribers) fn(token);
@@ -63,13 +59,8 @@ export function setAccessToken(token: string | null): void {
 
 export function clearAccessToken(): void {
   accessToken = null;
-  tokenExpiresAt = 0;
   localExpiresAt = 0;
   for (const fn of subscribers) fn(null);
-}
-
-export function getTokenExpiry(): number {
-  return tokenExpiresAt;
 }
 
 /**

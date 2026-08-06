@@ -29,13 +29,14 @@ import {
   ShoppingCart,
   User,
 } from 'lucide-react';
-import { Button } from '@/src/components/ui/Button';
-import { StatusBadge } from '@/src/components/ui/StatusBadge';
-import { Card } from '@/src/components/ui/Card';
+import { Button } from '@/src/components/controls';
+import { SkeletonPage, ErrorState, EmptyState } from '@/src/components/feedback';
+import { StatusBadge } from '@/src/components/data/StatusBadge';
 import { useProductDetail } from '../hooks/useProductDetail';
 import { PRODUCT_ROUTES } from '../routes';
 import { formatDispatchDisplay } from '@/src/features/products/utils/dispatchTime';
-import { formatCurrency } from '@/src/utils/formatCurrency';
+import { Text, Money, formatDateTime } from '@/src/components/data';
+import { Panel } from '@/src/components/layout/primitives';
 
 // ─── Metadata row ───────────────────────────────────────────────
 
@@ -50,77 +51,16 @@ function MetaRow({ icon, label, value, className = '' }: MetaRowProps) {
   if (value === undefined || value === null || value === '') return null;
   return (
     <div className={`flex items-center gap-2 min-w-0 ${className}`}>
-      <span className="text-text-tertiary flex-shrink-0">{icon}</span>
-      <span className="text-xs font-medium text-text-tertiary uppercase tracking-wide flex-shrink-0">
+      <span className="text-ink-3 flex-shrink-0">{icon}</span>
+      <Text variant="label" className="flex-shrink-0">
         {label}
-      </span>
+      </Text>
       <span
-        className="text-sm text-text-primary truncate ml-auto text-right"
+        className="text-sm text-ink truncate ml-auto text-right"
         title={String(value)}
       >
         {value}
       </span>
-    </div>
-  );
-}
-
-// ─── Skeleton widths (static — no impure render calls) ──────────
-
-const skeletonWidths = ['85%', '60%', '75%', '92%', '55%', '68%'];
-
-// ─── Skeleton ───────────────────────────────────────────────────
-
-function DetailSkeleton() {
-  return (
-    <div className="space-y-6 animate-fade-in" aria-busy="true" aria-label="Loading product">
-      <div className="h-8 w-48 bg-surface-muted rounded-lg animate-pulse" />
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <div className="aspect-square bg-surface-muted rounded-2xl animate-pulse" />
-        </div>
-        <div className="lg:col-span-2 space-y-4">
-          {skeletonWidths.map((w, i) => (
-            <div key={i} className="h-6 bg-surface-muted rounded animate-pulse" style={{ width: w }} />
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Error ─────────────────────────────────────────────────────
-
-function DetailError({ message, onRetry, onBack }: { message: string; onRetry: () => void; onBack: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 text-center">
-      <AlertTriangle className="w-14 h-14 text-semantic-danger" aria-hidden="true" />
-      <h2 className="text-xl font-semibold text-text-primary">Unable to load product</h2>
-      <p className="text-sm text-text-secondary max-w-sm">{message}</p>
-      <div className="flex gap-3">
-        <Button variant="outline" size="md" iconLeft={ArrowLeft} onClick={onBack}>
-          Go Back
-        </Button>
-        <Button variant="secondary" size="md" iconLeft={RefreshCw} onClick={onRetry}>
-          Retry
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-// ─── Not Found ─────────────────────────────────────────────────
-
-function DetailNotFound({ onBack }: { onBack: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 text-center">
-      <div className="text-6xl" aria-hidden="true">📦</div>
-      <h2 className="text-xl font-semibold text-text-primary">Product not found</h2>
-      <p className="text-sm text-text-secondary max-w-sm">
-        The product you're looking for doesn't exist or you may not have access.
-      </p>
-      <Button variant="outline" size="md" iconLeft={ArrowLeft} onClick={onBack}>
-        Back to Products
-      </Button>
     </div>
   );
 }
@@ -145,17 +85,38 @@ export function ProductDetailPage() {
 
   // ── Loading ─────────────────────────────────────────
   if (isLoading) {
-    return <DetailSkeleton />;
+    return <SkeletonPage shape="detail" />;
   }
 
   // ── Error ──────────────────────────────────────────
   if (error && !product) {
-    return <DetailError message={error} onRetry={refetch} onBack={handleBack} />;
+    return (
+      <ErrorState
+        title="This product could not be loaded"
+        message={error}
+        onRetry={refetch}
+        action={
+          <Button variant="outline" size="md" iconLeft={ArrowLeft} onClick={handleBack}>
+            Go back
+          </Button>
+        }
+      />
+    );
   }
 
   // ── Not found ──────────────────────────────────────
   if (!product) {
-    return <DetailNotFound onBack={handleBack} />;
+    return (
+      <EmptyState
+        title="Product not found"
+        message="It may have been deleted, or you may not have access to it."
+        action={
+          <Button variant="outline" size="md" iconLeft={ArrowLeft} onClick={handleBack}>
+            Back to products
+          </Button>
+        }
+      />
+    );
   }
 
   // ── Content ────────────────────────────────────────
@@ -179,7 +140,7 @@ export function ProductDetailPage() {
           >
             Back
           </Button>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight truncate">
+          <h1 className="text-2xl font-bold text-ink tracking-tight truncate">
             {product.name}
           </h1>
           <StatusBadge status={product.status} />
@@ -202,7 +163,7 @@ export function ProductDetailPage() {
 
       {/* Error banner (non-blocking) */}
       {error && (
-        <div role="alert" className="flex items-center gap-2 p-3 rounded-lg bg-semantic-danger-light text-sm text-semantic-danger">
+        <div role="alert" className="flex items-center gap-2 p-3 rounded-lg bg-bad-wash text-sm text-bad">
           <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
           <span>{error}</span>
           <button onClick={refetch} className="ml-auto text-xs font-medium underline hover:no-underline">
@@ -215,7 +176,7 @@ export function ProductDetailPage() {
         {/* ── Left column: Image + summary ── */}
         <div className="lg:col-span-1 space-y-4">
           {/* Image */}
-          <Card className="p-0 overflow-hidden">
+          <Panel className="p-0 overflow-hidden">
             {product.imageUrl ? (
               <img
                 src={product.imageUrl}
@@ -224,40 +185,40 @@ export function ProductDetailPage() {
                 loading="lazy"
               />
             ) : (
-              <div className="w-full aspect-square flex flex-col items-center justify-center bg-surface-muted text-text-tertiary gap-2">
+              <div className="w-full aspect-square flex flex-col items-center justify-center bg-sheet-2 text-ink-3 gap-2">
                 <ImageIcon className="w-12 h-12" aria-hidden="true" />
                 <span className="text-sm">No image</span>
               </div>
             )}
-          </Card>
+          </Panel>
 
           {/* Badge tags */}
           <div className="flex flex-wrap gap-2">
             {product.isTrending && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-orange-50 text-orange-700 border border-orange-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-warn-wash text-warn border border-warn-border">
                 <TrendingUp className="w-3 h-3" /> Trending
               </span>
             )}
             {product.isNew && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-note-wash text-note border border-note-border">
                 <Sparkles className="w-3 h-3" /> New
               </span>
             )}
             {product.isFeatured && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-brass-wash text-brass border border-brass/20">
                 <Star className="w-3 h-3" /> Featured
               </span>
             )}
             {product.isSponsored && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-warn-wash text-warn border border-warn-border">
                 <Star className="w-3 h-3" /> Sponsored
               </span>
             )}
           </div>
 
           {/* Quick metrics */}
-          <Card className="p-4 space-y-3">
-            <h3 className="text-sm font-semibold text-text-primary">Quick Metrics</h3>
+          <Panel className="p-4 space-y-3">
+            <h3 className="text-sm font-semibold text-ink">Quick Metrics</h3>
             <div className="space-y-2">
               <MetaRow icon={<Package className="w-3.5 h-3.5" />} label="SKU" value={product.sku} />
               <MetaRow icon={<Hash className="w-3.5 h-3.5" />} label="Qty Available" value={stockAvailable} />
@@ -266,68 +227,62 @@ export function ProductDetailPage() {
               <MetaRow icon={<Clock className="w-3.5 h-3.5" />} label="Dispatch" value={formatDispatchDisplay(product.dispatchTime)} />
               <MetaRow icon={<Eye className="w-3.5 h-3.5" />} label="Visibility" value={product.visibility} />
             </div>
-          </Card>
+          </Panel>
 
           {/* Visibility badge */}
-          <Card className="p-4 flex items-center justify-between">
-            <span className="text-sm font-medium text-text-primary">Visibility</span>
+          <Panel className="p-4 flex items-center justify-between">
+            <span className="text-sm font-medium text-ink">Visibility</span>
             <span
               className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                 product.visibility === 'Public'
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                  : 'bg-gray-100 text-gray-600 border-gray-200'
+                  ? 'bg-ok-wash text-ok border-ok-border'
+                  : 'bg-mute-wash text-mute border-mute-border'
               }`}
             >
               <Eye className="w-3 h-3" />
               {product.visibility}
             </span>
-          </Card>
+          </Panel>
         </div>
 
         {/* ── Right column: details ── */}
         <div className="lg:col-span-2 space-y-6">
           {/* Pricing card */}
-          <Card className="p-5">
-            <h3 className="text-sm font-semibold text-text-primary mb-4">Pricing</h3>
+          <Panel className="p-5">
+            <h3 className="text-sm font-semibold text-ink mb-4">Pricing</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
               <div className="space-y-1">
-                <p className="text-xs text-text-tertiary uppercase tracking-wide">Base Price</p>
-                <p className="text-2xl font-bold text-text-primary tabular-nums">
-                  {formatCurrency(product.basePrice)}
-                </p>
+                <Text as="p" variant="label">Base Price</Text>
+                <Money amount={product.basePrice} decimals size="display" />
               </div>
               <div className="space-y-1">
-                <p className="text-xs text-text-tertiary uppercase tracking-wide">Selling Price</p>
-                <p className="text-2xl font-bold text-text-primary tabular-nums">
-                  {formatCurrency(product.sellingPrice)}
-                </p>
+                <Text as="p" variant="label">Selling Price</Text>
+                <Money amount={product.sellingPrice} decimals size="display" />
               </div>
               <div className="space-y-1">
-                <p className="text-xs text-text-tertiary uppercase tracking-wide">Margin</p>
-                <p className="text-2xl font-bold text-emerald-600 tabular-nums">
+                <Text as="p" variant="label">Margin</Text>
+                <p className="text-2xl font-bold text-ok tabular-nums">
                   {product.margin}%
                 </p>
               </div>
               <div className="space-y-1">
-                <p className="text-xs text-text-tertiary uppercase tracking-wide">Profit / Unit</p>
-                <p className="text-lg font-semibold text-emerald-600 tabular-nums">
-                  {formatCurrency(profit)}
-                </p>
+                <Text as="p" variant="label">Profit / Unit</Text>
+                <Money amount={profit} decimals className="text-lg font-semibold text-ok" />
               </div>
               {product.discountPercentage != null && product.discountPercentage > 0 && (
                 <div className="space-y-1">
-                  <p className="text-xs text-text-tertiary uppercase tracking-wide">Discount</p>
-                  <p className="text-lg font-semibold text-semantic-danger tabular-nums">
+                  <Text as="p" variant="label">Discount</Text>
+                  <p className="text-lg font-semibold text-bad tabular-nums">
                     {product.discountPercentage}% off
                   </p>
                 </div>
               )}
             </div>
-          </Card>
+          </Panel>
 
           {/* Product info card */}
-          <Card className="p-5">
-            <h3 className="text-sm font-semibold text-text-primary mb-4">Product Information</h3>
+          <Panel className="p-5">
+            <h3 className="text-sm font-semibold text-ink mb-4">Product Information</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3">
               <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label="Category" value={product.category} />
               <MetaRow icon={<Tag className="w-3.5 h-3.5" />} label="Sub-Category" value={product.subCategory} />
@@ -353,54 +308,54 @@ export function ProductDetailPage() {
                 <MetaRow icon={<Truck className="w-3.5 h-3.5" />} label="Volume" value={product.volume} />
               )}
             </div>
-          </Card>
+          </Panel>
 
           {/* Sizes */}
           {product.availableSizes && product.availableSizes.length > 0 && (
-            <Card className="p-5">
-              <h3 className="text-sm font-semibold text-text-primary mb-3">Available Sizes</h3>
+            <Panel className="p-5">
+              <h3 className="text-sm font-semibold text-ink mb-3">Available Sizes</h3>
               <div className="flex flex-wrap gap-2">
                 {product.availableSizes.map((size) => (
                   <span
                     key={size}
-                    className="px-3 py-1 rounded-lg bg-surface-muted text-sm font-medium text-text-primary border border-border-default"
+                    className="px-3 py-1 rounded-lg bg-sheet-2 text-sm font-medium text-ink border border-rule"
                   >
                     {size}
                   </span>
                 ))}
               </div>
-            </Card>
+            </Panel>
           )}
 
           {/* Description */}
           {product.description && (
-            <Card className="p-5">
-              <h3 className="text-sm font-semibold text-text-primary mb-3">Description</h3>
-              <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-line">
+            <Panel className="p-5">
+              <h3 className="text-sm font-semibold text-ink mb-3">Description</h3>
+              <Text as="p" variant="secondary" className="leading-relaxed whitespace-pre-line">
                 {product.description}
-              </p>
-            </Card>
+              </Text>
+            </Panel>
           )}
 
           {/* Timeline */}
-          <Card className="p-5">
-            <h3 className="text-sm font-semibold text-text-primary mb-3">Timeline</h3>
+          <Panel className="p-5">
+            <h3 className="text-sm font-semibold text-ink mb-3">Timeline</h3>
             <div className="space-y-2">
               {product.createdAt && (
-                <MetaRow icon={<Clock className="w-3.5 h-3.5" />} label="Created" value={formatDate(product.createdAt)} />
+                <MetaRow icon={<Clock className="w-3.5 h-3.5" />} label="Created" value={formatDateTime(product.createdAt)} />
               )}
               {product.updatedAt && (
-                <MetaRow icon={<Clock className="w-3.5 h-3.5" />} label="Last Updated" value={formatDate(product.updatedAt)} />
+                <MetaRow icon={<Clock className="w-3.5 h-3.5" />} label="Last Updated" value={formatDateTime(product.updatedAt)} />
               )}
             </div>
-          </Card>
+          </Panel>
 
           {/* Wholesaler info */}
           {product.wholesalerId && (
-            <Card className="p-5">
-              <h3 className="text-sm font-semibold text-text-primary mb-2">Wholesaler</h3>
+            <Panel className="p-5">
+              <h3 className="text-sm font-semibold text-ink mb-2">Supplier</h3>
               <MetaRow icon={<User className="w-3.5 h-3.5" />} label="ID" value={product.wholesalerId} />
-            </Card>
+            </Panel>
           )}
         </div>
       </div>
@@ -408,18 +363,3 @@ export function ProductDetailPage() {
   );
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────
-
-function formatDate(iso: string): string {
-  try {
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
-}

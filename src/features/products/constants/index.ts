@@ -5,9 +5,6 @@ export const PRODUCT_STATUSES = [
   'Rejected',
 ] as const;
 
-/** Shown first in filter — matches wholesaler submit status in DB */
-export const DEFAULT_ADMIN_LIST_STATUS = 'Pending Approval' as const;
-
 export const BACKEND_STATUS_TO_DISPLAY: Record<string, string> = {
   pending_review: 'Pending Approval',
   approved: 'Approved',

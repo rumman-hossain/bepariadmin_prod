@@ -1,39 +1,45 @@
 /**
  * Shared validation functions.
  *
- * These match the validation logic in the mobile app's LoginScreen
- * and RegisterScreen components.
+ * Password rules are NOT defined here — they are re-exported from the canonical
+ * `nextgen-password` package via `@/src/auth/passwordHasher`, so the admin app,
+ * the mobile app and the backend cannot drift apart on password strength.
  */
+import { validatePassword as canonicalValidatePassword } from '@/src/auth/passwordHasher';
 
 /** Checks if a string looks like a valid email address */
-export function isValidEmail(value: string): boolean {
+function isValidEmail(value: string): boolean {
   return value.includes('@') && value.includes('.');
 }
 
-/**
- * Checks if a string is a valid Bangladeshi mobile number.
- * Format: 11 digits starting with 01 (e.g., 01712345678).
- * Mobile operators: 013, 014, 015, 016, 017, 018, 019
+/*
+ * There was a `isValidBDPhone` / `isValidIdentifier` pair here, accepting either
+ * an email or an 11-digit BD mobile number. Nothing calls them any more: staff
+ * sign in with an email, and the identifier field stopped offering phone to
+ * staff. Wholesaler phone validation lives with the wholesaler schema.
  */
-export function isValidBDPhone(value: string): boolean {
-  return /^01[3-9]\d{8}$/.test(value);
-}
 
-/** Checks if a string is a valid identifier (email OR BD phone) */
-export function isValidIdentifier(value: string): boolean {
-  return isValidEmail(value) || isValidBDPhone(value);
-}
-
-/** Password must be at least 8 characters */
-export function isValidPassword(value: string): boolean {
-  return value.length >= 8;
-}
-
-/** Password validation result with message */
+/**
+ * Password rules come from the shared `nextgen-password` package, never from
+ * this file.
+ *
+ * There used to be a local implementation here enforcing only "required" and
+ * ">= 8 characters", while the canonical policy also requires an uppercase
+ * letter and a digit. Because the admin app writes passwords for wholesalers,
+ * that gap let an admin create an account the mobile app would then reject at
+ * its own login and registration screens.
+ *
+ * The re-export is normalised to `message: string` so the ~4 existing call
+ * sites, which render `message` directly, keep working unchanged.
+ */
 export function validatePassword(value: string): { valid: boolean; message: string } {
-  if (!value) return { valid: false, message: 'Password is required' };
-  if (value.length < 8) return { valid: false, message: 'Password must be at least 8 characters' };
-  return { valid: true, message: '' };
+  const result = canonicalValidatePassword(value);
+  return { valid: result.valid, message: result.message ?? '' };
+}
+
+/** Boolean form of the canonical policy. */
+export function isValidPassword(value: string): boolean {
+  return canonicalValidatePassword(value).valid;
 }
 
 /** OTP is exactly 6 digits */
@@ -45,13 +51,6 @@ export function isValidOtp(value: string): boolean {
 export function validateEmail(value: string): { valid: boolean; message: string } {
   if (!value) return { valid: false, message: 'Email is required' };
   if (!isValidEmail(value)) return { valid: false, message: 'Please enter a valid email address' };
-  return { valid: true, message: '' };
-}
-
-/** Login identifier validation result */
-export function validateIdentifier(value: string): { valid: boolean; message: string } {
-  if (!value.trim()) return { valid: false, message: 'Enter email or mobile number' };
-  if (!isValidIdentifier(value)) return { valid: false, message: 'Enter a valid email or mobile number' };
   return { valid: true, message: '' };
 }
 

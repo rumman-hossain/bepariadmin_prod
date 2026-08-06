@@ -1,0 +1,424 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Suppliers — the queue, the filters, and the paperwork quartet</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .app { border:1px solid var(--rule); border-radius: var(--radius-lg); overflow:hidden;
+         background: var(--paper); margin-bottom: 8px; }
+  .app .inner { padding:20px; display:flex; flex-direction:column; gap:16px; }
+  .hd { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .hd h2 { margin:0; font-size: var(--text-xl); letter-spacing: var(--tracking-tight); }
+  .hd .sub { font-size: var(--text-sm); color: var(--ink-2); margin-top:2px; }
+  .hd .sub b { color: var(--brass); font-weight: var(--font-weight-semibold); }
+
+  .btn { height:32px; padding:0 13px; border-radius: var(--radius-md); font-size: var(--text-sm);
+         font-family: var(--font-sans); font-weight: var(--font-weight-medium); cursor:pointer;
+         border:1px solid var(--rule-strong); background: var(--sheet); color: var(--ink); }
+  .btn-primary { background: var(--brass); border-color: var(--brass); color: var(--brass-content); }
+  .btn-quiet { border-color: transparent; background: transparent; color: var(--ink-2); padding:0 6px; }
+
+  /* ── THE QUEUE STRIP ───────────────────────────────────────────────
+     Five equal tiles is the obvious answer and it is the wrong one: only
+     ONE of these five is a queue. Review is work waiting on a person;
+     Active, Suspended, Rejected and Removed are facts about the world.
+     Giving them the same weight tells an operator to treat them the same,
+     and the first thing they need is the number that has a person's name
+     on it. So the asymmetry is the point, not decoration. */
+  .queue { display:flex; gap:10px; align-items:stretch; flex-wrap:wrap; }
+
+  .q-primary { display:flex; align-items:center; gap:12px; cursor:pointer; text-align:left;
+               padding:11px 16px; border-radius: var(--radius-lg); font-family: var(--font-sans);
+               border:1px solid var(--brass); background: var(--brass-wash); color: var(--ink); }
+  .q-primary .n { font-size: var(--text-2xl); font-weight: var(--font-weight-heavy);
+                  color: var(--brass); line-height:1; font-variant-numeric: tabular-nums; }
+  .q-primary .t { display:flex; flex-direction:column; gap:1px; }
+  .q-primary .t .lab { font-size: var(--text-2xs); text-transform:uppercase;
+                       letter-spacing: var(--tracking-caps); font-weight: var(--font-weight-semibold);
+                       color: var(--brass); }
+  .q-primary .t .say { font-size: var(--text-sm); color: var(--ink-2); }
+
+  .q-rest { display:flex; gap:0; border:1px solid var(--rule); border-radius: var(--radius-lg);
+            overflow:hidden; background: var(--sheet); }
+  .q-cell { display:flex; flex-direction:column; gap:2px; align-items:flex-start; cursor:pointer;
+            padding:11px 18px; border:none; border-right:1px solid var(--rule-subtle);
+            background:transparent; font-family: var(--font-sans); text-align:left; }
+  .q-cell:last-child { border-right:none; }
+  .q-cell .n { font-size: var(--text-lg); font-weight: var(--font-weight-semibold); color: var(--ink);
+               line-height:1.1; font-variant-numeric: tabular-nums; }
+  .q-cell .lab { font-size: var(--text-2xs); text-transform:uppercase;
+                 letter-spacing: var(--tracking-caps); color: var(--ink-3);
+                 font-weight: var(--font-weight-semibold); }
+  .q-cell[aria-pressed="true"] { background: var(--sheet-selected); }
+  .q-cell[aria-pressed="true"] .lab { color: var(--ink); }
+
+  /* Removed is not a state a supplier is IN — it is a row taken out. The
+     dashed edge says that without a legend. */
+  .q-cell.removed { border-left:1px dashed var(--rule-strong); }
+  .q-cell.removed .n, .q-cell.removed .lab { color: var(--ink-3); }
+
+  /* ── Filters ────────────────────────────────────────────────────── */
+  .search { width:100%; height:38px; border-radius: var(--radius-md); padding:0 12px;
+            border:1px solid var(--rule-input); background: var(--sheet); color: var(--ink);
+            font-size: var(--text-sm); font-family: var(--font-sans); }
+  .filters { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .sel { height:32px; border-radius: var(--radius-md); padding:0 10px; font-size: var(--text-sm);
+         border:1px solid var(--rule-input); background: var(--sheet); color: var(--ink-2);
+         font-family: var(--font-sans); }
+  .more { border-style:dashed; color: var(--ink-2); }
+
+  /* Active filters, each removable on its own. Today the only way to see
+     that a filter is on is to read every dropdown, and the only way to undo
+     one is to find it and set it back to "All". */
+  .chips { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+  .chip { display:inline-flex; align-items:center; gap:6px; padding:3px 6px 3px 10px;
+          border-radius: var(--radius-full); font-size: var(--text-xs);
+          border:1px solid var(--brass-ring); background: var(--brass-wash); color: var(--ink); }
+  .chip .k { color: var(--ink-3); }
+  .chip .x { cursor:pointer; border:none; background:transparent; color: var(--ink-3);
+             font-size: var(--text-sm); line-height:1; padding:0 2px; }
+  .chips .clear { margin-left:auto; font-size: var(--text-xs); color: var(--ink-2);
+                  background:none; border:none; cursor:pointer; text-decoration:underline; }
+
+  /* ── Table ──────────────────────────────────────────────────────── */
+  .wrap { border:1px solid var(--rule); border-radius: var(--radius-lg); overflow:hidden;
+          background: var(--sheet); }
+  table { width:100%; border-collapse:collapse; font-size: var(--text-sm); }
+  th { text-align:left; padding:9px 14px; background: var(--sheet-2); border-bottom:1px solid var(--rule);
+       font-size: var(--text-2xs); text-transform:uppercase; letter-spacing: var(--tracking-caps);
+       color: var(--ink-3); font-weight: var(--font-weight-semibold); }
+  td { padding:11px 14px; border-bottom:1px solid var(--rule-subtle); }
+  tr:last-child td { border-bottom:none; }
+  .mid { font-family: var(--font-mono); font-size: var(--text-sm); color: var(--ink-2); }
+  .stack { display:flex; flex-direction:column; }
+  .stack .cap { font-size: var(--text-xs); color: var(--ink-3); }
+  .num { text-align:right; font-variant-numeric: tabular-nums; }
+  .dash { color: var(--ink-4); }
+
+  .badge { display:inline-block; padding:2px 8px; border-radius: var(--radius-full);
+           font-size: var(--text-xs); font-weight: var(--font-weight-medium); border:1px solid; }
+  .b-ok{background:var(--ok-wash);color:var(--ok);border-color:var(--ok-border)}
+  .b-bad{background:var(--bad-wash);color:var(--bad);border-color:var(--bad-border)}
+  .b-warn{background:var(--warn-wash);color:var(--warn);border-color:var(--warn-border)}
+  .b-mute{background:var(--mute-wash);color:var(--mute);border-color:var(--mute-border)}
+
+  .prov { font-size: var(--text-2xs); text-transform:uppercase; letter-spacing: var(--tracking-caps);
+          font-weight: var(--font-weight-semibold); color: var(--ink-4); }
+  .prov-admin { color: var(--brass); }
+
+  /* ── THE PAPERWORK QUARTET — the signature ─────────────────────────
+     Trade licence, TIN, VAT, NID: the four certificates a Bangladeshi
+     supplier is actually onboarded with, in that fixed order, one mark
+     each. Filled means on file.
+
+     A percentage or a "3/4" would say how MANY are missing. Which one is
+     missing is the part that decides what happens next — a missing NID is
+     a different phone call from a missing VAT certificate — and a fixed
+     order means the position IS the name. Reading down the column, a gap
+     in the third slot is the VAT column, every time. */
+  .docs { display:inline-flex; gap:3px; align-items:center; }
+  .docs i { width:6px; height:14px; border-radius:2px; display:block;
+            background: var(--ok); border:1px solid var(--ok-border); }
+  /* A gap has to have BODY. The first version drew missing slots as a
+     transparent dashed outline; at 6px wide it disappeared, and a row with a
+     hole simply looked like a row with fewer marks. That is the one reading the
+     fixed order exists to prevent, so the slot is filled with the warn wash and
+     keeps its full footprint. */
+  .docs i.off { background: var(--warn-wash); border:1px solid var(--warn-border); }
+  .docs-none i { background: var(--mute-wash); border:1px solid var(--rule); }
+  .docs-cap { font-size: var(--text-2xs); color: var(--warn); margin-left:6px;
+              font-weight: var(--font-weight-medium); }
+
+  tr.gone td { color: var(--ink-3); background: var(--sheet-2); }
+  tr.gone .stack > span:first-child { text-decoration: line-through; text-decoration-color: var(--ink-4); }
+
+  .empty { padding:44px 20px; text-align:center; }
+  .empty h3 { margin:0 0 6px; font-size: var(--text-md); color: var(--ink); }
+  .empty p { margin:0 0 14px; font-size: var(--text-sm); color: var(--ink-2); }
+
+  .foot { display:flex; justify-content:space-between; align-items:center; }
+  .foot .of { font-size: var(--text-xs); color: var(--ink-3); }
+  .pager { display:flex; gap:4px; }
+  .pg { min-width:30px; height:30px; border-radius: var(--radius-md); border:1px solid var(--rule);
+        background: var(--sheet); color: var(--ink-2); font-size: var(--text-sm); cursor:pointer; }
+  .pg[aria-current="page"] { background: var(--sheet-inverse); color: var(--ink-inverse);
+                             border-color: var(--sheet-inverse); }
+
+  body { font-family: var(--font-sans); color: var(--ink); background: var(--paper);
+         margin:0; padding:28px; max-width: var(--container-wide); }
+  h1 { font-size: var(--text-2xl); margin:0 0 4px; letter-spacing: var(--tracking-tight); }
+  h2 { font-size: var(--text-lg); margin:30px 0 8px; }
+  .note { font-size: var(--text-sm); color: var(--ink-2); line-height:1.65; max-width: var(--container-prose); }
+  .note strong { color: var(--ink); font-weight: var(--font-weight-semibold); }
+  .lede { font-size: var(--text-md); color: var(--ink-2); margin:0 0 6px; max-width: var(--container-prose); }
+</style>
+</head>
+<body>
+
+<h1>Suppliers</h1>
+<p class="lede">
+  The directory an operator opens to answer two questions: <em>what is waiting on me</em>, and
+  <em>where is the supplier who just phoned</em>. The screen it replaces could answer neither.
+</p>
+
+<h2>1 · The list</h2>
+<p class="note">
+  <strong>There was no status filter at all.</strong> Status was a column, never a filter, so the
+  one question this directory exists to answer — which suppliers are waiting for approval — could
+  not be asked. The whole Review → Approve/Reject workflow was invisible from the screen that is
+  meant to lead to it.
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="hd">
+      <div>
+        <h2>Suppliers</h2>
+        <div class="sub">127 suppliers · <b>8 waiting on you</b>
+          <button class="btn btn-quiet" style="font-size:var(--text-xs)">Refresh</button></div>
+      </div>
+      <button class="btn btn-primary">Onboard supplier</button>
+    </div>
+
+    <div class="queue">
+      <button class="q-primary">
+        <span class="n">8</span>
+        <span class="t"><span class="lab">Review</span><span class="say">waiting on you</span></span>
+      </button>
+      <div class="q-rest">
+        <button class="q-cell"><span class="n">104</span><span class="lab">Active</span></button>
+        <button class="q-cell"><span class="n">9</span><span class="lab">Suspended</span></button>
+        <button class="q-cell"><span class="n">4</span><span class="lab">Rejected</span></button>
+        <button class="q-cell removed"><span class="n">2</span><span class="lab">Removed</span></button>
+      </div>
+    </div>
+
+    <input class="search" placeholder="Search company, code, owner or phone…">
+
+    <div class="filters">
+      <select class="sel"><option>Category</option></select>
+      <select class="sel"><option>District</option></select>
+      <select class="sel"><option>Commission</option></select>
+      <select class="sel"><option>Joined</option></select>
+      <button class="btn sel more">More filters</button>
+    </div>
+
+    <div class="wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Company</th><th>Code</th><th>District</th>
+            <th>Paperwork</th><th>Added by</th><th>Status</th><th class="num">Commission</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="stack"><span>Elegant Apparel Ltd</span><span class="cap">Mohammad Ali</span></div></td>
+            <td class="mid">WHL-00009</td><td>Dhaka</td>
+            <td><span class="docs" title="Trade licence, TIN, VAT, NID — all on file">
+              <i></i><i></i><i></i><i></i></span></td>
+            <td><span class="prov prov-admin">Admin</span></td>
+            <td><span class="badge b-ok">Active</span></td>
+            <td class="num">9.5%</td>
+          </tr>
+          <tr>
+            <td><div class="stack"><span>Noakhali Textiles</span><span class="cap">Kamal Hossain</span></div></td>
+            <td class="mid">WHL-00014</td><td>Noakhali</td>
+            <td><span class="docs" title="VAT certificate missing">
+              <i></i><i></i><i class="off"></i><i></i></span><span class="docs-cap">VAT</span></td>
+            <td><span class="prov">Self</span></td>
+            <td><span class="badge b-warn">Review</span></td>
+            <td class="num">9.5%</td>
+          </tr>
+          <tr>
+            <td><div class="stack"><span>Chattogram Cloth House</span><span class="cap">Nurul Alam</span></div></td>
+            <td class="mid">WHL-00021</td><td>Chattogram</td>
+            <td><span class="docs" title="TIN and NID missing">
+              <i></i><i class="off"></i><i></i><i class="off"></i></span><span class="docs-cap">TIN, NID</span></td>
+            <td><span class="prov">Self</span></td>
+            <td><span class="badge b-warn">Review</span></td>
+            <td class="num">9.5%</td>
+          </tr>
+          <tr>
+            <td><div class="stack"><span>Rangpur Wholesale Co</span><span class="cap">Delwar Hossain</span></div></td>
+            <td class="mid">WHL-00003</td><td>Rangpur</td>
+            <td><span class="docs" title="All on file"><i></i><i></i><i></i><i></i></span></td>
+            <td><span class="prov prov-admin">Admin</span></td>
+            <td><span class="badge b-ok">Active</span></td>
+            <td class="num">12.0%</td>
+          </tr>
+          <tr>
+            <td><div class="stack"><span>Sylhet Traders</span><span class="cap">Abdul Karim</span></div></td>
+            <td class="mid">WHL-00017</td><td>Sylhet</td>
+            <td><span class="docs" title="All on file"><i></i><i></i><i></i><i></i></span></td>
+            <td><span class="prov">Self</span></td>
+            <td><span class="badge b-bad">Suspended</span></td>
+            <td class="num">9.5%</td>
+          </tr>
+          <tr class="gone">
+            <td><div class="stack"><span>test-01</span><span class="cap">Removed 6 Aug 2026</span></div></td>
+            <td class="mid">WHL-00002</td><td><span class="dash">—</span></td>
+            <td><span class="docs docs-none" title="Kept, not destroyed">
+              <i></i><i></i><i></i><i></i></span></td>
+            <td><span class="prov">Self</span></td>
+            <td><span class="badge b-mute">Removed</span></td>
+            <td class="num">9.5%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="foot">
+      <span class="of">1–25 of 127</span>
+      <div class="pager">
+        <button class="pg" aria-current="page">1</button>
+        <button class="pg">2</button><button class="pg">3</button><button class="pg">›</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>2 · The paperwork quartet</h2>
+<p class="note">
+  Four marks, always in the same order: <strong>trade licence, TIN, VAT, NID</strong> — the
+  certificates a supplier is actually onboarded with. Filled means on file.
+  <br><br>
+  A percentage would say how many are missing. <strong>Which one</strong> is missing is what
+  decides the next action: chasing a VAT certificate is a different call from chasing an owner's
+  NID. The fixed order means position is identity — reading down the column, a gap in the third
+  slot is the VAT column, every time — so the pattern is scannable without a legend, and the
+  count beside it names the gap for anyone who is not scanning.
+</p>
+
+<div class="app"><div class="inner">
+  <table style="width:auto">
+    <tbody>
+      <tr><td><span class="docs"><i></i><i></i><i></i><i></i></span></td>
+          <td class="cap">All four on file — ready to review</td></tr>
+      <tr><td><span class="docs"><i></i><i></i><i class="off"></i><i></i></span><span class="docs-cap">VAT</span></td>
+          <td class="cap">One gap, named</td></tr>
+      <tr><td><span class="docs"><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i></span><span class="docs-cap">None yet</span></td>
+          <td class="cap">Registered, nothing uploaded</td></tr>
+      <tr><td><span class="docs docs-none"><i></i><i></i><i></i><i></i></span></td>
+          <td class="cap">Removed supplier — the papers are kept, not destroyed</td></tr>
+    </tbody>
+  </table>
+</div></div>
+
+<h2>3 · Filtered, and what the filters say back</h2>
+<p class="note">
+  Every active filter becomes a chip that can be removed on its own. Before this, the only way to
+  tell a filter was on was to read every dropdown, and the only way to undo one was to find it and
+  set it back to "All".
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="hd">
+      <div>
+        <h2>Suppliers</h2>
+        <div class="sub">3 of 127 suppliers</div>
+      </div>
+      <button class="btn btn-primary">Onboard supplier</button>
+    </div>
+
+    <div class="queue">
+      <button class="q-primary">
+        <span class="n">8</span>
+        <span class="t"><span class="lab">Review</span><span class="say">waiting on you</span></span>
+      </button>
+      <div class="q-rest">
+        <button class="q-cell" aria-pressed="true"><span class="n">104</span><span class="lab">Active</span></button>
+        <button class="q-cell"><span class="n">9</span><span class="lab">Suspended</span></button>
+        <button class="q-cell"><span class="n">4</span><span class="lab">Rejected</span></button>
+        <button class="q-cell removed"><span class="n">2</span><span class="lab">Removed</span></button>
+      </div>
+    </div>
+
+    <input class="search" value="textile" placeholder="Search company, code, owner or phone…">
+
+    <div class="chips">
+      <span class="chip"><span class="k">Status</span> Active <button class="x">×</button></span>
+      <span class="chip"><span class="k">District</span> Dhaka <button class="x">×</button></span>
+      <span class="chip"><span class="k">Commission</span> Negotiated <button class="x">×</button></span>
+      <span class="chip"><span class="k">Paperwork</span> Something missing <button class="x">×</button></span>
+      <button class="clear">Clear all</button>
+    </div>
+
+    <div class="wrap">
+      <table>
+        <thead><tr><th>Company</th><th>Code</th><th>District</th><th>Paperwork</th><th>Status</th><th class="num">Commission</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><div class="stack"><span>Dhaka Textile Mills</span><span class="cap">Rafiqul Islam</span></div></td>
+            <td class="mid">WHL-00031</td><td>Dhaka</td>
+            <td><span class="docs"><i></i><i></i><i class="off"></i><i></i></span><span class="docs-cap">VAT</span></td>
+            <td><span class="badge b-ok">Active</span></td><td class="num">7.5%</td>
+          </tr>
+          <tr>
+            <td><div class="stack"><span>Gulshan Textile Co</span><span class="cap">Shirin Akter</span></div></td>
+            <td class="mid">WHL-00044</td><td>Dhaka</td>
+            <td><span class="docs"><i class="off"></i><i></i><i></i><i></i></span><span class="docs-cap">Trade licence</span></td>
+            <td><span class="badge b-ok">Active</span></td><td class="num">6.0%</td>
+          </tr>
+          <tr>
+            <td><div class="stack"><span>Mirpur Textile Bazaar</span><span class="cap">Jahangir Alam</span></div></td>
+            <td class="mid">WHL-00052</td><td>Dhaka</td>
+            <td><span class="docs"><i></i><i></i><i></i><i class="off"></i></span><span class="docs-cap">NID</span></td>
+            <td><span class="badge b-ok">Active</span></td><td class="num">12.0%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<h2>4 · Nothing matches</h2>
+<p class="note">
+  An empty result is not the same event as an empty directory, and it must not borrow its words.
+  "No suppliers yet" over a filtered view tells an operator the business has no suppliers.
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="chips">
+      <span class="chip"><span class="k">Status</span> Rejected <button class="x">×</button></span>
+      <span class="chip"><span class="k">District</span> Barisal <button class="x">×</button></span>
+      <button class="clear">Clear all</button>
+    </div>
+    <div class="wrap">
+      <div class="empty">
+        <h3>No suppliers match these filters</h3>
+        <p>127 suppliers are in the directory. None of them are both rejected and in Barisal.</p>
+        <button class="btn">Clear all filters</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>What this screen deliberately does not have</h2>
+<p class="note">
+  <strong>No five equal count tiles.</strong> Only one of the five is a queue. Review is work with a
+  person's name on it; Active, Suspended, Rejected and Removed are facts about the world. Giving
+  them equal weight would tell an operator to treat them the same, and the number they came for is
+  the one that means somebody is waiting.
+  <br><br>
+  <strong>No completeness percentage.</strong> "75% complete" is a number nobody can act on. Four
+  marks in a fixed order say which certificate is missing, which is the thing that decides who
+  gets phoned.
+  <br><br>
+  <strong>No row actions.</strong> Suspend, delete and restore stay on the detail screen.
+  Suspending signs a supplier out of every device immediately — that is a decision to make while
+  looking at who they are, not from a row menu one mis-click away from the row above.
+  <br><br>
+  <strong>No animation.</strong> This is a dense directory worked all day. Nothing here rewards
+  being watched.
+  <br><br>
+  <strong>No performance columns.</strong> Order counts, payouts and ratings have no endpoint yet.
+  A column of dashes beside real figures is how an operator learns to distrust the whole table.
+</p>
+
+</body>
+</html>

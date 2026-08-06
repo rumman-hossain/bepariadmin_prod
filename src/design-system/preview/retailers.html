@@ -1,0 +1,356 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Retailers — admin-managed accounts and the document vault</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .app { border:1px solid var(--rule); border-radius: var(--radius-lg); overflow:hidden;
+         background: var(--paper); margin-bottom: 8px; }
+  .app .inner { padding:20px; display:flex; flex-direction:column; gap:18px; }
+  .hd { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .hd h2 { margin:0; font-size: var(--text-xl); letter-spacing: var(--tracking-tight); }
+  .hd .sub { font-size: var(--text-sm); color: var(--ink-2); margin-top:2px; }
+
+  .btn { height:32px; padding:0 13px; border-radius: var(--radius-md); font-size: var(--text-sm);
+         font-family: var(--font-sans); font-weight: var(--font-weight-medium); cursor:pointer;
+         border:1px solid var(--rule-strong); background: var(--sheet); color: var(--ink); }
+  .btn-primary { background: var(--brass); border-color: var(--brass); color: var(--brass-content); }
+  .btn-bad { border-color: var(--bad-border); color: var(--bad); background: var(--bad-wash); }
+
+  .wrap { border:1px solid var(--rule); border-radius: var(--radius-lg); overflow:hidden;
+          background: var(--sheet); }
+  table { width:100%; border-collapse:collapse; font-size: var(--text-sm); }
+  th { text-align:left; padding:9px 14px; background: var(--sheet-2); border-bottom:1px solid var(--rule);
+       font-size: var(--text-2xs); text-transform:uppercase; letter-spacing: var(--tracking-caps);
+       color: var(--ink-3); font-weight: var(--font-weight-semibold); }
+  td { padding:11px 14px; border-bottom:1px solid var(--rule-subtle); }
+  tr:last-child td { border-bottom:none; }
+  .mid { font-family: var(--font-mono); font-size: var(--text-sm); }
+  .stack { display:flex; flex-direction:column; }
+  .stack .cap { font-size: var(--text-xs); color: var(--ink-3); }
+
+  .badge { display:inline-block; padding:2px 8px; border-radius: var(--radius-full);
+           font-size: var(--text-xs); font-weight: var(--font-weight-medium); border:1px solid; }
+  .b-ok{background:var(--ok-wash);color:var(--ok);border-color:var(--ok-border)}
+  .b-bad{background:var(--bad-wash);color:var(--bad);border-color:var(--bad-border)}
+  .b-warn{background:var(--warn-wash);color:var(--warn);border-color:var(--warn-border)}
+  .b-mute{background:var(--mute-wash);color:var(--mute);border-color:var(--mute-border)}
+
+  /* Provenance: a quiet stamp, not a badge. It answers "who put this here", which
+     is a different question from "what state is it in" — so it must not compete
+     with the status badge beside it. */
+  .prov { font-size: var(--text-2xs); text-transform:uppercase; letter-spacing: var(--tracking-caps);
+          font-weight: var(--font-weight-semibold); color: var(--ink-4); }
+  .prov-admin { color: var(--brass); }
+
+  /* ── The form screen ───────────────────────────────────────────── */
+  .form { max-width: var(--container-form); display:flex; flex-direction:column; gap:22px; }
+  fieldset { border:none; margin:0; padding:0; display:flex; flex-direction:column; gap:10px; }
+  legend { padding:0; font-size: var(--text-md); font-weight: var(--font-weight-semibold);
+           margin-bottom:2px; }
+  .legend-note { font-size: var(--text-sm); color: var(--ink-3); margin:0 0 6px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .field { display:flex; flex-direction:column; gap:5px; }
+  .field > .label { margin:0; }
+  .input { height:34px; border:1px solid var(--rule-input); border-radius: var(--radius-md);
+           background: var(--sheet); padding:0 10px; font-size: var(--text-base);
+           font-family: var(--font-sans); color: var(--ink); display:flex; align-items:center; }
+  .input.ph { color: var(--ink-4); }
+  .hint { font-size: var(--text-xs); color: var(--ink-3); }
+
+  /* Strength meter — reused from the change-password flow, not re-invented. */
+  .meter { display:flex; gap:3px; margin-top:2px; }
+  .meter i { height:3px; flex:1; border-radius: var(--radius-full); background: var(--rule); }
+  .meter i.on { background: var(--ok); }
+
+  /* ── The vault row ─────────────────────────────────────────────── */
+  .vault { border:1px solid var(--rule); border-radius: var(--radius-lg); overflow:hidden;
+           background: var(--sheet); }
+  .vrow { display:flex; align-items:center; gap:14px; padding:12px 14px;
+          border-bottom:1px solid var(--rule-subtle); }
+  .vrow:last-child { border-bottom:none; }
+  .vrow .lock { color: var(--ink-4); flex:none; display:flex; }
+  .vrow .who { flex:1; min-width:0; }
+  .vrow .name { font-size: var(--text-sm); }
+  .vrow .meta { font-size: var(--text-xs); color: var(--ink-3); }
+  .expiry { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-3);
+            white-space:nowrap; }
+  .vhead { padding:10px 14px; background: var(--sheet-2); border-bottom:1px solid var(--rule);
+           display:flex; justify-content:space-between; align-items:center; }
+
+  .cols { display:grid; grid-template-columns:1fr 1fr; gap:16px; align-items:start; }
+  @media (max-width: 52rem) { .cols, .grid2 { grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Retailers</h1>
+<p class="lede">
+  Retailers could already sign themselves up. What they could not do is be created, corrected,
+  suspended or reset by the people who answer the phone when a shop cannot log in. These four
+  screens are that half — built on the shape Wholesalers already uses, so an operator who knows
+  one knows both.
+</p>
+
+<h2>1 · The list</h2>
+<p class="note">
+  One column is new, and it is the one that matters: <strong>who created this account</strong>.
+  A shop that signed itself up typed its own phone number and its own trade licence; a shop an
+  operator created was transcribed from a phone call. Those two rows deserve different amounts of
+  trust, and until now the screen could not tell them apart.
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="hd">
+      <div>
+        <h2>Retailers</h2>
+        <div class="sub">Shops buying on the platform</div>
+      </div>
+      <button class="btn btn-primary">Onboard retailer</button>
+    </div>
+
+    <div class="wrap">
+      <table>
+        <thead>
+          <tr><th>Shop</th><th>Phone</th><th>District</th><th>Added by</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><div class="stack"><span>Karim Traders</span><span class="cap">Abdul Karim</span></div></td>
+            <td class="mid">+8801711…</td><td>Dhaka</td>
+            <td><span class="prov">Self</span></td>
+            <td><span class="badge b-ok">Active</span></td>
+          </tr>
+          <tr>
+            <td><div class="stack"><span>Rahman Store</span><span class="cap">Mizanur Rahman</span></div></td>
+            <td class="mid">+8801812…</td><td>Chattogram</td>
+            <td><span class="prov prov-admin">Admin</span></td>
+            <td><span class="badge b-ok">Active</span></td>
+          </tr>
+          <tr>
+            <td><div class="stack"><span>Alam Fashion</span><span class="cap">Nurul Alam</span></div></td>
+            <td class="mid">+8801913…</td><td>Sylhet</td>
+            <td><span class="prov prov-admin">Admin</span></td>
+            <td><span class="badge b-bad">Suspended</span></td>
+          </tr>
+          <tr>
+            <td><div class="stack"><span>Hossain Cloth</span><span class="cap">Delwar Hossain</span></div></td>
+            <td class="mid">+8801611…</td><td>Khulna</td>
+            <td><span class="prov">Self</span></td>
+            <td><span class="badge b-warn">Pending</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<h2>2 · Onboard retailer — a screen</h2>
+<p class="note">
+  The prototype does this in a modal. It is the wrong container for the job: this form has five
+  sections, a password, four file uploads and a bank account, and a modal gives it a scrollbar
+  inside a scrollbar, no URL to return to, and no way to recover a half-filled form from a
+  mis-click on the backdrop. It gets a route — <span class="mono">/retailers/new</span> — like
+  Add Wholesaler already does.
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="hd">
+      <div>
+        <h2>Onboard retailer</h2>
+        <div class="sub">Creates the account and its login. The shop can change everything afterwards.</div>
+      </div>
+    </div>
+
+    <div class="form">
+      <fieldset>
+        <legend>The shop</legend>
+        <div class="grid2">
+          <div class="field"><span class="label">Shop name</span><div class="input ph">Karim Traders</div></div>
+          <div class="field"><span class="label">Owner name</span><div class="input ph">Abdul Karim</div></div>
+          <div class="field"><span class="label">Phone</span><div class="input ph">+8801711000000</div></div>
+          <div class="field">
+            <span class="label">Email</span><div class="input ph">Optional</div>
+            <span class="hint">Only needed if they want to sign in by email.</span>
+          </div>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Where it is</legend>
+        <div class="grid2">
+          <div class="field"><span class="label">Division</span><div class="input ph">Dhaka</div></div>
+          <div class="field"><span class="label">District</span><div class="input ph">Dhaka</div></div>
+        </div>
+        <div class="field"><span class="label">Address</span><div class="input ph">House, road, area, thana</div></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Access</legend>
+        <p class="legend-note">
+          The password is hashed in this browser before it is sent. Nobody on the server, and
+          nothing in a log, ever sees what you typed.
+        </p>
+        <div class="field">
+          <span class="label">Password</span>
+          <div class="input ph">••••••••••••</div>
+          <div class="meter"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></div>
+          <span class="hint">Strong. Tell the shop out of band — this is the only time it is shown.</span>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Paying them back</legend>
+        <p class="legend-note">Optional now, and editable later. Refunds and settlements need it eventually.</p>
+        <div class="grid2">
+          <div class="field"><span class="label">bKash number</span><div class="input ph">+8801711000000</div></div>
+          <div class="field"><span class="label">Bank account name</span><div class="input ph">Karim Traders</div></div>
+          <div class="field"><span class="label">Account number</span><div class="input ph">1234567890</div></div>
+          <div class="field"><span class="label">Branch</span><div class="input ph">Motijheel</div></div>
+        </div>
+      </fieldset>
+
+      <div class="row">
+        <button class="btn btn-primary">Create retailer</button>
+        <button class="btn">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>3 · The document vault</h2>
+<p class="note">
+  Identity paperwork goes to a bucket with <span class="mono">public_access_prevention</span>
+  enforced and no <span class="mono">allUsers</span> grant — verified against the project, not
+  assumed. Product photos and shop logos stay in the public bucket, where they belong: they are
+  shown to every browsing buyer, so signing them would cost latency for no confidentiality.
+</p>
+
+<div class="vault" style="max-width: var(--container-form)">
+  <div class="vhead">
+    <span class="label">Documents</span>
+    <span class="expiry">links expire 5 min after you open them</span>
+  </div>
+
+  <div class="vrow">
+    <span class="lock" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </span>
+    <span class="who">
+      <div class="name">Trade licence</div>
+      <div class="meta">Verified by Tarek Moshaarraf · 21 May 2026</div>
+    </span>
+    <span class="badge b-ok">Verified</span>
+    <button class="btn">View</button>
+  </div>
+
+  <div class="vrow">
+    <span class="lock" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </span>
+    <span class="who">
+      <div class="name">National ID</div>
+      <div class="meta">Uploaded</div>
+    </span>
+    <span class="badge b-warn">Pending</span>
+    <button class="btn">View</button>
+  </div>
+
+  <div class="vrow">
+    <span class="lock" aria-hidden="true">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </span>
+    <span class="who">
+      <div class="name">VAT registration</div>
+      <div class="meta">Not provided</div>
+    </span>
+    <span class="badge b-mute">Missing</span>
+    <button class="btn">Upload</button>
+  </div>
+</div>
+
+<p class="note">
+  <strong>The row states its own security model.</strong> A padlock, and the expiry written out
+  in the header rather than discovered when a bookmarked link 403s an hour later. The instinct is
+  to hide this — make it look like an ordinary file list — but an operator who does not know the
+  link dies will paste it into a chat thread and be confused when a colleague cannot open it. The
+  honest version costs one line of type.
+  <br><br>
+  <strong>"Nobody has checked it yet" rather than "Pending".</strong> The badge says Pending
+  because the column does; the line underneath says what that actually means for the person
+  reading it. A pending document is not a slow document — it is one no human has looked at.
+</p>
+
+<h2>4 · Detail, and the two dangerous actions</h2>
+<p class="note">
+  Suspend and Reset password both get their own route, not a dialog. Both are actions an operator
+  takes while on the phone to somebody, both need a reason typed, and both are the kind of thing
+  that should survive an accidental click elsewhere on the page. A modal is where irreversible
+  actions go to be mis-clicked.
+  <br><br>
+  Resetting a password ends the retailer's other sessions, the way changing your own password
+  already does here. A reset that leaves an attacker's session alive has reset nothing.
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="hd">
+      <div>
+        <h2>Karim Traders</h2>
+        <div class="sub">Abdul Karim · Dhaka · joined 21 May 2026</div>
+      </div>
+      <div class="row">
+        <button class="btn">Edit</button>
+        <button class="btn">Reset password</button>
+        <button class="btn btn-bad">Suspend</button>
+      </div>
+    </div>
+    <div class="cols">
+      <div class="wrap"><table><tbody>
+        <tr><td class="label">Phone</td><td class="mid">+8801711000000</td></tr>
+        <tr><td class="label">Email</td><td>karim@example.com</td></tr>
+        <tr><td class="label">District</td><td>Dhaka</td></tr>
+        <tr><td class="label">Category</td><td>Gents textile</td></tr>
+        <tr><td class="label">Added by</td><td><span class="prov">Self</span></td></tr>
+      </tbody></table></div>
+      <div class="wrap"><table><tbody>
+        <tr><td class="label">bKash</td><td class="mid">+8801711000000</td></tr>
+        <tr><td class="label">Bank</td><td>Dutch-Bangla · Motijheel</td></tr>
+        <tr><td class="label">Account</td><td class="mid">1234567890</td></tr>
+        <tr><td class="label">Referral code</td><td class="mid">KARIM-4821</td></tr>
+      </tbody></table></div>
+    </div>
+  </div>
+</div>
+
+<h2>What these screens deliberately do not have</h2>
+<p class="note">
+  <strong>No credit score field.</strong> The column exists, constrained to 0–100 and defaulting
+  to 50 — and <em>nothing in the codebase ever writes it</em>. It appears in three places, all
+  reads. Every retailer has sat at 50 since the table was created. The prototype offers it as an
+  editable number seeded to 600, which the constraint would reject outright. Rendering a figure
+  nobody computes, beside figures that are real, is how an operator learns to distrust the whole
+  screen.
+  <br><br>
+  <strong>No shop type, decor type, years in business, estimated monthly sale, location ranking
+  or geo-tag.</strong> The prototype collects all six. Nothing reads any of them. They would be
+  write-only columns and a longer form for no reader.
+  <br><br>
+  <strong>No username.</strong> Retailers authenticate by phone or email. The prototype has a
+  username field; the schema and the auth path have never had one.
+  <br><br>
+  <strong>No modal, anywhere.</strong> Not for create, not for suspend, not for reset.
+</p>
+
+</body>
+</html>

@@ -11,10 +11,17 @@
  * Matches the mobile app's auth flow behavior.
  */
 
-import React, { createContext, useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
+import { AuthContext, type AuthContextValue } from './context';
+import { authReducer, initialAuthState, isAuthenticated } from './authMachine';
 import { hashForLogin, hashErrorMessage } from './passwordHasher';
-import { getAccessToken, setAccessToken, clearAccessToken } from './memoryTokenStore';
-import { onAuthBroadcast } from './tokenManager';
+import {
+  getAccessToken,
+  setAccessToken,
+  clearAccessToken,
+  subscribe as subscribeToToken,
+} from './memoryTokenStore';
+import { broadcastLogout, onAuthBroadcast } from './tokenManager';
 import {
   apiLogin,
   apiVerifyLoginOtp,
@@ -24,80 +31,61 @@ import {
   apiResendLoginOtp,
 } from '../api/auth';
 import { restoreSession, checkServerHealth } from './sessionRestore';
+import { shouldAttemptRestore } from './sessionHint';
 import { friendlyError, errorCode } from '../utils/errors';
-import type { AuthState, AuthUser, AuthStep } from '../types/auth';
-
-// ═══════════════════════════════════════════════════════════════
-// Context Type
-// ═══════════════════════════════════════════════════════════════
-
-export interface AuthContextValue extends AuthState {
-  login: (identifier: string, password: string, userType?: string) => Promise<void>;
-  verifyOtp: (code: string) => Promise<void>;
-  resendOtp: () => Promise<void>;
-  logout: () => Promise<void>;
-  bootstrap: () => Promise<void>;
-  clearError: () => void;
-  goToLogin: () => void;
-  goToForgotPassword: () => void;
-  /** True only during explicit login/OTP submit, NOT during bootstrap */
-  submitting: boolean;
-}
-
-const defaultState: Omit<AuthState, 'accessToken'> = {
-  step: 'idle',
-  isLoading: true, // Start loading until bootstrap completes
-  error: null,
-  user: null,
-  isServerReachable: true,
-};
-
-// AuthState.accessToken is kept for backward-compat on the interface,
-// but its value is derived at call time from memoryTokenStore.
-// Consumers should use getAccessToken() directly where possible.
-
-export const AuthContext = createContext<AuthContextValue>({
-  ...defaultState,
-  accessToken: null,
-  submitting: false,
-  login: async () => {},
-  verifyOtp: async () => {},
-  resendOtp: async () => {},
-  logout: async () => {},
-  bootstrap: async () => {},
-  clearError: () => {},
-  goToLogin: () => {},
-  goToForgotPassword: () => {},
-});
+import type { AuthUser } from '../types/auth';
 
 // ═══════════════════════════════════════════════════════════════
 // Provider
 // ═══════════════════════════════════════════════════════════════
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [step, setStep] = useState<AuthStep>(defaultState.step);
-  const [isLoading, setIsLoading] = useState(defaultState.isLoading);
-  const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState<string | null>(defaultState.error);
-  const [user, setUser] = useState<AuthUser | null>(defaultState.user);
-  const [isServerReachable, setIsServerReachable] = useState(defaultState.isServerReachable);
+  /*
+   * One reducer, not six `useState`s.
+   *
+   * Every transition here used to set three to five values in sequence. Inside
+   * an event handler React batches those, but NOT across an `await` — and all
+   * of these flows are async, so each rendered two or three times with the
+   * state briefly inconsistent in between. It also made `step: 'dashboard'`
+   * with `user: null` a representable state.
+   *
+   * See authMachine.ts. The transitions are pure and tested without React.
+   */
+  const [state, dispatch] = useReducer(authReducer, initialAuthState);
+  const { step, isLoading, submitting, error, notice, user, isServerReachable } = state;
 
-  // Force re-render trigger — bumped whenever token changes,
-  // so React components reading accessToken from context re-render.
+  // Bumped whenever the token changes, so consumers reading `accessToken`
+  // through context re-render. The token itself lives in memoryTokenStore, not
+  // in React state — see the note on `accessToken` below.
   const [, setTokenVersion] = useState(0);
 
-  // Stored during login for OTP verification
-  const loginIdentifierRef = useRef('');
-  const loginUserTypeRef = useRef('staff');
+  /*
+   * A mirror of `state.pendingLogin` for the async callbacks.
+   *
+   * `verifyOtp` and `resendOtp` are `useCallback(..., [])` so they stay stable
+   * across renders — which means they close over the state as it was on mount.
+   * The ref is how they read the current value without the whole callback
+   * being recreated on every keystroke. Written in an effect, never during
+   * render.
+   */
+  const isAuthenticatedRef = useRef(false);
+  useEffect(() => {
+    isAuthenticatedRef.current = isAuthenticated(state);
+  }, [state]);
+
+  const pendingLoginRef = useRef(initialAuthState.pendingLogin);
+  useEffect(() => {
+    pendingLoginRef.current = state.pendingLogin;
+  }, [state.pendingLogin]);
 
   // ── Derived value: read from memoryTokenStore, not React state ───
   const accessToken = getAccessToken();
 
   // Clear error
-  const clearError = useCallback(() => setError(null), []);
+  const clearError = useCallback(() => dispatch({ type: 'error/cleared' }), []);
 
   // Map API user to AuthUser
-  function mapUser(me: Record<string, unknown>): AuthUser {
+  const mapUser = useCallback(function mapUser(me: Record<string, unknown>): AuthUser {
     return {
       id: me.id as string,
       name: (me.name as string) || '',
@@ -109,10 +97,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       code: (me.code as string) || undefined,
       emailVerified: (me.emailVerified as boolean) !== false,
     };
-  }
+  }, []);
 
-  // Fetch profile after token received
-  async function fetchProfile(token: string): Promise<AuthUser | null> {
+  /**
+   * Fetch the profile once a token is in hand.
+   *
+   * `useCallback` rather than a bare function declaration because `login` and
+   * `verifyOtp` below list `[]` as their dependencies — so without a stable
+   * identity here they capture whichever `fetchProfile` existed on the first
+   * render and hold it forever. That is harmless today only because this
+   * closes over nothing that changes; it is not a property worth relying on
+   * silently on the auth path.
+   */
+  const fetchProfile = useCallback(async function fetchProfile(
+    token: string,
+  ): Promise<AuthUser | null> {
     setAccessToken(token);
     setTokenVersion((v) => v + 1);
 
@@ -133,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const me = (meRes.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
     return mapUser(me);
-  }
+  }, [mapUser]);
 
   // ═══════════════════════════════════════════════════════════
   // LOGIN
@@ -141,8 +140,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const login = useCallback(
     async (identifier: string, password: string, userType = 'staff') => {
-      setSubmitting(true);
-      setError(null);
+      dispatch({ type: 'request/start' });
 
       try {
         const { primary } = await hashForLogin(password, identifier);
@@ -153,27 +151,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (!res.ok) {
-          setError(friendlyError(res));
-          setSubmitting(false);
+          dispatch({ type: 'request/failed', error: friendlyError(res) });
           return;
         }
 
         const inner = (res.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
 
         if (inner.requiresOTP) {
-          loginIdentifierRef.current = identifier.trim().toLowerCase();
-          loginUserTypeRef.current = userType;
-          setStep('verifying_login');
+          dispatch({
+            type: 'login/otpRequired',
+            identifier: identifier.trim().toLowerCase(),
+            userType,
+          });
+          return;
         }
-        // Admin app: staff accounts skip OTP (email_verified=true)
-        // If no OTP required, should receive tokens directly
-      } catch (err) {
-        setError(hashErrorMessage(err) ?? (err instanceof Error ? err.message : 'Network error'));
-      }
 
-      setSubmitting(false);
+        // Staff accounts skip OTP (email_verified is already true), so tokens
+        // come back directly and the session is live.
+        const token = inner.accessToken as string | undefined;
+        const profile = token ? await fetchProfile(token) : null;
+        if (profile) dispatch({ type: 'session/established', user: profile });
+        else dispatch({ type: 'request/failed', error: 'Signed in, but the profile did not load.' });
+      } catch (err) {
+        dispatch({
+          type: 'request/failed',
+          error:
+            hashErrorMessage(err) ??
+            (err instanceof Error ? err.message : 'Could not reach the server.'),
+        });
+      }
     },
-    []
+    [fetchProfile]
   );
 
   // ═══════════════════════════════════════════════════════════
@@ -181,12 +189,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ═══════════════════════════════════════════════════════════
 
   const verifyOtp = useCallback(async (code: string) => {
-    setSubmitting(true);
-    setError(null);
+    dispatch({ type: 'request/start' });
 
     try {
-      const identifier = loginIdentifierRef.current;
-      const userType = loginUserTypeRef.current;
+      // Carried by the machine rather than a ref, so it is cleared as part of
+      // the transition that ends the flow instead of lingering after it.
+      const { identifier, userType } = pendingLoginRef.current ?? { identifier: '', userType: 'staff' };
 
       const res = await apiVerifyLoginOtp({
         identifier,
@@ -195,46 +203,52 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!res.ok) {
-        const code = errorCode(res);
-        if (code === 'EXPIRED_CODE') {
-          setStep('login_form');
-          setError('OTP expired. Please login again.');
+        if (errorCode(res) === 'EXPIRED_CODE') {
+          dispatch({ type: 'login/expired', error: 'That code has expired. Please sign in again.' });
         } else {
-          setError(friendlyError(res));
+          dispatch({ type: 'request/failed', error: friendlyError(res) });
         }
-        setSubmitting(false);
         return;
       }
 
       const inner = (res.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
       const token = inner.accessToken as string;
 
-      if (token) {
-        const profile = await fetchProfile(token);
-        if (profile) {
-          setUser(profile);
-          setStep('dashboard');
-        } else {
-          setError('Failed to load profile after login.');
-          setStep('login_form');
-        }
+      const profile = token ? await fetchProfile(token) : null;
+      if (profile) {
+        dispatch({ type: 'session/established', user: profile });
+      } else {
+        dispatch({ type: 'login/expired', error: 'Signed in, but the profile did not load.' });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Network error');
+      dispatch({
+        type: 'request/failed',
+        error: err instanceof Error ? err.message : 'Could not reach the server.',
+      });
     }
-
-    setSubmitting(false);
-  }, []);
+  }, [fetchProfile]);
 
   // ═══════════════════════════════════════════════════════════
   // RESEND OTP
   // ═══════════════════════════════════════════════════════════
 
   const resendOtp = useCallback(async () => {
+    dispatch({ type: 'error/cleared' });
+    const pending = pendingLoginRef.current;
     try {
-      await apiResendLoginOtp(loginIdentifierRef.current, loginUserTypeRef.current);
-    } catch {
-      // Silent
+      await apiResendLoginOtp(pending?.identifier ?? '', pending?.userType ?? 'staff');
+    } catch (err) {
+      // Was `catch { // Silent }`. A user clicking "Resend code" on a failed
+      // network got no toast, no error, no state change — indistinguishable
+      // from success, so they would sit waiting for an OTP that was never sent.
+      dispatch({
+        type: 'request/failed',
+        error:
+          err instanceof Error && err.message
+            ? err.message
+            : 'Could not resend the code. Check your connection and try again.',
+      });
+      throw err;
     }
   }, []);
 
@@ -257,43 +271,77 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     clearAccessToken();
     setTokenVersion((v) => v + 1);
-    setUser(null);
-    setStep('login_form');
-    setError(null);
+    dispatch({ type: 'session/ended' });
+
+    // `broadcastLogout` existed but had exactly one reference in the codebase:
+    // its own definition. Logging out in one tab left every other tab fully
+    // authenticated on the admin shell.
+    broadcastLogout();
   }, []);
 
   // ═══════════════════════════════════════════════════════════
   // BOOTSTRAP (cold start recovery)
   // ═══════════════════════════════════════════════════════════
 
+/**
+ * Shown on the login screen when a session ended by itself.
+ *
+ * Deliberately says nothing about why beyond "ended" — it covers a session that
+ * hit its 12-hour lifetime and one that was revoked by a password change on
+ * another device, and the operator's next action is identical either way.
+ */
+const SESSION_ENDED_NOTICE = 'Your session ended. Please sign in again.';
+
   const bootstrap = useCallback(async () => {
-    setIsLoading(true);
+    dispatch({ type: 'bootstrap/start' });
 
     try {
+      /*
+       * Ask the server only when it could plausibly say yes.
+       *
+       * The refresh token is httpOnly, so JavaScript cannot read it — which
+       * meant every anonymous visitor to the login page fired POST
+       * /auth/refresh solely to be told "no". `bd_session` is a non-secret
+       * marker the server sets beside it; its absence on a public route is
+       * enough to know the answer.
+       *
+       * Its absence is NOT trusted anywhere else: a deep link to a protected
+       * route still asks. So a hint that goes missing while the session lives
+       * costs an anonymous visitor nothing and a real user nothing — see
+       * sessionHint.ts.
+       *
+       * Honest scope: the health check still runs, and it ran in parallel, so
+       * this removes a pointless authenticated request rather than the whole
+       * quarter second.
+       */
+      const attemptRestore = shouldAttemptRestore(window.location.pathname);
+
       const [serverUp, session] = await Promise.all([
         checkServerHealth(),
-        restoreSession(),
+        attemptRestore
+          ? restoreSession()
+          : Promise.resolve({ ok: false as const, reason: 'refresh_failed' as const }),
       ]);
-
-      setIsServerReachable(serverUp);
 
       if (!session.ok) {
         clearAccessToken();
         setTokenVersion((v) => v + 1);
-        setStep('login_form');
-        setIsLoading(false);
+        dispatch({
+          type: 'bootstrap/anonymous',
+          serverUp,
+          // Only when the server said a session ENDED. Telling a first-time
+          // visitor that their session expired is nonsense; saying nothing to
+          // someone who was working five minutes ago is worse.
+          notice: session.reason === 'session_expired' ? SESSION_ENDED_NOTICE : undefined,
+        });
         return;
       }
 
-      setUser(session.user);
-      setStep('dashboard');
       setTokenVersion((v) => v + 1);
+      dispatch({ type: 'bootstrap/restored', user: session.user, serverUp });
     } catch {
-      setIsServerReachable(false);
-      setStep('login_form');
+      dispatch({ type: 'bootstrap/failed' });
     }
-
-    setIsLoading(false);
   }, []);
 
   // Bootstrap on mount
@@ -302,13 +350,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const forceLogout = useCallback((notice?: string) => {
+    clearAccessToken();
+    setTokenVersion((v) => v + 1);
+    dispatch({ type: 'session/ended', notice });
+  }, []);
+
   // Cross-tab sync — logout broadcast only (no localStorage token sync)
+  useEffect(() => onAuthBroadcast(forceLogout), [forceLogout]);
+
+  // Honour server-side session revocation.
+  //
+  // When a refresh fails, api/client.ts clears the access token — but nothing
+  // moved `step` back to the login form, so every request from then on returned
+  // a synthetic 401 while the UI stayed sitting on the admin shell looking
+  // signed in. Revoking sessions server-side did not log anybody out.
+  //
+  // `memoryTokenStore.subscribe` was written for exactly this and had zero
+  // subscribers. A token going null is the single signal that the session is
+  // over, whoever ended it.
   useEffect(() => {
-    return onAuthBroadcast(() => {
-      clearAccessToken();
+    return subscribeToToken((token) => {
+      if (token !== null) return;
+      // Only meaningful while signed in; the reducer ignores it otherwise.
+      if (!isAuthenticatedRef.current) return;
       setTokenVersion((v) => v + 1);
-      setUser(null);
-      setStep('login_form');
+      dispatch({ type: 'session/ended', notice: SESSION_ENDED_NOTICE });
+      broadcastLogout();
     });
   }, []);
 
@@ -316,15 +384,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // NAVIGATION HELPERS
   // ═══════════════════════════════════════════════════════════
 
-  const goToLogin = useCallback(() => {
-    setStep('login_form');
-    setError(null);
-  }, []);
-
-  const goToForgotPassword = useCallback(() => {
-    setStep('forgot_password');
-    setError(null);
-  }, []);
 
   // ═══════════════════════════════════════════════════════════
   // VALUE
@@ -334,6 +393,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     step,
     isLoading,
     error,
+    notice,
     user,
     accessToken,
     isServerReachable,
@@ -344,8 +404,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     bootstrap,
     clearError,
-    goToLogin,
-    goToForgotPassword,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

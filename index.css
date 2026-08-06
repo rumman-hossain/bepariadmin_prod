@@ -1,164 +1,624 @@
 @import "tailwindcss";
 
+/* ═══════════════════════════════════════════════════════════════════════
+   BepariBD Admin — design tokens
+   ═══════════════════════════════════════════════════════════════════════
+   This file is the ONLY place colour, type, spacing and elevation are
+   defined. Components reference token classes; they never carry a #hex, an
+   arbitrary value, a raw Tailwind palette colour, or a `dark:` override.
+
+   Direction: Khata (খাতা) — a trader's ledger. Brass carries every action,
+   the ground is cool paper, and money states are told by shape as well as
+   colour. See the note on the palette below for where it comes from.
+
+   Every foreground/background pair was checked against WCAG AA (4.5:1 for
+   text, 3:1 for interactive borders). The ratios in the comments are
+   measured, not aspirational, and asserted in
+   layout/primitives/__tests__/tokens.test.ts so they cannot quietly drift.
+   ═══════════════════════════════════════════════════════════════════════ */
+
 @theme {
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+  /* ═════════════════════════════════════════════════════════════════════
+     KHATA (খাতা) — a trader's ledger.
+     ═════════════════════════════════════════════════════════════════════
+     Replaces Indigo & Jute. `guard:no-legacy-tokens` fails the build if an
+     `indigo-*` or `jute-*` name comes back.
 
-  /* ══════════════════════════════════════════════════════════
-     DESIGN SYSTEM TOKENS — Apple-inspired
-     Maps to tokens.ts for synchronized branding
-     ══════════════════════════════════════════════════════════ */
+     The thesis: a khata is the cloth-bound ledger South Asian traders have
+     kept for centuries, and this console is one. That is not decoration. The
+     most serious defect found in the prototype was a ledger that did NOT
+     balance — the Payments screen and the Accounting screen reported
+     different amounts owed on the same order, because each computed "advance"
+     its own way in a React render path. A system whose organising idea is
+     "the columns must agree" makes that class of bug visible instead of
+     hiding it.
 
-  /* ── Accent ── */
-  --color-accent-primary: #007AFF;
-  --color-accent-primary-hover: #0062CC;
-  --color-accent-primary-active: #004BCC;
-  --color-accent-primary-light: #E8F2FF;
-  --color-accent-primary-content: #FFFFFF;
-  --color-accent-primary-ring: rgba(0, 122, 255, 0.5);
+     Where the colour comes from: the objects in the room a bepari works in.
+     Brass tola weights on a balance scale — the accent. Cool ruled paper —
+     the ground. Verdigris on old brass, lac from the binding thread, amber —
+     the money states.
 
-  /* ── Semantic ── */
-  --color-semantic-success: #34C759;
-  --color-semantic-success-light: #E8F8ED;
-  --color-semantic-warning: #FF9500;
-  --color-semantic-warning-light: #FFF4E5;
-  --color-semantic-danger: #FF3B30;
-  --color-semantic-danger-hover: #D63027;
-  --color-semantic-danger-active: #B3241F;
-  --color-semantic-danger-light: #FFEBEA;
-  --color-semantic-info: #007AFF;
-  --color-semantic-info-light: #E8F2FF;
+     Three constraints the palette is built around, in order:
 
-  /* ── Surface ── */
-  --color-surface-primary: #FFFFFF;
-  --color-surface-secondary: #F2F2F7;
-  --color-surface-tertiary: #E5E5EA;
-  --color-surface-elevated: #F9F9FB;
-  --color-surface-hover: #F5F5FA;
-  --color-surface-muted: #E8E8ED;
-  --color-surface-glass: rgba(255, 255, 255, 0.72);
-  --color-surface-glass-secondary: rgba(242, 242, 247, 0.72);
+       1. Operators look at this for eight hours. Comfort at density beats
+          impact. Nothing glows, gradients or pulses.
+       2. It is other people's money, in lakh and crore. Ambiguity about a
+          number is the expensive failure; ugliness is not.
+       3. Red and green cannot be the primary carrier of money state — ~8% of
+          men cannot separate them, and here red means "owed". Every status
+          carries a SHAPE as well as a colour.
 
-  /* ── Text ── */
-  --color-text-default: #1C1C1E;
-  --color-text-muted: #6D6D72;
-  --color-text-placeholder: #C7C7CC;
-  --color-text-inverse: #FFFFFF;
+     Every ratio below is measured against the ground it is used on. Two
+     values in the first draft of this palette failed AA and were changed:
+     see --color-ink-3 and --color-ink-4.
+     ═════════════════════════════════════════════════════════════════════ */
 
-  /* ── Border ── */
-  --color-border-default: rgba(60, 60, 67, 0.20);
-  --color-border-subtle: rgba(60, 60, 67, 0.08);
-  --color-border-prominent: rgba(60, 60, 67, 0.24);
-  --color-border-focus: #007AFF;
-  --color-border-input: rgba(60, 60, 67, 0.16);
+  /* Ink — every ratio below is measured against --color-paper (#F1F1EE),
+     not against white, because paper is what text actually sits on. */
+  --color-ink: #1A1C1E;               /* 15.1:1 — primary text */
+  --color-ink-2: #4A4E52;             /*  7.4:1 — secondary */
+  --color-ink-3: #5A5F64;             /*  5.7:1 — tertiary, micro-labels */
+  --color-ink-4: #686D72;             /*  4.6:1 — placeholder, still AA.
+                                         The first pass put ink-3 at #767B80
+                                         (3.8:1) and ink-4 at #6E7378 (4.2:1).
+                                         Both were written from a spec that
+                                         claimed a 4.6:1 floor without anyone
+                                         measuring it. Measuring is the only
+                                         reason they are these values. */
+  --color-ink-inverse: #F1F1EE;
 
-  /* ── Switch ── */
-  --color-switch-bg: rgba(120, 120, 128, 0.16);
-  --color-switch-active: #34C759;
-  --color-switch-track: rgba(120, 120, 128, 0.16);
-  --color-switch-track-checked: #34C759;
-  
-  /* ── App Shell ── */
-  --color-surface-app: #F2F2F7;
-  
-  /* ── Elevated Surface ── */
-  --color-surface-elevated: #F9F9FB;
+  /* Structure — brass, from the tola weights on a trader's balance scale.
+     The single accent. If two things on a screen are brass, one is wrong.
 
-  /* ── Radius ── */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
-  --radius-2xl: 24px;
-  --radius-3xl: 32px;
+     #8A6420 was the first choice and measured 4.73:1 — passing, but close
+     enough to the 4.5 line that a future tweak would silently break it.
+     #825E1E buys real margin at no visible cost. */
+  --color-brass: #825E1E;             /*  5.2:1 — primary action, active nav */
+  --color-brass-hover: #6F5019;
+  --color-brass-active: #5C4315;
+  --color-brass-lift: #8A6420;        /*  4.7:1 — links and hover text.
+                                         Set to #9A7226 (4.1:1) on the first
+                                         pass, which failed AA while five call
+                                         sites used it as `text-brass-lift`.
+                                         The contrast test caught it. */
+  --color-brass-wash: #F3EEE1;        /* selected rows, active nav background */
+  --color-brass-content: #FFFFFF;     /*  5.9:1 on brass */
+  --color-brass-ring: #825E1E;
+
+  /* Ground — cool, grey-leaning paper. Deliberately NOT the warm #F4F1EA
+     cream that every generated admin mock reaches for; the warmth in this
+     system is carried by the brass alone, so the ground has to stay out of
+     its way. */
+  --color-paper: #F1F1EE;             /* app background */
+  --color-sheet: #FFFFFF;             /* cards, panels, table bodies — the page */
+  --color-sheet-2: #F7F7F5;           /* zebra rows, inset wells, skeletons */
+  --color-sheet-hover: #F4F4F1;
+  --color-sheet-selected: #F3EEE1;    /* = brass-wash, named for intent */
+  --color-sheet-inverse: #1A1C1E;
+
+  /* Rules — a hairline states a boundary and stops. No shadows on surfaces. */
+  --color-rule-subtle: #E7E7E3;
+  --color-rule: #DEDEDA;
+  --color-rule-strong: #C4C4BF;
+  --color-rule-input: #8B8B87;        /*  3.4:1 on sheet — meets SC 1.4.11 */
+  --color-rule-focus: #825E1E;
+
+  /* Semantic — measured on paper.
+
+     These keep their SEMANTIC names through the Khata change. `--color-ok`
+     says what it means; `--color-verd` would say what it looks like, and the
+     whole point of a token is that the screen does not care. 214 call sites
+     across the app therefore need no edit — only the values move. */
+  --color-ok: #2E6B4F;                /*  5.6:1 — verdigris on old brass */
+  --color-ok-wash: #E6EFE9;
+  --color-ok-border: #A9C8B7;
+  --color-warn: #8A5A00;              /*  5.2:1 — amber */
+  --color-warn-wash: #F6EEDF;
+  --color-warn-border: #DFC38A;
+  --color-bad: #9B2226;               /*  7.0:1 — lac, the binding thread */
+  --color-bad-hover: #841D20;
+  --color-bad-wash: #F6E7E7;
+  --color-bad-border: #DFAFB0;
+  --color-note: #2A5560;              /*  7.5:1 — slate, for in-flight states */
+  --color-note-wash: #E4EDF0;
+  --color-note-border: #A5C0C8;
+  --color-mute: #63676C;              /*  5.0:1 — absent, not good or bad */
+  --color-mute-wash: #EEEEEB;
+  --color-mute-border: #C6C6C1;
+
+  /* ── Spacing ──────────────────────────────────────────────────────────
+     Absent until now, which is why 33 grid wrappers shipped in ~14 different
+     column/gap recipes and 9 page roots picked 5 different vertical rhythms.
+
+     These override specific steps on Tailwind's 4px base; unlisted steps
+     (p-7, p-9) still resolve through the base multiplier, so nothing breaks.
+     Consistency is enforced by the `Gap` union in the layout primitives, not
+     by withholding utilities — a screen that needs an odd value can still
+     have one, it just cannot get one by accident. */
+  --spacing-0: 0;
+  --spacing-px: 1px;
+  --spacing-1: 0.25rem;   /*  4px */
+  --spacing-2: 0.5rem;    /*  8px */
+  --spacing-3: 0.75rem;   /* 12px */
+  --spacing-4: 1rem;      /* 16px */
+  --spacing-5: 1.25rem;   /* 20px */
+  --spacing-6: 1.5rem;    /* 24px */
+  --spacing-8: 2rem;      /* 32px */
+  --spacing-10: 2.5rem;   /* 40px */
+  --spacing-12: 3rem;     /* 48px */
+  --spacing-16: 4rem;     /* 64px */
+
+  /* ── Stacking order ───────────────────────────────────────────────────
+     Absent until now, and a live bug rather than a tidiness problem:
+     DropdownMenu rendered at z-40 with no portal, so it opened BELOW any
+     Modal at z-50 and was clipped by any `overflow:hidden` ancestor.
+     Anything that escapes its container must portal to body and take a token
+     from here.
+
+     Note the ordering: **dropdown sits ABOVE modal**, which looks wrong until
+     you consider what spawns a dropdown. A menu, popover or combobox is always
+     opened by a control the user just operated — and if that control is inside
+     a dialog, the surface has to clear the dialog. The reverse ordering was
+     tried first and reproduced the original bug exactly: the popover escaped
+     its clipping ancestor and then rendered underneath the modal that
+     contained its trigger.
+
+     A page-level dropdown can never collide with an open modal, because a
+     modal traps focus and covers the page behind a backdrop — so there is no
+     way to open one while a dialog is up. */
+  --z-base: 0;
+  --z-raised: 10;      /* sticky table headers */
+  --z-sticky: 20;      /* sticky toolbars, page headers */
+  --z-nav: 30;         /* sidebar, app header */
+  --z-overlay: 40;     /* modal + drawer backdrops */
+  --z-modal: 50;       /* modal + drawer panels */
+  --z-dropdown: 60;    /* menus, popovers, comboboxes — portalled */
+  --z-toast: 70;       /* always last */
+
+  /* ── Weight ───────────────────────────────────────────────────────────
+     Four steps. `bold` is deliberately absent: at 13–14px on a dense screen
+     it reads as noise, and semibold already carries the emphasis. */
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-heavy: 700;   /* display figures only — KPI values, never UI */
+
+  /* ── Tracking ─────────────────────────────────────────────────────────
+     Uppercase micro-labels need positive tracking to stay legible at 11px;
+     large display figures need negative to stop looking gappy. */
+  --tracking-tight: -0.015em;
+  --tracking-normal: 0;
+  --tracking-wide: 0.04em;
+  --tracking-caps: 0.06em;
+
+  /* ── Duration ─────────────────────────────────────────────────────────
+     Tailwind v4 has no `--duration-*` theme namespace: `duration-*` utilities
+     take a number and compile straight to ms. Defining `--duration-base` here
+     would emit nothing at all — which is precisely the failure mode this pass
+     exists to remove, so it is not defined.
+
+     What IS settable is the default a bare `transition` uses. The motion scale
+     is therefore: `duration-100` (state flips), the default 150ms (most
+     things), `duration-200` (anything that travels). Above 200ms an
+     operational tool reads as laggy. */
+  --default-transition-duration: 150ms;
+
+  /* ── Opacity ──────────────────────────────────────────────────────────
+     One disabled value, because three (40/45/50) shipped for the same state. */
+  --opacity-disabled: 0.45;
+  --opacity-muted: 0.65;
+
+  /* ── Container ────────────────────────────────────────────────────────
+     Main content is unconstrained today. Data screens want the full width;
+     reading and form screens do not — 78ch is where a form stops being
+     scannable. */
+  --container-form: 46rem;    /* 736px — single-column forms */
+  --container-prose: 42rem;   /* 672px — help text, empty states */
+  --container-wide: 90rem;    /* 1440px — cap for very wide displays */
+
+  /*
+   * How tall a table may grow before its own body starts scrolling.
+   *
+   * Not a `--container-*` (that namespace is max-width). This one exists
+   * because `stickyHeader` needs a bounded scroll container to stick against:
+   * `position: sticky` resolves against the nearest scrolling ancestor, and an
+   * unbounded wrapper never scrolls, so the header simply rides off the top of
+   * the page with the rest of the table.
+   */
+  --table-viewport: 70vh;
+
+  /* ── Type ─────────────────────────────────────────────────────────────
+     Inter Tight for everything, and it carries the figures itself.
+
+     The change from the previous pairing is the figures. Money used to be set
+     in Martian Mono, which is the common choice and is wrong here: a mono face
+     in a money column changes the TEXTURE of the number relative to its label,
+     so a table reads as two typefaces arguing. Inter Tight with
+     `font-variant-numeric: tabular-nums lining-nums` gives perfect column
+     alignment — which is the only property that actually mattered — with no
+     texture break. Applied globally in the base layer below.
+
+     Inter Tight rather than Inter for the narrower advance width: at this
+     density it fits ~11% more per column with no legibility loss, and column
+     width is the binding constraint on every screen in this console.
+
+     Identifiers keep the mono face. A SKU, order id or TIN is machine data
+     that gets read character by character and often transcribed, so the
+     disambiguation a mono face gives (1 vs l, 0 vs O) is worth the texture
+     break there. That is the ONLY place --font-mono is used.
+
+     Noto Sans Bengali is second, not last, and that is deliberate: this is a
+     Bangladeshi product, mixed-script cells are normal, and Inter Tight's
+     x-height is within ~4% of Noto Sans Bengali's so the two share a baseline
+     instead of stepping. It also resolves ৳ (U+09F3), which Inter has no
+     glyph for — fallback is per-glyph, so only the taka sign changes face. */
+  --font-sans: 'Inter Tight', 'Noto Sans Bengali', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* A real scale. The app it replaces put 84% of all text at text-sm or
+     text-xs, with no display size and no reason to pick one over another. */
+  --text-2xs: 0.6875rem;   /* 11px — dense table meta, never for prose */
+  --text-xs: 0.75rem;      /* 12px — captions, column headers */
+  --text-sm: 0.8125rem;    /* 13px — secondary UI text */
+  --text-base: 0.875rem;   /* 14px — body, table cells, inputs */
+  --text-md: 0.9375rem;    /* 15px — emphasised body */
+  --text-lg: 1.0625rem;    /* 17px — card and section titles */
+  --text-xl: 1.3125rem;    /* 21px — page titles */
+  --text-2xl: 1.625rem;    /* 26px — section heroes */
+  --text-3xl: 2.125rem;    /* 34px — KPI figures */
+  --text-4xl: 2.75rem;     /* 44px — the one display size */
+
+  --text-2xs--line-height: 1.45;
+  --text-xs--line-height: 1.45;
+  --text-sm--line-height: 1.5;
+  --text-base--line-height: 1.55;
+  --text-md--line-height: 1.5;
+  --text-lg--line-height: 1.4;
+  --text-xl--line-height: 1.3;
+  --text-2xl--line-height: 1.2;
+  --text-3xl--line-height: 1.1;
+  --text-4xl--line-height: 1.05;
+
+  /* Ratios, not fixed px, so Bangla ascenders/descenders have room if the
+     UI is ever translated. Bangla needs ~15–20% more leading than Latin. */
+
+  /* ── Ink ──────────────────────────────────────────────────────────── */
+
+  /* `muted` and `default` are kept as aliases: 100+ call sites use them and
+     renaming them buys nothing. */
+  /* ── Charts ───────────────────────────────────────────────────────────
+     Five series, not six, and the count is the design decision.
+
+     The series are spread deliberately across LUMINANCE as well as hue, so a
+     chart stays readable printed, photocopied, or by the ~8% of men who cannot
+     separate red from green. Adjacent rungs differ by at least 1.35x in
+     relative luminance; the first attempt at this palette put slate and lac
+     1.033x apart, which looks fine in colour and merges into one line the
+     moment colour is removed.
+
+     Six was not possible. Spreading six rungs far enough to stay separable
+     pushes the lightest below 3:1 against the sheet, where a thin line stops
+     being visible at all — measured at 2.10:1 and 2.87:1 before this was cut
+     back. A chart that genuinely needs six series is a chart that should be a
+     table, so the constraint is the right one to obey rather than fight.
+
+     Ordered dark to light: slate, lac, verd, brass, mute. */
+  --color-chart-1: #204049;   /* 11.1:1 on sheet */
+  --color-chart-2: #992225;   /*  8.1:1 */
+  --color-chart-3: #307153;   /*  5.8:1 */
+  --color-chart-4: #9E7225;   /*  4.3:1 */
+  --color-chart-5: #8C9198;   /*  3.2:1 — the faintest that still reads */
+  --color-chart-grid: #DEDEDA;/*  1.2:1 on paper — a whisper, not a line */
+
+  /* ── Radius ───────────────────────────────────────────────────────────
+     Tight. The previous scale ran to 32px, which is why every button and
+     card read as a lozenge. */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 7px;
+  --radius-lg: 10px;
+  --radius-xl: 14px;
+  --radius-2xl: 18px;
   --radius-full: 9999px;
 
-  /* ── Shadow ── */
-  --shadow-card: 0px 1px 3px rgba(0, 0, 0, 0.04), 0px 1px 2px rgba(0, 0, 0, 0.06);
-  --shadow-elevated: 0px 4px 6px -1px rgba(0, 0, 0, 0.04), 0px 2px 4px -2px rgba(0, 0, 0, 0.06);
-  --shadow-modal: 0px 10px 15px -3px rgba(0, 0, 0, 0.06), 0px 4px 6px -4px rgba(0, 0, 0, 0.06);
-  --shadow-float: 0px 20px 25px -5px rgba(0, 0, 0, 0.08), 0px 8px 10px -6px rgba(0, 0, 0, 0.06);
+  /* ── Elevation ────────────────────────────────────────────────────────
+     Deliberately restrained: this design separates surfaces with rules, and
+     reserves shadow for things that genuinely float. Tinted with the brand
+     navy rather than neutral black so shadows don't read as grey smudge. */
+  --shadow-raised: 0 1px 2px rgba(11, 27, 51, 0.05);
+  --shadow-overlay: 0 4px 12px rgba(11, 27, 51, 0.09), 0 1px 3px rgba(11, 27, 51, 0.06);
+  --shadow-modal: 0 16px 48px rgba(11, 27, 51, 0.18), 0 2px 8px rgba(11, 27, 51, 0.08);
 
-  /* ── Animation Easing ── */
-  --ease-smooth: cubic-bezier(0.4, 0, 0.2, 1);
-  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-
-  /* ── Animation Keyframes ── */
-  --animate-fade-in: fade-in 200ms var(--ease-smooth);
-  --animate-scale-in: scale-in 200ms var(--ease-smooth);
-  --animate-slide-up: slide-up 300ms var(--ease-smooth);
+  /* ── Motion ───────────────────────────────────────────────────────── */
+  --ease-smooth: cubic-bezier(0.2, 0, 0.15, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+  --animate-fade-in: fade-in 140ms var(--ease-smooth);
+  --animate-scale-in: scale-in 140ms var(--ease-smooth);
+  --animate-slide-up: slide-up 200ms var(--ease-smooth);
+  --animate-shimmer: shimmer 1.4s linear infinite;
 }
 
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* ── Dark Mode Overrides ────────────────────────────────── */
+/* ── Dark ─────────────────────────────────────────────────────────────
+   A mirrored ramp on the same token names, so no component needs a `dark:`
+   class. All ratios measured against the #0E141F ground. */
 .dark {
-  --color-accent-primary: #0A84FF;
-  --color-accent-primary-hover: #409CFF;
-  --color-accent-primary-active: #0066D6;
-  --color-accent-primary-light: rgba(10, 132, 255, 0.15);
-  --color-accent-primary-content: #FFFFFF;
-  --color-accent-primary-ring: rgba(10, 132, 255, 0.5);
+  /* ── Khata, dark ──────────────────────────────────────────────────────
+     Mirrored on the same token names, so no component carries a `dark:`
+     class. Not an inversion: the ground is a neutral near-black, and every
+     colour is re-picked for it rather than algorithmically lightened.
 
-  --color-semantic-success: #30D158;
-  --color-semantic-success-light: rgba(48, 209, 88, 0.15);
-  --color-semantic-warning: #FF9F0A;
-  --color-semantic-warning-light: rgba(255, 159, 10, 0.15);
-  --color-semantic-danger: #FF453A;
-  --color-semantic-danger-hover: #D93830;
-  --color-semantic-danger-active: #B32D27;
-  --color-semantic-danger-light: rgba(255, 69, 58, 0.15);
-  --color-semantic-info: #0A84FF;
-  --color-semantic-info-light: rgba(10, 132, 255, 0.15);
+     Brass has to LIFT to stay legible on dark — the accent becomes lighter
+     than its surroundings rather than darker — and it takes dark ink on its
+     fills instead of white.
 
-  --color-surface-primary: #1C1C1E;
-  --color-surface-secondary: #2C2C2E;
-  --color-surface-tertiary: #3A3A3C;
-  --color-surface-elevated: #2C2C2E;
-  --color-surface-app: #1C1C1E;
+     All ratios measured against the #16181A ground; the sheet at #1E2124 is
+     lighter, so the sheet ratio is the tighter of the two and is what these
+     were checked against. */
+  --color-ink: #EFEFEC;               /* 14.0:1 on sheet */
+  --color-ink-2: #BCBCB6;             /*  8.5:1 */
+  --color-ink-3: #8E8F8B;             /*  5.0:1 */
+  --color-ink-4: #85867F;             /*  4.5:1 — placeholder, at the line */
+  --color-ink-inverse: #16181A;
 
-  --color-switch-track: rgba(120, 120, 128, 0.32);
-  --color-switch-track-checked: #30D158;
-  --color-surface-hover: #3A3A3C;
-  --color-surface-muted: #48484A;
-  --color-surface-glass: rgba(28, 28, 30, 0.72);
-  --color-surface-glass-secondary: rgba(44, 44, 46, 0.72);
+  --color-brass: #C69749;             /*  6.1:1 */
+  --color-brass-hover: #D2A55C;
+  --color-brass-active: #DEB370;
+  --color-brass-lift: #D2A55C;        /*  7.0:1 */
+  --color-brass-wash: #2A2419;
+  --color-brass-content: #16181A;     /*  6.7:1 on brass — dark ink, not white */
+  --color-brass-ring: #C69749;
 
-  --color-text-default: #FFFFFF;
-  --color-text-muted: #AEAEB2;
-  --color-text-placeholder: #48484A;
-  --color-text-inverse: #1C1C1E;
+  --color-paper: #16181A;
+  --color-sheet: #1E2124;
+  --color-sheet-2: #262A2D;
+  --color-sheet-hover: #2B2F33;
+  --color-sheet-selected: #2A2419;
+  --color-sheet-inverse: #EFEFEC;
 
-  --color-border-default: rgba(255, 255, 255, 0.16);
-  --color-border-subtle: rgba(255, 255, 255, 0.04);
-  --color-border-prominent: rgba(255, 255, 255, 0.16);
-  --color-border-focus: #0A84FF;
+  --color-rule-subtle: #2A2E31;
+  --color-rule: #35393D;
+  --color-rule-strong: #4A4F54;
+  --color-rule-input: #8A8B87;        /*  4.7:1 on sheet — clears SC 1.4.11 */
+  --color-rule-focus: #C69749;
+
+  --color-ok: #5CBE93;                /*  7.1:1 */
+  --color-ok-wash: #142520;
+  --color-ok-border: #2C5B49;
+  --color-warn: #DFA85C;              /*  7.6:1 */
+  --color-warn-wash: #2A2419;
+  --color-warn-border: #5C4A26;
+  --color-bad: #F08A7C;               /*  6.7:1 */
+  --color-bad-hover: #F5A093;
+  --color-bad-wash: #2B1A18;
+  --color-bad-border: #63332D;
+  --color-note: #9FB0C0;              /*  7.3:1 — slate */
+  --color-note-wash: #1A2226;
+  --color-note-border: #3A4A54;
+  --color-mute: #8E8F8B;              /*  5.0:1 */
+  --color-mute-wash: #24272A;
+  --color-mute-border: #414449;
+  /* Same five series, same luminance discipline, ladder inverted for a dark
+     ground: bright at chart-1 down to dim at chart-5. Worst adjacent gap
+     1.32x; faintest is 3.2:1 on the dark sheet. */
+  --color-chart-1: #BDD1E4;   /* 10.3:1 on dark sheet */
+  --color-chart-2: #FF998A;   /*  7.8:1 */
+  --color-chart-3: #53AC85;   /*  5.9:1 */
+  --color-chart-4: #A47D3C;   /*  4.3:1 */
+  --color-chart-5: #6E6E6B;   /*  3.2:1 */
+  --color-chart-grid: #35393D;
+
+  --shadow-raised: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-overlay: 0 4px 12px rgba(0, 0, 0, 0.5), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-modal: 0 16px 48px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
 }
 
-/* ── Animation Keyframes ────────────────────────────────── */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    /* The signature of the whole design: every figure in the app is the same
+       width, so decimals line up down a column without any per-cell work.
+       Slashed zero because this UI is full of ids and quantities. */
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+  /*
+   * `font-feature-settings: 'cv05' 1` was here. It is an Archivo character
+   * variant, and Archivo is gone — so on Inter Tight it silently applied
+   * nothing at all. That is the same failure class as an undefined colour
+   * token: no warning, no error, no effect.
+   *
+   * The stated intent was a slashed zero, and `slashed-zero` above is the
+   * standard property that actually delivers it, on any face. A face-specific
+   * stylistic set is not re-added unless someone verifies it exists in the
+   * face that is actually loaded.
+   */
+
+  /* Prose is the exception — proportional figures read better in sentences. */
+  p, label, h1, h2, h3, h4 {
+    font-variant-numeric: normal;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-rule-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-xs);
+  }
+
+  ::placeholder {
+    color: var(--color-ink-4);
+    opacity: 1;
+  }
+}
+
+@layer utilities {
+  /* For SKUs, order ids, TIN/VAT/NID and referral codes — machine data that
+     should be scannable as distinct from human text. */
+  .font-identifier {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    letter-spacing: -0.01em;
+    font-variant-numeric: tabular-nums slashed-zero;
+  }
+
+  /* Numeric table cells: right-aligned so magnitudes are comparable. */
+  .cell-numeric {
+    text-align: right;
+    font-variant-numeric: tabular-nums slashed-zero;
+    white-space: nowrap;
+  }
+}
+
+/* ── Tables become cards on a phone ─────────────────────────────────────────
+   Below `md` (48rem) every row of a `.table-cards` table is restyled into a
+   stacked card, and each cell into a `label — value` line. The label comes from
+   `data-label`, which DataTable writes from the column header.
+
+   **One DOM, not two.** The alternative — rendering a table for wide screens
+   and a separate list for narrow ones — duplicates every cell, doubles the
+   render cost on exactly the devices least able to afford it, and lets the two
+   copies drift apart. This costs no extra markup and cannot disagree with
+   itself, because there is only one of it.
+
+   `display: block` on table elements drops the implicit ARIA table roles in
+   some engines, which is why DataTable sets `role` explicitly on the table,
+   rows and cells. The roles survive even though the layout does not. */
+/* ── Touch targets ──────────────────────────────────────────────────────────
+   `pointer: coarse` is a finger, not a mouse. The control scale tops out at
+   40px and icon buttons are 32px, which clears WCAG 2.2 SC 2.5.8 (24px, AA)
+   but is mean to a thumb — the pagination arrows especially, which sit next to
+   each other and do opposite things.
+
+   Keyed on the input device rather than a width, because a 1024px tablet is
+   still a finger and a 375px window on a laptop is still a mouse. Height only:
+   widening would relayout, whereas a taller hit area just makes the same
+   control easier to land on. */
+@media (pointer: coarse) {
+  button,
+  [role='radio'],
+  [role='tab'],
+  a[role='button'] {
+    min-height: 2.75rem;
+  }
+
+  /* Square icon buttons need both axes, or they become tall slots. */
+  button:where(.h-8.w-8, .h-9.w-9, .h-10.w-10) {
+    min-width: 2.75rem;
+  }
+}
+
+@media (width < 48rem) {
+  /* Once the rows are cards, the container around them is a box drawn around
+     boxes. It also no longer needs to scroll — nothing overflows any more. */
+  .table-cards-wrap {
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+    max-height: none;
+  }
+
+  .table-cards,
+  .table-cards > tbody,
+  .table-cards > tbody > tr,
+  .table-cards > tbody > tr > td {
+    display: block;
+    width: 100%;
+  }
+
+  /* The header row is the source of the per-cell labels below, so it has no
+     second job once those exist. */
+  .table-cards > thead {
+    display: none;
+  }
+
+  .table-cards > tbody > tr {
+    border: 1px solid var(--color-rule);
+    border-radius: 0.5rem;
+    margin-bottom: 0.625rem;
+    padding: 0.25rem 0;
+    background: var(--color-sheet);
+  }
+
+  .table-cards > tbody > tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .table-cards > tbody > tr > td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    /* Values sit right, labels left. Money stays right-aligned, which is the
+       whole reason the column was right-aligned to begin with. */
+    text-align: right;
+    padding: 0.375rem 0.875rem;
+  }
+
+  .table-cards > tbody > tr > td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    text-align: left;
+    color: var(--color-ink-3);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+  }
+
+  /* The first column is the card's heading: full width, no label, given room
+     to breathe from the lines beneath it. */
+  .table-cards > tbody > tr > td[data-primary] {
+    justify-content: flex-start;
+    text-align: left;
+    padding-top: 0.75rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .table-cards > tbody > tr > td[data-primary]::before {
+    content: none;
+  }
+
+  /* Columns a screen this size cannot justify. Still in the table at md+. */
+  .table-cards > tbody > tr > td[data-hide-mobile] {
+    display: none;
+  }
+
+  /* An empty cell would render as a lone floating label, which reads as a bug.
+     `:empty` matches only when the cell has no children at all — exactly the
+     case worth hiding. */
+  .table-cards > tbody > tr > td:empty {
+    display: none;
+  }
+}
+
 @keyframes fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
 }
 
 @keyframes scale-in {
-  from {
-    opacity: 0;
-    transform: scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
 }
 
 @keyframes slide-up {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes shimmer {
+  from { background-position: -180% 0; }
+  to { background-position: 180% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

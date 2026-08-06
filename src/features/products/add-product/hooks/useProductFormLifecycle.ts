@@ -3,7 +3,6 @@ import { useParams } from 'react-router-dom';
 import {
   useAddProductStore,
   emptyProductMedia,
-  emptyVariationMedia,
   type WizardState,
 } from '../store/useAddProductStore';
 import { getProductById, getReservedSku } from '@/src/api/products';
@@ -152,6 +151,20 @@ export function useProductFormLifecycle() {
     }
   }, [routeProductId, reset, hydrate, store.wholesalerCode]);
 
+  /*
+   * The one remaining `set-state-in-effect` in the app, and it is deliberate.
+   *
+   * Route changes have to tear down the wizard draft, which lives in a Zustand
+   * store outside React — an external system, which is what effects are for.
+   * The `setState` here is the local mirror of that teardown; it cannot be
+   * derived from a render, because there is nothing to derive it from until the
+   * store has been reset.
+   *
+   * `refetch` and `reset` are intentionally out of the dependency array: both
+   * are recreated whenever the store changes, and re-running a full hydrate on
+   * every keystroke in the wizard is exactly the loop this guard prevents. The
+   * route id is the only thing that should re-trigger it.
+   */
   useEffect(() => {
     if (routeProductId) {
       void refetch();
@@ -159,6 +172,7 @@ export function useProductFormLifecycle() {
       reset();
       setState({ editingProductId: null, isHydrating: false, isEditMode: false, productStatus: null });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [routeProductId]);
 
   return {

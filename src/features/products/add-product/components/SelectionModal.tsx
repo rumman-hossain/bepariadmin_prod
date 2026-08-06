@@ -1,12 +1,13 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { Search } from 'lucide-react';
-import { Modal } from '@/src/components/ui/Modal';
-import { Input } from '@/src/components/ui/Input';
+import { Dialog } from '@/src/components/feedback';
+import { Input } from '@/src/components/controls';
 import type { SelectionType } from '../hooks/useAddProductLogic';
 import type { CatalogNode } from '../../types/registration';
 import { useAddProductStore } from '../store/useAddProductStore';
-import { listWholesalers } from '@/src/features/wholesalers/api/wholesalerApi';
+import { useSupplierPickerQuery } from '@/src/features/wholesalers/queries';
 import type { Wholesaler } from '@/src/types/domain';
+import { Text } from '@/src/components/data';
 
 interface SelectionModalProps {
   selectionType: SelectionType;
@@ -36,21 +37,25 @@ export function SelectionModal({
   catalogLoading,
 }: SelectionModalProps) {
   const { setField } = useAddProductStore();
-  const [wholesalers, setWholesalers] = useState<Wholesaler[]>([]);
-  const [wholesalerLoading, setWholesalerLoading] = useState(false);
 
-  useEffect(() => {
-    if (selectionType !== 'wholesaler') return;
-    setWholesalerLoading(true);
-    void listWholesalers({ search: listSearch, category: 'All', location: 'All', recentlyAdded: false })
-      .then(setWholesalers)
-      .finally(() => setWholesalerLoading(false));
-  }, [selectionType, listSearch]);
+  /*
+   * Shares the wholesaler list cache with the supplier screens, so opening this
+   * picker after visiting them costs no request.
+   *
+   * It also removes a race: the previous effect sent `search: listSearch` to
+   * the server on every keystroke with no ordering guarantee, so a slow
+   * response for "shi" could land after — and overwrite — the results for
+   * "shirt". The search term was never needed server-side anyway; the filter
+   * below has always narrowed the list in the browser.
+   */
+  const wholesalerQuery = useSupplierPickerQuery();
+  const wholesalerData = wholesalerQuery.data;
+  const wholesalerLoading = selectionType === 'wholesaler' && wholesalerQuery.isPending;
 
   const title = useMemo(() => {
     switch (selectionType) {
       case 'wholesaler':
-        return 'Select Wholesaler';
+        return 'Select supplier';
       case 'category':
         return 'Select Category';
       case 'subCategory':
@@ -66,7 +71,29 @@ export function SelectionModal({
     }
   }, [selectionType]);
 
-  const items = useMemo(() => {
+  // Split into two memos rather than one union-typed list.
+  //
+  // A single `items` array typed `Wholesaler | CatalogNode | {name, code}` cannot
+  // be narrowed by the JSX below, because the branch condition is
+  // `selectionType`, not a property of the element. That forced an
+  // `items as Wholesaler[]` cast on one branch and an `'name' in item` probe on
+  // the other — and the probe silently rendered an empty string for wholesalers,
+  // which have `companyName`, not `name`. Two lists, each precisely typed, remove
+  // both the cast and the bug.
+  const wholesalerItems = useMemo(() => {
+    if (selectionType !== 'wholesaler') return [];
+    const q = listSearch.toLowerCase();
+    // The `?? []` lives here rather than at the query, where it minted a new
+    // array every render and defeated this memo entirely.
+    return (wholesalerData ?? []).filter(
+      (w) =>
+        w.companyName.toLowerCase().includes(q) ||
+        w.code?.toLowerCase().includes(q) ||
+        w.id.toLowerCase().includes(q),
+    );
+  }, [selectionType, listSearch, wholesalerData]);
+
+  const catalogItems = useMemo<Array<CatalogNode | { name: string; code: string }>>(() => {
     const q = listSearch.toLowerCase();
     const filter = <T extends { name: string }>(list: T[]) =>
       list.filter((i) => i.name.toLowerCase().includes(q));
@@ -81,18 +108,13 @@ export function SelectionModal({
       case 'productClassification':
         return filter(classifications);
       case 'unitType':
-        return unitTypes.filter((u) => u.name.toLowerCase().includes(q));
-      case 'wholesaler':
-        return wholesalers.filter(
-          (w) =>
-            w.companyName.toLowerCase().includes(q) ||
-            w.code?.toLowerCase().includes(q) ||
-            w.id.toLowerCase().includes(q),
-        );
+        return filter(unitTypes);
       default:
         return [];
     }
-  }, [selectionType, listSearch, categories, subCategories, productGroups, classifications, unitTypes, wholesalers]);
+  }, [selectionType, listSearch, categories, subCategories, productGroups, classifications, unitTypes]);
+
+  const isEmpty = wholesalerItems.length === 0 && catalogItems.length === 0;
 
   const handleSelectWholesaler = (w: Wholesaler) => {
     setField('wholesalerId', w.id);
@@ -139,11 +161,11 @@ export function SelectionModal({
   if (selectionType === 'none') return null;
 
   return (
-    <Modal open onClose={onClose} size="md">
+    <Dialog open onClose={onClose} size="md">
       <div className="p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-text-primary">{title}</h2>
+        <h2 className="text-lg font-semibold text-ink">{title}</h2>
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tertiary" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
           <Input
             className="pl-9"
             placeholder="Search..."
@@ -151,37 +173,37 @@ export function SelectionModal({
             onChange={(e) => onSearchChange(e.target.value)}
           />
         </div>
-        {(catalogLoading || wholesalerLoading) && <p className="text-sm text-text-secondary">Loading...</p>}
-        <ul className="max-h-72 overflow-y-auto divide-y divide-border-default">
+        {(catalogLoading || wholesalerLoading) && <Text as="p" variant="secondary">Loading...</Text>}
+        <ul className="max-h-72 overflow-y-auto divide-y divide-rule">
           {selectionType === 'wholesaler'
-            ? (items as Wholesaler[]).map((w) => (
+            ? wholesalerItems.map((w) => (
                 <li key={w.id}>
                   <button
                     type="button"
-                    className="w-full text-left px-3 py-3 hover:bg-surface-muted text-sm text-text-primary"
+                    className="w-full text-left px-3 py-3 hover:bg-sheet-2 text-sm text-ink"
                     onClick={() => handleSelectWholesaler(w)}
                   >
                     <span className="font-medium">{w.companyName}</span>
-                    {w.code && <span className="ml-2 text-text-tertiary">{w.code}</span>}
+                    {w.code && <span className="ml-2 text-ink-3">{w.code}</span>}
                   </button>
                 </li>
               ))
-            : items.map((item) => (
+            : catalogItems.map((item) => (
                 <li key={'id' in item && item.id ? item.id : item.name}>
                   <button
                     type="button"
-                    className="w-full text-left px-3 py-3 hover:bg-surface-muted text-sm text-text-primary"
+                    className="w-full text-left px-3 py-3 hover:bg-sheet-2 text-sm text-ink"
                     onClick={() => handleSelect(item as CatalogNode)}
                   >
-                    {'name' in item ? item.name : ''}
+                    {item.name}
                   </button>
                 </li>
               ))}
-          {!catalogLoading && !wholesalerLoading && items.length === 0 && (
-            <li className="px-3 py-6 text-sm text-text-tertiary text-center">No options found</li>
+          {!catalogLoading && !wholesalerLoading && isEmpty && (
+            <li className="px-3 py-6 text-sm text-ink-3 text-center">No options found</li>
           )}
         </ul>
       </div>
-    </Modal>
+    </Dialog>
   );
 }

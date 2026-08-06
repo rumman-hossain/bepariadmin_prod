@@ -16,6 +16,10 @@ dist-ssr
 .env
 .env.*
 !.env.example
+# Committed dev profiles — they carry only a proxy target URL, no secrets.
+# See README.md. Note `*.local` above already covers .env.dev-local.local etc.
+!.env.dev-local
+!.env.dev-gcp
 
 # Editor directories and files
 .vscode/*
@@ -27,3 +31,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+coverage/

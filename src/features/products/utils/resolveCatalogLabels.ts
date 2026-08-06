@@ -46,32 +46,40 @@ export async function resolveProductCatalogLabels(raw: BackendProduct): Promise<
     productDetails: {},
   };
 
-  const catRes = await getCategories();
-  if (catRes.ok && Array.isArray(catRes.data)) {
-    maps.categories = indexNodes(catRes.data);
+  /*
+   * These four ran sequentially, but none of them depends on another's RESULT —
+   * their inputs (`categoryId`, `subCategoryId`, `productGroupId`) all come
+   * from the already-fetched product. Awaiting them one at a time turned the
+   * product detail screen into 7 round trips where 3 suffice: roughly 1,050 ms
+   * on a 150 ms RTT versus 450 ms.
+   *
+   *
+   * `allSettled`, not `all`: a missing sub-category should not take out the
+   * category labels too. Each map independently falls back to empty.
+   */
+  const [catRes, subRes, groupRes, classRes] = await Promise.allSettled([
+    getCategories(),
+    raw.categoryId ? getSubCategories(raw.categoryId) : null,
+    raw.subCategoryId ? getProductGroups(raw.subCategoryId) : null,
+    raw.productGroupId ? getClassifications(raw.productGroupId) : null,
+  ]);
+
+  /** Reads a settled catalog response into an id → name map. */
+  function toMap(
+    settled: PromiseSettledResult<{ ok: boolean; data?: unknown } | null>,
+  ): Record<string, string> {
+    if (settled.status !== 'fulfilled' || !settled.value) return {};
+    const { ok, data } = settled.value;
+    return ok && Array.isArray(data) ? indexNodes(data as Array<{ id: string; name: string }>) : {};
   }
 
-  if (raw.categoryId) {
-    const subRes = await getSubCategories(raw.categoryId);
-    if (subRes.ok && Array.isArray(subRes.data)) {
-      maps.subCategories = indexNodes(subRes.data);
-    }
-  }
+  maps.categories = toMap(catRes);
+  maps.subCategories = toMap(subRes);
+  maps.productGroups = toMap(groupRes);
+  maps.classifications = toMap(classRes);
 
-  if (raw.subCategoryId) {
-    const groupRes = await getProductGroups(raw.subCategoryId);
-    if (groupRes.ok && Array.isArray(groupRes.data)) {
-      maps.productGroups = indexNodes(groupRes.data);
-    }
-  }
-
-  if (raw.productGroupId) {
-    const classRes = await getClassifications(raw.productGroupId);
-    if (classRes.ok && Array.isArray(classRes.data)) {
-      maps.classifications = indexNodes(classRes.data);
-    }
-  }
-
+  // This one genuinely IS sequential: the SKU lookup needs the wholesaler's
+  // code, which only the wholesaler fetch provides.
   if (raw.classificationId && raw.wholesalerId) {
     try {
       const wholesaler = await getWholesaler(raw.wholesalerId);

@@ -1,0 +1,130 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Foundations — Khata</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+  .sw { border: 1px solid var(--rule); border-radius: var(--radius-md); overflow: hidden; background: var(--sheet); }
+  .sw .chip { height: 54px; }
+  .sw .meta { padding: 8px 10px; }
+  .sw .name { font-size: var(--text-xs); font-weight: var(--font-weight-semibold); }
+  .sw .hex { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-3); }
+  .sw .ratio { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ok); }
+  .sw .ratio.tight { color: var(--warn); }
+  .scale > div { margin-bottom: 8px; }
+  .zscale { display: flex; flex-direction: column; gap: 2px; font-family: var(--font-mono); font-size: var(--text-xs); }
+  .zscale span { background: var(--brass-wash); border-left: 3px solid var(--brass); padding: 4px 10px; border-radius: var(--radius-xs); }
+</style>
+</head>
+<body>
+
+<h1>Foundations</h1>
+<p class="lede">
+  <strong>Khata</strong> (খাতা) is the cloth-bound ledger South Asian traders have kept for
+  centuries, and this console is one. Brass — the tola weights on a balance scale — carries
+  every action and is the only accent. The ground is cool ruled paper, deliberately not the
+  warm cream that every generated admin mock reaches for. Money states take their colour from
+  verdigris, lac and amber, and always carry a shape as well.
+</p>
+
+<h2>Colour</h2>
+<div class="swatches">
+  <div class="sw"><div class="chip" style="background:var(--ink)"></div><div class="meta"><div class="name">ink</div><div class="hex">--color-ink</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--ink-2)"></div><div class="meta"><div class="name">ink-2</div><div class="hex">--color-ink-2</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--ink-3)"></div><div class="meta"><div class="name">ink-3</div><div class="hex">--color-ink-3</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--ink-4)"></div><div class="meta"><div class="name">ink-4 · placeholder</div><div class="hex">--color-ink-4</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--brass)"></div><div class="meta"><div class="name">brass · the only accent</div><div class="hex">--color-brass</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--brass-lift)"></div><div class="meta"><div class="name">brass-lift · links</div><div class="hex">--color-brass-lift</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--brass-wash)"></div><div class="meta"><div class="name">brass-wash · selected</div><div class="hex">--color-brass-wash</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--ok)"></div><div class="meta"><div class="name">ok · verdigris</div><div class="hex">--color-ok</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--warn)"></div><div class="meta"><div class="name">warn · amber</div><div class="hex">--color-warn</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--bad)"></div><div class="meta"><div class="name">bad · lac</div><div class="hex">--color-bad</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--note)"></div><div class="meta"><div class="name">note · slate</div><div class="hex">--color-note</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--mute)"></div><div class="meta"><div class="name">mute · absent</div><div class="hex">--color-mute</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--paper); border-bottom:1px solid var(--rule)"></div><div class="meta"><div class="name">paper · ground</div><div class="hex">--color-paper</div></div></div>
+  <div class="sw"><div class="chip" style="background:var(--rule-input)"></div><div class="meta"><div class="name">rule-input</div><div class="hex">--color-rule-input</div></div></div>
+</div>
+
+<p class="note">
+  <strong>No hex or ratio is written on this page, on purpose.</strong> The chips read the
+  same generated variables the app compiles, so they cannot show a palette the product no
+  longer uses — which is exactly what this page was doing before Khata landed, having drifted
+  a whole direction behind while claiming precise numbers.
+  Ratios are computed from <span class="mono">index.css</span> and asserted in
+  <span class="mono">tokens.test.ts</span>; a number repeated in a document is a number that
+  stays convincing long after someone nudges the hex.
+</p>
+
+<p class="note">
+  Two values in the first Khata draft failed AA and the test caught both:
+  <span class="mono">ink-3</span> at 3.78:1 and <span class="mono">ink-4</span> at 4.23:1 —
+  written from a spec that asserted a 4.6:1 floor nobody had measured, and inverted relative
+  to each other so "tertiary" was lighter than "placeholder".
+  <span class="mono">brass-lift</span> was a third: set for looks at 4.1:1 while five call
+  sites used it as text. <span class="mono">rule-input</span> targets 3:1 rather than 4.5:1
+  because WCAG 1.4.11 governs control borders, a different threshold from text and the one
+  most design systems miss.
+</p>
+
+<h2>Type</h2>
+<div class="panel scale">
+  <div style="font-size:var(--text-3xl); font-weight:var(--font-weight-heavy); letter-spacing:var(--tracking-tight)">৳4,82,150 <span style="font-size:var(--text-sm); font-weight:400; color:var(--ink-3)">— KPI figure</span></div>
+  <div style="font-size:var(--text-xl); font-weight:var(--font-weight-semibold); letter-spacing:var(--tracking-tight)">Page title, 21px</div>
+  <div style="font-size:var(--text-lg); font-weight:var(--font-weight-semibold)">Section title, 17px</div>
+  <div style="font-size:var(--text-base)">Body and table cells, 14px — the size this app lives at.</div>
+  <div style="font-size:var(--text-sm); color:var(--ink-2)">Secondary, 13px</div>
+  <div style="font-size:var(--text-xs); color:var(--ink-3)">Caption, 12px</div>
+  <div class="label">Micro-label, 11px uppercase</div>
+  <div class="mono" style="margin-top:10px">ord_9f2a1c7d4088 · whl_elegant_apparel · SKU-10482</div>
+</div>
+<p class="note">
+  <strong>Inter Tight carries the figures itself</strong>, with
+  <span class="mono">font-variant-numeric: tabular-nums lining-nums</span> applied globally.
+  Money used to be set in a mono face, which is the common choice and is wrong here: it
+  changes the <em>texture</em> of a number relative to its label, so a table reads as two
+  typefaces arguing. Tabular figures give perfect column alignment — the only property that
+  actually mattered — with no texture break.
+  <br><br>
+  <strong>IBM Plex Mono is for identifiers only.</strong> A SKU, order id or TIN is machine
+  data, read character by character and often transcribed, so disambiguating 1/l and 0/O is
+  worth the texture break there and nowhere else.
+  <br><br>
+  <strong>Noto Sans Bengali sits second, not last</strong>, and that is deliberate: this is a
+  Bangladeshi product and mixed-script cells are normal. Inter Tight's x-height is within
+  ~4% of Noto Sans Bengali's, so the two share a baseline instead of stepping. Fallback is
+  per-glyph, so ৳ resolves through it without changing anything else.
+  <br><br>
+  <span class="mono">--text-base</span> is <strong>0.875rem, not 1rem</strong>. The whole
+  scale is shifted one step down from the web default because this is a data console, not a
+  document. Four weights, and <span class="mono">bold</span> is deliberately absent: at
+  13–14px it reads as noise and semibold already carries the emphasis.
+</p>
+
+<h2>Stacking</h2>
+<div class="panel">
+  <div class="zscale">
+    <span>base 0</span><span>raised 10 — sticky table headers</span><span>sticky 20 — toolbars</span>
+    <span>nav 30 — sidebar</span><span>overlay 40 — backdrops</span><span>modal 50 — dialog panels</span>
+    <span>dropdown 60 — menus, popovers, comboboxes</span><span>toast 70</span>
+  </div>
+  <p class="note">
+    <strong>Dropdown sits above modal deliberately.</strong> A combobox opened inside a
+    dialog must render over it, and a page-level dropdown can never collide with an open
+    modal because a modal traps focus behind a backdrop.
+    <br><br>
+    Two rules learned the hard way, both from bugs that shipped. A step is a
+    <em>page-level</em> rank — applying one inside an already-elevated container makes it
+    rank against its own siblings instead, which is how a dialog backdrop at
+    <span class="mono">overlay</span> ended up painting over its own panel at
+    <span class="mono">z-index: auto</span> and made every confirm dialog in the app
+    unclickable. And <span class="mono">position: sticky</span> resolves against the
+    nearest <em>scrolling</em> ancestor: an unbounded <span class="mono">overflow-auto</span>
+    wrapper never scrolls, so a sticky header inside one does nothing at all.
+  </p>
+</div>
+
+</body>
+</html>

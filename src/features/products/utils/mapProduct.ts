@@ -119,6 +119,12 @@ export function mapListQueryParams(params?: {
   if (params?.category && params.category !== 'All') {
     searchParams.set('category', params.category);
   }
+  // `wholesalerId` was declared in the params type above but never written to
+  // the query string, which is why the wholesaler filter silently degraded to
+  // client-side filtering over a server-paginated page.
+  if (params?.wholesalerId && params.wholesalerId !== 'All') {
+    searchParams.set('wholesaler_id', params.wholesalerId);
+  }
   const backendStatus = mapDisplayStatusToBackend(params?.status ?? '');
   if (backendStatus) searchParams.set('status', backendStatus);
   const backendVisibility = mapDisplayVisibilityToBackend(params?.visibility ?? '');

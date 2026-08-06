@@ -11,20 +11,22 @@
  */
 export const API_BASE_URL = '';
 
-/** PBKDF2 iteration count — must match backend and mobile client */
-export const PBKDF2_ITERATIONS = 310_000;
-
-/** PBKDF2 key length in bytes (256-bit) */
-export const PBKDF2_KEY_LENGTH = 32;
-
-/** PBKDF2 digest algorithm — matches mobile app */
-export const PBKDF2_DIGEST = 'SHA-256';
-
-/** Output prefix for client-side password hash */
-export const PBKDF2_PREFIX = 'pbkdf2v2';
-
-/** Max request body size in bytes (64 KiB — matches backend) */
-export const MAX_BODY_SIZE = 64 * 1024;
+/**
+ * The versioned API prefix.
+ *
+ * Every request path in this app is a bare literal — roughly 45 of them across
+ * seven modules, and `/api/v1/auth/refresh` alone appears in three separate
+ * files. That makes a version bump a 45-site find-and-replace with no way to
+ * tell whether you got them all. Build paths from this instead:
+ *
+ *   `${API_V1}/auth/refresh`
+ *
+ * The existing literals are left where they are: rewriting all 45 in the same
+ * pass as a large deletion would bury a real mistake in the diff. Use this for
+ * new paths, and convert the old ones when you are next in that file anyway.
+ */
+export const API_V1 = '/api/v1';
 
 /** Default request timeout in milliseconds */
 export const REQUEST_TIMEOUT = 15_000;
+

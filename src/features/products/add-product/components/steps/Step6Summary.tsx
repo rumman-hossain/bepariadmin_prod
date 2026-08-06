@@ -10,25 +10,18 @@ import {
   Shield,
   AlertCircle,
 } from 'lucide-react';
-import { Card } from '@/src/components/ui/Card';
 import { cn } from '@/src/design-system/utils/cn';
-import { formatCurrency } from '@/src/utils/formatCurrency';
-import { listWholesalers } from '@/src/features/wholesalers/api/wholesalerApi';
+import { listSuppliersForPicker } from '@/src/features/wholesalers/api/wholesalerApi';
 import { useAddProductStore } from '../../store/useAddProductStore';
-import type { ProductVariation, ProductMediaState } from '../../../types/registration';
+import { summaryMoney, countProductMedia } from './summaryStats';
 
 interface Props {
   sellPrice: number;
   platformMargin: number;
 }
-
 import { formatDispatchDisplay } from '@/src/features/products/utils/dispatchTime';
-
-function formatMoney(value: string | number): string {
-  const n = typeof value === 'number' ? value : Number(value || 0);
-  if (!n) return '—';
-  return formatCurrency(n);
-}
+import { Text } from '@/src/components/data';
+import { Panel } from '@/src/components/layout/primitives';
 
 function SummaryStat({
   label,
@@ -43,13 +36,13 @@ function SummaryStat({
     <div
       className={cn(
         'rounded-xl border px-3 py-2.5 min-w-0',
-        tone === 'success' && 'bg-emerald-50 border-emerald-200',
-        tone === 'warning' && 'bg-amber-50 border-amber-200',
-        tone === 'default' && 'bg-surface-muted border-border-subtle',
+        tone === 'success' && 'bg-ok-wash border-ok-border',
+        tone === 'warning' && 'bg-warn-wash border-warn-border',
+        tone === 'default' && 'bg-sheet-2 border-rule-subtle',
       )}
     >
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-text-tertiary truncate">{label}</p>
-      <p className="text-sm font-bold text-text-primary truncate mt-0.5">{value}</p>
+      <Text as="p" variant="label" className="truncate">{label}</Text>
+      <p className="text-sm font-bold text-ink truncate mt-0.5">{value}</p>
     </div>
   );
 }
@@ -69,18 +62,18 @@ function SectionStatus({
     <div
       className={cn(
         'rounded-xl border p-3 min-w-0',
-        tone === 'success' && 'bg-emerald-50/80 border-emerald-200',
-        tone === 'warning' && 'bg-amber-50/80 border-amber-200',
-        tone === 'default' && 'bg-surface-muted/60 border-border-subtle',
+        tone === 'success' && 'bg-ok-wash/80 border-ok-border',
+        tone === 'warning' && 'bg-warn-wash/80 border-warn-border',
+        tone === 'default' && 'bg-sheet-2/60 border-rule-subtle',
       )}
     >
       <div className="flex items-center gap-2 mb-1">
         <div className="w-7 h-7 rounded-full bg-white/80 flex items-center justify-center shrink-0">
-          <Icon className="w-3.5 h-3.5 text-accent-primary" />
+          <Icon className="w-3.5 h-3.5 text-brass" />
         </div>
-        <p className="text-xs font-semibold text-text-primary truncate">{title}</p>
+        <p className="text-xs font-semibold text-ink truncate">{title}</p>
       </div>
-      <p className="text-[11px] text-text-secondary leading-snug line-clamp-2">{subtitle}</p>
+      <p className="text-2xs text-ink-2 leading-snug line-clamp-2">{subtitle}</p>
     </div>
   );
 }
@@ -88,9 +81,9 @@ function SectionStatus({
 function DataRow({ label, value }: { label: string; value: React.ReactNode }) {
   const empty = value === undefined || value === null || value === '';
   return (
-    <div className="py-2.5 border-b border-border-subtle last:border-0">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-text-tertiary mb-1">{label}</p>
-      <div className="text-sm text-text-primary">{empty ? '—' : value}</div>
+    <div className="py-2.5 border-b border-rule-subtle last:border-0">
+      <Text as="p" variant="label" className="mb-1">{label}</Text>
+      <div className="text-sm text-ink">{empty ? '—' : value}</div>
     </div>
   );
 }
@@ -111,27 +104,27 @@ function SummarySection({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <Card className="overflow-hidden">
+    <Panel className="overflow-hidden">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-surface-muted/50 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-sheet-2/50 transition-colors text-left"
       >
-        <div className="w-8 h-8 rounded-lg bg-accent-primary-light flex items-center justify-center shrink-0">
-          <Icon className="w-4 h-4 text-accent-primary" />
+        <div className="w-8 h-8 rounded-lg bg-brass-wash flex items-center justify-center shrink-0">
+          <Icon className="w-4 h-4 text-brass" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-xs text-text-tertiary font-medium">Step {step}</p>
-          <p className="text-sm font-semibold text-text-primary">{title}</p>
+          <p className="text-xs text-ink-3 font-medium">Step {step}</p>
+          <Text as="p" variant="strong">{title}</Text>
         </div>
         {open ? (
-          <ChevronUp className="w-4 h-4 text-text-tertiary shrink-0" />
+          <ChevronUp className="w-4 h-4 text-ink-3 shrink-0" />
         ) : (
-          <ChevronDown className="w-4 h-4 text-text-tertiary shrink-0" />
+          <ChevronDown className="w-4 h-4 text-ink-3 shrink-0" />
         )}
       </button>
-      {open && <div className="px-4 pb-4 pt-0 border-t border-border-subtle">{children}</div>}
-    </Card>
+      {open && <div className="px-4 pb-4 pt-0 border-t border-rule-subtle">{children}</div>}
+    </Panel>
   );
 }
 
@@ -150,8 +143,9 @@ function SizeGrid({
   return (
     <div className="mt-1 overflow-x-auto">
       <table className="w-full text-xs">
+        {/* responsive-table-reviewed: four columns of short integers at text-xs. Narrower than the 3-column table measured at 375px, so it fits. */}
         <thead>
-          <tr className="text-text-tertiary uppercase">
+          <tr className="text-ink-3 uppercase">
             <th className="text-left py-1 pr-2 font-semibold">Size</th>
             <th className="text-left py-1 px-2 font-semibold">Stock</th>
             <th className="text-left py-1 px-2 font-semibold">MOQ</th>
@@ -160,56 +154,17 @@ function SizeGrid({
         </thead>
         <tbody>
           {sizes.map((size) => (
-            <tr key={size} className="border-t border-border-subtle">
-              <td className="py-1.5 pr-2 font-semibold text-text-primary">{size}</td>
-              <td className="py-1.5 px-2 text-text-secondary">{stockMap[size] ?? '0'}</td>
-              <td className="py-1.5 px-2 text-text-secondary">{moqMap[size] ?? '1'}</td>
-              <td className="py-1.5 pl-2 text-text-secondary">{alertMap[size] ?? '0'}</td>
+            <tr key={size} className="border-t border-rule-subtle">
+              <td className="py-1.5 pr-2 font-semibold text-ink">{size}</td>
+              <td className="py-1.5 px-2 text-ink-2">{stockMap[size] ?? '0'}</td>
+              <td className="py-1.5 px-2 text-ink-2">{moqMap[size] ?? '1'}</td>
+              <td className="py-1.5 pl-2 text-ink-2">{alertMap[size] ?? '0'}</td>
             </tr>
           ))}
         </tbody>
       </table>
     </div>
   );
-}
-
-function countProductMedia(productMedia: ProductMediaState, variations: ProductVariation[]) {
-  const mainCount = [
-    productMedia.front.localUri || productMedia.front.uploadedUrl,
-    productMedia.back.localUri || productMedia.back.uploadedUrl,
-    productMedia.left.localUri || productMedia.left.uploadedUrl,
-    productMedia.right.localUri || productMedia.right.uploadedUrl,
-    productMedia.poster.localUri || productMedia.poster.uploadedUrl,
-  ].filter(Boolean).length;
-
-  const extraCount = productMedia.more.filter((m) => m.localUri || m.uploadedUrl).length;
-
-  const variationImagesCount = variations.reduce((acc, v) => {
-    const media = v.media as ProductMediaState | undefined;
-    if (!media) return acc;
-    const vMain = [media.front, media.back].filter((s) => s?.localUri || s?.uploadedUrl).length;
-    const vExtra = media.more?.filter((m) => m.localUri || m.uploadedUrl).length ?? 0;
-    return acc + vMain + vExtra;
-  }, 0);
-
-  const hasVideo =
-    !!(productMedia.video.localUri || productMedia.video.uploadedUrl) ||
-    variations.some((v) => {
-      const media = v.media as ProductMediaState | undefined;
-      return !!(media?.video?.localUri || media?.video?.uploadedUrl);
-    });
-
-  const pendingCount =
-    [productMedia.front, productMedia.back, productMedia.poster, productMedia.left, productMedia.right, productMedia.video, ...productMedia.more].filter(
-      (s) => s.uploadStatus === 'uploading',
-    ).length +
-    variations.reduce((acc, v) => {
-      const media = v.media as ProductMediaState | undefined;
-      if (!media) return acc;
-      return acc + [media.front, media.back, media.video, ...(media.more ?? [])].filter((s) => s?.uploadStatus === 'uploading').length;
-    }, 0);
-
-  return { mainCount, extraCount, variationImagesCount, totalImageCount: mainCount + extraCount + variationImagesCount, hasVideo, pendingCount };
 }
 
 function PolicyBlock({
@@ -226,8 +181,8 @@ function PolicyBlock({
   secondValue: string;
 }) {
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface-muted/40 p-3 space-y-1">
-      <p className="text-sm font-semibold text-text-primary mb-2">{title}</p>
+    <div className="rounded-xl border border-rule-subtle bg-sheet-2/40 p-3 space-y-1">
+      <Text as="p" variant="strong" className="mb-2">{title}</Text>
       <DataRow label={firstLabel} value={firstValue} />
       <DataRow label={secondLabel} value={secondValue} />
     </div>
@@ -240,7 +195,7 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
 
   useEffect(() => {
     if (!s.wholesalerId) return;
-    void listWholesalers({ search: '', category: 'All', location: 'All', recentlyAdded: false }).then((data) => {
+    void listSuppliersForPicker().then((data) => {
       const match = data.find((w) => w.id === s.wholesalerId);
       if (match) setWholesalerLabel(match.companyName || match.id);
     });
@@ -259,15 +214,15 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
 
   const basePriceLabel = hasVariablePricing
     ? minBase === maxBase
-      ? formatMoney(minBase)
-      : `${formatMoney(minBase)} – ${formatMoney(maxBase)}`
-    : formatMoney(basePriceValue);
+      ? summaryMoney(minBase)
+      : `${summaryMoney(minBase)} – ${summaryMoney(maxBase)}`
+    : summaryMoney(basePriceValue);
 
   const retailPriceLabel = hasVariablePricing
     ? minRetail === maxRetail
-      ? formatMoney(minRetail)
-      : `${formatMoney(minRetail)} – ${formatMoney(maxRetail)}`
-    : formatMoney(sellPrice);
+      ? summaryMoney(minRetail)
+      : `${summaryMoney(minRetail)} – ${summaryMoney(maxRetail)}`
+    : summaryMoney(sellPrice);
 
   const mediaStats = useMemo(() => countProductMedia(s.productMedia, s.variations), [s.productMedia, s.variations]);
 
@@ -318,16 +273,16 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
 
   return (
     <div className="space-y-4 pb-2">
-      <Card className="p-4 bg-gradient-to-br from-accent-primary-light/40 to-surface-primary">
+      <Panel className="p-4 bg-gradient-to-br from-brass-wash/40 to-sheet">
         <div className="flex gap-3 mb-4">
           <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center shrink-0">
-            <ClipboardCheck className="w-5 h-5 text-accent-primary" />
+            <ClipboardCheck className="w-5 h-5 text-brass" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-text-primary">Final Submission Review</h3>
-            <p className="text-sm text-text-secondary mt-0.5">
+            <h3 className="text-base font-bold text-ink">Final Submission Review</h3>
+            <Text as="p" variant="secondary" className="mt-0.5">
               Review all 5 steps before registering this product.
-            </p>
+            </Text>
           </div>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
@@ -335,7 +290,7 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
             <SectionStatus key={section.title} {...section} />
           ))}
         </div>
-      </Card>
+      </Panel>
 
       <div className="grid grid-cols-3 gap-2">
         <SummaryStat label={hasVariablePricing ? 'Base Range' : 'Base Price'} value={basePriceLabel} />
@@ -345,7 +300,7 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
 
       <SummarySection step={1} title="Basic Information" icon={Package}>
         <DataRow label="Product Name" value={s.name} />
-        <DataRow label="Wholesaler" value={wholesalerLabel || s.wholesalerId} />
+        <DataRow label="Supplier" value={wholesalerLabel || s.wholesalerId} />
         <DataRow label="Brand" value={s.brandName} />
         <DataRow label="Unit Type" value={s.unitType} />
         <DataRow label="Category" value={s.category} />
@@ -384,17 +339,17 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
             value={
               <div className="space-y-3 mt-1">
                 {s.variations.map((v, idx) => (
-                  <div key={v.id ?? idx} className="rounded-lg border border-border-subtle p-3 bg-surface-muted/30">
+                  <div key={v.id ?? idx} className="rounded-lg border border-rule-subtle p-3 bg-sheet-2/30">
                     <div className="flex justify-between gap-3">
                       <div>
                         <p className="font-semibold text-sm">{v.displayLabel || v.subName}</p>
-                        <p className="text-xs text-text-tertiary">{v.subSku || 'No SKU'}</p>
+                        <Text as="p" variant="caption">{v.subSku || 'No SKU'}</Text>
                       </div>
                       <div className="text-right">
-                        <p className="text-sm font-bold text-emerald-600">
-                          {formatMoney(calculateRetail(Number(v.price) || basePriceValue))}
+                        <p className="text-sm font-bold text-ok">
+                          {summaryMoney(calculateRetail(Number(v.price) || basePriceValue))}
                         </p>
-                        <p className="text-xs text-text-tertiary">Base: {formatMoney(Number(v.price) || basePriceValue)}</p>
+                        <Text as="p" variant="caption">Base: {summaryMoney(Number(v.price) || basePriceValue)}</Text>
                       </div>
                     </div>
                   </div>
@@ -435,7 +390,7 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
         <DataRow label="Total Images" value={String(mediaStats.totalImageCount)} />
         <DataRow label="Video" value={mediaStats.hasVideo ? 'Included' : 'Not added'} />
         {mediaStats.pendingCount > 0 && (
-          <div className="flex items-start gap-2 mt-3 p-3 rounded-lg bg-amber-50 border border-amber-200 text-sm text-amber-800">
+          <div className="flex items-start gap-2 mt-3 p-3 rounded-lg bg-warn-wash border border-warn-border text-sm text-warn">
             <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
             <span>{mediaStats.pendingCount} file(s) still uploading — wait before submitting.</span>
           </div>
@@ -444,9 +399,9 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
 
       <SummarySection step={5} title="Policies" icon={Shield} defaultOpen={enabledPoliciesCount > 0}>
         {enabledPoliciesCount === 0 ? (
-          <p className="text-sm text-text-secondary py-2">
+          <Text as="p" variant="secondary" className="py-2">
             No warranty, return, or exchange policy enabled for this product.
-          </p>
+          </Text>
         ) : (
           <div className="space-y-3 pt-2">
             {s.warrantyEnabled && (

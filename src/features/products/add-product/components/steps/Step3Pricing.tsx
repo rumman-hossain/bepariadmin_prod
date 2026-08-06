@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { Input } from '@/src/components/ui/Input';
+import { Money, Text } from '@/src/components/data';
+import { useMemo } from 'react';
+import { Input } from '@/src/components/controls';
 import { useAddProductStore } from '../../store/useAddProductStore';
 import { resolveHasVariant } from '../../utils/resolveHasVariant';
 import { InventoryConfigSection } from '../InventoryConfigSection';
@@ -47,8 +48,8 @@ export function Step3Pricing({
 
   return (
     <div className="space-y-6">
-      <div className="p-4 rounded-2xl border border-border-default bg-surface-muted/50 space-y-3">
-        <p className="text-sm font-semibold text-text-primary">Pricing Engine</p>
+      <div className="p-4 rounded-2xl border border-rule bg-sheet-2/50 space-y-3">
+        <Text as="p" variant="strong">Pricing Engine</Text>
         <Input
           label="Base Price (৳)"
           type="text"
@@ -58,14 +59,17 @@ export function Step3Pricing({
           error={errors.basePrice}
         />
         <div className="flex items-center justify-between text-sm">
-          <span className="text-text-secondary">Platform Margin</span>
-          <span className="font-semibold text-text-primary">{platformMargin}%</span>
+          <span className="text-ink-2">Platform Margin</span>
+          <span className="font-semibold text-ink">{platformMargin}%</span>
         </div>
-        <p className="text-2xl font-bold text-emerald-600">Selling: ৳ {sellPrice.toFixed(2)}</p>
+        <p className="flex items-baseline gap-2">
+          <Text variant="secondary">Selling price</Text>
+          <Money amount={sellPrice} size="display" decimals />
+        </p>
       </div>
 
       {hasVariantRaw === null && !isEditMode && (
-        <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
+        <div className="p-3 rounded-xl bg-warn-wash border border-warn-border text-sm text-warn">
           Choose whether this product has variants when leaving Step 2.
         </div>
       )}
@@ -73,14 +77,14 @@ export function Step3Pricing({
       {!hasVariant ? (
         <>
           <InventoryConfigSection selectedSizes={selectedSizes} isEditMode={isEditMode} errors={errors} />
-          <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-surface-muted border border-border-subtle">
+          <div className="grid grid-cols-2 gap-3 p-4 rounded-xl bg-sheet-2 border border-rule-subtle">
             <div>
-              <p className="text-xs text-text-tertiary uppercase font-semibold">Total Stock</p>
-              <p className="text-xl font-bold text-text-primary">{totalStock}</p>
+              <Text as="p" variant="label">Total Stock</Text>
+              <p className="text-xl font-bold text-ink">{totalStock}</p>
             </div>
             <div>
-              <p className="text-xs text-text-tertiary uppercase font-semibold">Global MOQ</p>
-              <p className="text-xl font-bold text-text-primary">{totalMoq}</p>
+              <Text as="p" variant="label">Global MOQ</Text>
+              <p className="text-xl font-bold text-ink">{totalMoq}</p>
             </div>
           </div>
         </>
@@ -88,7 +92,6 @@ export function Step3Pricing({
         <VariationConfigSection
           onGenerate={onGenerateVariations}
           platformMargin={platformMargin}
-          isEditMode={isEditMode}
           errorMessage={errors.variations}
         />
       )}

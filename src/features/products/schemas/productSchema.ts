@@ -43,7 +43,7 @@ export const productSchema = z.object({
   dispatchTime: z.string().min(1, 'Dispatch time is required'),
   trendTags: z.array(z.string()).optional().default([]),
   visibility: z.enum(['Public', 'Private']).default('Public'),
-  wholesalerId: z.string().min(1, 'Wholesaler is required'),
+  wholesalerId: z.string().min(1, 'Supplier is required'),
   status: z
     .enum([
       'Draft',

@@ -1,4 +1,3 @@
-import React from 'react';
 import { cn } from '@/src/design-system/utils/cn';
 
 interface Props {
@@ -22,8 +21,8 @@ export function SizeChipSelector({
 
   return (
     <div className="sm:col-span-2">
-      <p className="text-sm font-medium text-text-primary mb-2">
-        {label} <span className="text-semantic-danger">*</span>
+      <p className="text-sm font-medium text-ink mb-2">
+        {label} <span className="text-bad">*</span>
       </p>
       <div className="flex flex-wrap gap-2">
         {options.map((size) => {
@@ -36,10 +35,10 @@ export function SizeChipSelector({
               className={cn(
                 'px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',
                 isSelected
-                  ? 'bg-accent-primary text-white border-accent-primary'
+                  ? 'bg-brass text-white border-brass'
                   : hasError && selectedSizes.length === 0
-                    ? 'bg-surface-primary text-text-primary border-semantic-danger'
-                    : 'bg-surface-muted text-text-primary border-border-default hover:border-accent-primary',
+                    ? 'bg-sheet text-ink border-bad'
+                    : 'bg-sheet-2 text-ink border-rule hover:border-brass',
               )}
             >
               {size}
@@ -48,7 +47,7 @@ export function SizeChipSelector({
         })}
       </div>
       {hasError && selectedSizes.length === 0 && (
-        <p className="text-xs text-semantic-danger mt-1.5">Select at least one size</p>
+        <p className="text-xs text-bad mt-1.5">Select at least one size</p>
       )}
     </div>
   );

@@ -1,0 +1,101 @@
+<!-- @dsCard group="Layout" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Layout — the composition layer</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .demo { border:1px dashed var(--rule-strong); border-radius: var(--radius-md);
+          background: var(--sheet); padding:12px; }
+  .box { background: var(--brass-wash); border:1px solid var(--rule);
+         border-radius: var(--radius-sm); padding:10px 12px; font-size: var(--text-sm);
+         color: var(--brass); font-family: var(--font-mono); }
+  .g3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+  .cols { display:grid; grid-template-columns:2fr 1fr; gap:24px; }
+  .toolbar { display:flex; justify-content:space-between; align-items:center; gap:12px;
+             padding:10px 0; border-bottom:1px solid var(--rule); }
+  .sect-h { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px; }
+  .sect-h h3 { margin:0; }
+  code { font-family: var(--font-mono); font-size: var(--text-sm); background: var(--sheet-2);
+         padding:1px 5px; border-radius: var(--radius-xs); }
+  pre { font-family: var(--font-mono); font-size: var(--text-sm); background: var(--sheet-2);
+        border:1px solid var(--rule); border-radius: var(--radius-md); padding:14px;
+        overflow-x:auto; line-height:1.6; }
+  .btn { height:32px; padding:0 13px; border-radius: var(--radius-sm); font-size: var(--text-sm);
+         font-weight: var(--font-weight-medium); border:1px solid var(--rule-strong);
+         background: var(--sheet); color: var(--ink); font-family: var(--font-sans); cursor:pointer; }
+</style>
+</head>
+<body>
+
+<h1>Layout</h1>
+<p class="lede">
+  The parts that were missing, and the reason building a new screen used to mean writing
+  <code>div</code>s. Nine page roots ran on five different vertical rhythms, 33 grids were
+  written in about 14 recipes, and 35 flex rows were spelled out by hand.
+</p>
+
+<h2>Page, Section, Toolbar</h2>
+<div class="demo">
+  <div class="sect-h">
+    <div>
+      <h3>Orders</h3>
+      <div style="font-size:var(--text-sm); color:var(--ink-2)">Every order placed across the platform, newest first.</div>
+    </div>
+    <button class="btn">Export</button>
+  </div>
+  <div class="toolbar"><div class="box">filters</div><div class="box">paging</div></div>
+  <div style="height:10px"></div>
+  <div class="box">table</div>
+</div>
+<p class="note">
+  <code>Page</code> takes a width — <code>full</code> for data screens,
+  <code>form</code> for single-column forms, <code>prose</code> for mostly text. Most admin
+  screens are tables and want every pixel, so <code>full</code> is the default.
+  <code>Toolbar</code> splits into a left cluster for filters and a right one for actions;
+  two screens solved this differently and a third had no toolbar at all.
+</p>
+
+<h2>Stack, Row, Grid, Columns</h2>
+<div class="g3" style="margin-bottom:14px">
+  <div class="demo"><div style="display:flex;flex-direction:column;gap:8px"><div class="box">Stack</div><div class="box">gap="md"</div><div class="box">vertical</div></div></div>
+  <div class="demo"><div style="display:flex;gap:8px;align-items:center"><div class="box">Row</div><div class="box">align</div></div></div>
+  <div class="demo"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><div class="box">Grid</div><div class="box">cols</div><div class="box">2</div><div class="box">…</div></div></div>
+</div>
+<div class="cols">
+  <div class="demo" style="min-height:96px"><div class="box">main</div></div>
+  <div class="demo" style="min-height:96px"><div class="box">aside</div></div>
+</div>
+<p class="note">
+  <code>Columns</code> takes the narrow column as an <code>aside</code> <em>prop</em>, not as
+  a second child. <code>grid grid-cols-1 lg:grid-cols-3 gap-6</code> appeared verbatim in
+  four files, each followed by hand-written span classes — so the split was re-derived every
+  time and the aside landed on a different side in two of them.
+</p>
+
+<h2>What this buys</h2>
+<pre>export function OrdersPage() {
+  return (
+    &lt;Page&gt;
+      &lt;PageHeader title="Orders" subtitle="…" /&gt;
+      &lt;StatGrid items={…} /&gt;
+      &lt;Section&gt;
+        &lt;Toolbar actions={&lt;Row gap="sm"&gt;…&lt;/Row&gt;}&gt;
+          &lt;SegmentedControl … /&gt;
+        &lt;/Toolbar&gt;
+        &lt;DataTable columns={COLUMNS} data={rows} rowHref={…} /&gt;
+      &lt;/Section&gt;
+    &lt;/Page&gt;
+  );
+}</pre>
+<p class="note">
+  The two Orders screens are the proof this layer works: <strong>435 lines, zero
+  <code>&lt;div&gt;</code>s, zero <code>className</code> attributes.</strong> Everything on
+  both screens is a named part. The rule that got them there — anything the kit cannot
+  express is a gap to close in the kit, never a <code>div</code> to add — is what makes it a
+  proof rather than a demo.
+</p>
+
+</body>
+</html>

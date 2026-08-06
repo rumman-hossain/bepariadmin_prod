@@ -21,21 +21,41 @@ export class WholesalerApiError extends Error {
 export function parseApiError(res: ApiResponse<unknown>): WholesalerApiError {
   const body = res.data as ErrorBody | undefined;
   const code = body?.error?.code ?? body?.code;
-  const message =
-    body?.error?.message ??
-    body?.message ??
-    statusToMessage(res.status);
+  const raw = body?.error?.message ?? body?.message;
+
+  // Precedence inverted. This used to prefer the backend's `message` and fall
+  // back to `statusToMessage` only as a last resort — but the Go handlers pass
+  // `err.Error()` straight through, so raw Postgres text (table, column and
+  // constraint names) surfaced in the admin UI. The status map is the safe
+  // default now; a backend message is only shown when it reads like something
+  // written for a person.
+  const message = isPresentable(raw) ? raw : statusToMessage(res.status);
   return new WholesalerApiError(message, res.status, code);
 }
 
-export function statusToMessage(status: number): string {
+/** Mirrors the check in src/utils/errors.ts — keep the two in step. */
+function isPresentable(msg: string | undefined): msg is string {
+  if (!msg) return false;
+  if (msg.length > 200) return false;
+  if (
+    /\b(pq:|pgx|sql|SQLSTATE|constraint|relation|column|duplicate key|violates|goroutine|panic:|nil pointer|context deadline)\b/i.test(
+      msg,
+    )
+  ) {
+    return false;
+  }
+  // Schema-qualified identifiers, e.g. users.wholesalers
+  return !/\b[a-z_]+\.[a-z_]+\b/.test(msg);
+}
+
+function statusToMessage(status: number): string {
   switch (status) {
     case 401:
       return 'Your session has expired. Please sign in again.';
     case 403:
       return 'You do not have permission to perform this action.';
     case 404:
-      return 'Wholesaler not found.';
+      return 'Supplier not found.';
     case 408:
       return 'Request timed out. Please try again.';
     case 409:

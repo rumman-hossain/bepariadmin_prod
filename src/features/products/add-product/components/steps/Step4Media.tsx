@@ -1,9 +1,10 @@
-import React, { useRef } from 'react';
+import { useRef } from 'react';
 import { ImagePlus, Loader2 } from 'lucide-react';
 import { useAddProductStore } from '../../store/useAddProductStore';
 import { resolveHasVariant } from '../../utils/resolveHasVariant';
 import { useUpload } from '@/src/services/upload/useUpload';
 import type { MediaSlot } from '../../../types/registration';
+import { Text } from '@/src/components/data';
 
 interface SlotProps {
   label: string;
@@ -34,11 +35,11 @@ function MediaSlotInput({ label, slot, purpose, position, accept, mediaType }: S
 
   return (
     <div className="space-y-2">
-      <p className="text-xs font-medium text-text-secondary uppercase">{label}</p>
+      <Text as="p" variant="label">{label}</Text>
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className="relative w-full aspect-square rounded-xl border-2 border-dashed border-border-default flex flex-col items-center justify-center gap-2 hover:bg-surface-muted overflow-hidden"
+        className="relative w-full aspect-square rounded-xl border-2 border-dashed border-rule flex flex-col items-center justify-center gap-2 hover:bg-sheet-2 overflow-hidden"
       >
         {slot.localUri ? (
           mediaType === 'video' ? (
@@ -48,8 +49,8 @@ function MediaSlotInput({ label, slot, purpose, position, accept, mediaType }: S
           )
         ) : (
           <>
-            <ImagePlus className="w-8 h-8 text-text-tertiary" />
-            <span className="text-xs text-text-tertiary">Upload</span>
+            <ImagePlus className="w-8 h-8 text-ink-3" />
+            <Text variant="caption">Upload</Text>
           </>
         )}
         {slot.uploadStatus === 'uploading' && (
@@ -58,7 +59,7 @@ function MediaSlotInput({ label, slot, purpose, position, accept, mediaType }: S
           </div>
         )}
       </button>
-      {slot.uploadError && <p className="text-xs text-semantic-danger">{slot.uploadError}</p>}
+      {slot.uploadError && <p className="text-xs text-bad">{slot.uploadError}</p>}
       <input
         ref={inputRef}
         type="file"
@@ -89,9 +90,9 @@ export function Step4Media() {
           accept="image/*"
           mediaType="image"
         />
-        <p className="sm:col-span-2 text-sm text-text-secondary">
+        <Text as="p" variant="secondary" className="sm:col-span-2">
           Variant products use poster here; per-variation images are managed in the variation manager on Step 3.
-        </p>
+        </Text>
       </div>
     );
   }

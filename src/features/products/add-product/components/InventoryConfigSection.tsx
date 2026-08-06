@@ -1,6 +1,6 @@
-import React from 'react';
-import { Input } from '@/src/components/ui/Input';
+import { Input } from '@/src/components/controls';
 import { useAddProductStore } from '../store/useAddProductStore';
+import { Text } from '@/src/components/data';
 
 interface Props {
   selectedSizes: string[];
@@ -34,25 +34,31 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
   if (selectedSizes.length > 0) {
     return (
       <div className="space-y-3">
-        <p className="text-sm font-semibold text-text-primary">Size-Based Inventory & MOQ</p>
-        <div className="overflow-x-auto rounded-xl border border-border-default">
-          <table className="w-full text-sm min-w-[480px]">
-            <thead className="bg-surface-muted">
+        <Text as="p" variant="strong">Size-Based Inventory & MOQ</Text>
+        <div className="table-cards-wrap overflow-x-auto rounded-xl border border-rule">
+          {/*
+            Was `min-w-[480px]`, which on a 375px phone meant dragging a
+            five-column table of text inputs sideways to fill it in. Now uses
+            the same `.table-cards` treatment as DataTable: one card per size,
+            each field labelled.
+          */}
+          <table className="table-cards w-full text-sm">
+            <thead className="bg-sheet-2">
               <tr>
-                <th className="text-left px-3 py-2 font-semibold text-text-tertiary">Size</th>
-                <th className="text-left px-3 py-2 font-semibold text-text-tertiary">Stock</th>
-                <th className="text-left px-3 py-2 font-semibold text-text-tertiary">MOQ</th>
-                <th className="text-left px-3 py-2 font-semibold text-text-tertiary">Alert</th>
-                {isEditMode && <th className="text-left px-3 py-2 font-semibold text-text-tertiary">Action</th>}
+                <th className="text-left px-3 py-2 font-semibold text-ink-3">Size</th>
+                <th className="text-left px-3 py-2 font-semibold text-ink-3">Stock</th>
+                <th className="text-left px-3 py-2 font-semibold text-ink-3">MOQ</th>
+                <th className="text-left px-3 py-2 font-semibold text-ink-3">Alert</th>
+                {isEditMode && <th className="text-left px-3 py-2 font-semibold text-ink-3">Action</th>}
               </tr>
             </thead>
             <tbody>
               {selectedSizes.map((size) => {
                 const isOut = stockedOutSizes.includes(size);
                 return (
-                  <tr key={size} className="border-t border-border-subtle">
-                    <td className="px-3 py-2 font-semibold">{size}</td>
-                    <td className="px-3 py-2">
+                  <tr key={size} className="border-t border-rule-subtle">
+                    <td data-label="Size" data-primary className="px-3 py-2 font-semibold">{size}</td>
+                    <td data-label="Stock" className="px-3 py-2">
                       <input
                         type="text"
                         inputMode="numeric"
@@ -61,20 +67,20 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
                         onChange={(e) =>
                           setField('sizeStockSet', { ...sizeStockSet, [size]: cleanDigits(e.target.value) })
                         }
-                        className="w-full h-9 px-2 rounded-lg border border-border-default bg-surface-secondary text-sm disabled:opacity-40"
+                        className="w-full h-9 px-2 rounded-lg border border-rule bg-sheet-2 text-sm disabled:opacity-40"
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td data-label="MOQ" className="px-3 py-2">
                       <input
                         type="text"
                         inputMode="numeric"
                         disabled={isOut}
                         value={moqSet[size] ?? ''}
                         onChange={(e) => setField('moqSet', { ...moqSet, [size]: cleanDigits(e.target.value) })}
-                        className="w-full h-9 px-2 rounded-lg border border-border-default bg-surface-secondary text-sm disabled:opacity-40"
+                        className="w-full h-9 px-2 rounded-lg border border-rule bg-sheet-2 text-sm disabled:opacity-40"
                       />
                     </td>
-                    <td className="px-3 py-2">
+                    <td data-label="Alert" className="px-3 py-2">
                       <input
                         type="text"
                         inputMode="numeric"
@@ -86,7 +92,7 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
                             [size]: cleanDigits(e.target.value),
                           })
                         }
-                        className="w-full h-9 px-2 rounded-lg border border-border-default bg-surface-secondary text-sm disabled:opacity-40"
+                        className="w-full h-9 px-2 rounded-lg border border-rule bg-sheet-2 text-sm disabled:opacity-40"
                       />
                     </td>
                     {isEditMode && (
@@ -94,7 +100,7 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
                         <button
                           type="button"
                           onClick={() => toggleSizeStockOut(size)}
-                          className="text-xs font-semibold text-accent-primary hover:underline"
+                          className="text-xs font-semibold text-brass hover:underline"
                         >
                           {isOut ? 'Restock' : 'Stock Out'}
                         </button>
@@ -106,7 +112,7 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
             </tbody>
           </table>
         </div>
-        {errors.sizes && <p className="text-xs text-semantic-danger">{errors.sizes}</p>}
+        {errors.sizes && <p className="text-xs text-bad">{errors.sizes}</p>}
       </div>
     );
   }

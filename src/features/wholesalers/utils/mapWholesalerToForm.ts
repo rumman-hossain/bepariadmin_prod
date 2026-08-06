@@ -75,10 +75,15 @@ export function mapWholesalerToFormData(w: Wholesaler): Partial<WholesalerFormDa
             ]
           : [],
     documents: (w.documents || []).map((d) => ({
+      id: d.id,
+      docType: d.docType,
       name: d.name,
       date: d.date,
       status: d.status,
-      fileUrl: d.fileUrl,
+      // `hasFile`, not a path: the server no longer sends one. Without this the
+      // edit screen would report every certificate missing on a supplier that
+      // has all four.
+      hasFile: d.hasFile,
     })),
   };
 }

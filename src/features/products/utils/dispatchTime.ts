@@ -28,12 +28,29 @@ export function parseDispatchTime(dispatchTime: string): DispatchTimeParsed {
     return DISPATCH_LABEL_MAP[dispatchTime];
   }
 
-  if (dispatchTime.includes('D')) {
-    return { value: dispatchTime.replace(/D/gi, '').trim(), unit: 'D' };
-  }
-
-  if (/H/i.test(dispatchTime)) {
-    return { value: dispatchTime.replace(/H/gi, '').trim(), unit: 'H' };
+  /*
+   * Match digits followed by the unit suffix, rather than "contains the letter".
+   *
+   * The previous version tested `.includes('D')` — case-SENSITIVE — while the
+   * hour branch used `/H/i` — case-INSENSITIVE. Two consequences, both real:
+   *
+   *   - `"5d"` fell past the day branch, failed the hour test, and parsed as
+   *     empty. A value written in lowercase silently lost its number.
+   *   - Any stored text containing the letter "h" matched the HOUR branch and
+   *     had that letter stripped out. `"Same day dispatch"` became the "number"
+   *     `"Same day dispatc"`, which `formatDispatchDisplay` then rendered as
+   *     **"NaN hours"**.
+   *
+   * Requiring an actual number means anything unrecognised falls through to the
+   * empty result, and callers show the raw stored value instead of arithmetic
+   * on a word.
+   */
+  const match = /^\s*(\d+)\s*([DdHh])\s*$/.exec(dispatchTime);
+  if (match) {
+    return {
+      value: match[1]!,
+      unit: match[2]!.toUpperCase() === 'D' ? 'D' : 'H',
+    };
   }
 
   return { value: '', unit: 'H' };
@@ -53,6 +70,10 @@ export function formatDispatchDisplay(dispatchTime: string): string {
   if (!parsed.value) return dispatchTime;
 
   const n = Number(parsed.value);
+  // Belt and braces: showing "NaN hours" is worse than showing whatever is
+  // actually stored, which at least tells the operator what to correct.
+  if (!Number.isFinite(n)) return dispatchTime;
+
   if (parsed.unit === 'H') {
     return n === 1 ? '1 hour' : `${n} hours`;
   }

@@ -1,0 +1,140 @@
+<!-- @dsCard group="Patterns" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Patterns — a real screen, assembled</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .app { border:1px solid var(--rule); border-radius: var(--radius-lg); overflow:hidden;
+         background: var(--paper); }
+  .app .inner { padding:20px; display:flex; flex-direction:column; gap:18px; }
+  .hd h2 { margin:0; font-size: var(--text-xl); letter-spacing: var(--tracking-tight); }
+  .hd .sub { font-size: var(--text-sm); color: var(--ink-2); margin-top:2px; }
+  .stats { display:grid; grid-template-columns:repeat(4,1fr); gap:1px; background: var(--rule-subtle);
+           border:1px solid var(--rule-subtle); border-radius: var(--radius-lg); overflow:hidden; }
+  .stat { background: var(--sheet); padding:13px 16px; }
+  .stat .v { font-size: var(--text-2xl); font-weight: var(--font-weight-heavy);
+             font-family: var(--font-mono); letter-spacing: var(--tracking-tight); }
+  .tb { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .seg { display:inline-flex; background: var(--sheet-2); border:1px solid var(--rule);
+         border-radius: var(--radius-md); padding:3px; gap:2px; }
+  .seg button { border:none; background:transparent; height:28px; padding:0 11px;
+                border-radius: var(--radius-sm); font-size: var(--text-sm); color: var(--ink-3);
+                font-family: var(--font-sans); font-weight: var(--font-weight-medium); cursor:pointer; }
+  .seg button[aria-checked=true] { background: var(--sheet); color: var(--ink); box-shadow: var(--shadow-raised); }
+  .pg { display:flex; align-items:center; gap:8px; font-size: var(--text-sm); color: var(--ink-3); }
+  .pg button { height:28px; padding:0 11px; border-radius: var(--radius-sm); font-size: var(--text-sm);
+               border:1px solid var(--rule-strong); background: var(--sheet); color: var(--ink);
+               font-family: var(--font-sans); cursor:pointer; }
+  .pg button[disabled] { opacity: var(--opacity-disabled); }
+  .wrap { border:1px solid var(--rule); border-radius: var(--radius-lg); overflow:hidden; background: var(--sheet); }
+  table { border-collapse:collapse; width:100%; font-size: var(--text-base); }
+  th { text-align:left; font-size: var(--text-2xs); text-transform:uppercase;
+       letter-spacing: var(--tracking-caps); color: var(--ink-3);
+       font-weight: var(--font-weight-semibold); padding:8px 14px;
+       background: var(--sheet-2); border-bottom:1px solid var(--rule); }
+  td { padding:9px 14px; border-bottom:1px solid var(--rule-subtle); }
+  tr:last-child td { border-bottom:none; }
+  .num { text-align:right; font-family: var(--font-mono); }
+  .mid { font-family: var(--font-mono); font-size: var(--text-sm); }
+  .badge { display:inline-block; padding:2px 8px; border-radius: var(--radius-full);
+           font-size: var(--text-xs); font-weight: var(--font-weight-medium); border:1px solid; }
+  .b-ok{background:var(--ok-wash);color:var(--ok);border-color:var(--ok-border)}
+  .b-warn{background:var(--warn-wash);color:var(--warn);border-color:var(--warn-border)}
+  .b-bad{background:var(--bad-wash);color:var(--bad);border-color:var(--bad-border)}
+  .b-note{background:var(--note-wash);color:var(--note);border-color:var(--note-border)}
+  .b-ind{background:var(--brass-wash);color:var(--brass);border-color:var(--rule-strong)}
+</style>
+</head>
+<body>
+
+<h1>Patterns</h1>
+<p class="lede">
+  The list screen, built end to end from the kit and nothing else. This is the test the kit
+  had to pass: a real screen against a real API, where anything the parts could not express
+  became a gap to close rather than a <span class="mono">div</span> to add.
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="hd">
+      <h2>Orders</h2>
+      <div class="sub">Every order placed across the platform, newest first.</div>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><div class="label">Total orders</div><div class="v">87</div></div>
+      <div class="stat"><div class="label">Pending</div><div class="v">12</div></div>
+      <div class="stat"><div class="label">Delivered</div><div class="v">54</div></div>
+      <div class="stat"><div class="label">Revenue</div><div class="v">৳4,10,93,650</div></div>
+    </div>
+
+    <div class="tb">
+      <div class="seg" role="radiogroup" aria-label="Filter by status">
+        <button role="radio" aria-checked="true">All</button>
+        <button role="radio" aria-checked="false">Pending</button>
+        <button role="radio" aria-checked="false">Confirmed</button>
+        <button role="radio" aria-checked="false">Processing</button>
+        <button role="radio" aria-checked="false">Shipped</button>
+        <button role="radio" aria-checked="false">Delivered</button>
+        <button role="radio" aria-checked="false">Cancelled</button>
+      </div>
+      <div class="pg"><span>Page 1 of 5</span><button disabled>Previous</button><button>Next</button></div>
+    </div>
+
+    <div class="wrap">
+      <table>
+        <thead><tr><th>Order</th><th>Placed</th><th>Retailer</th><th class="num">Items</th><th class="num">Total</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td class="mid">ord_9f2a1c…</td><td>Jul 1, 2026</td><td class="mid">ret_karim_t…</td><td class="num">4</td><td class="num">৳4,82,150</td><td><span class="badge b-warn">Pending</span></td></tr>
+          <tr><td class="mid">ord_3b8e5a…</td><td>Jul 2, 2026</td><td class="mid">ret_rahman_…</td><td class="num">1</td><td class="num">৳4,74,819</td><td><span class="badge b-note">Confirmed</span></td></tr>
+          <tr><td class="mid">ord_71c04d…</td><td>Jul 3, 2026</td><td class="mid">ret_alam_fa…</td><td class="num">9</td><td class="num">৳4,67,488</td><td><span class="badge b-note">Processing</span></td></tr>
+          <tr><td class="mid">ord_2e9b88…</td><td>Jul 4, 2026</td><td class="mid">ret_karim_t…</td><td class="num">2</td><td class="num">৳4,60,157</td><td><span class="badge b-ind">Shipped</span></td></tr>
+          <tr><td class="mid">ord_c40f12…</td><td>Jul 5, 2026</td><td class="mid">ret_rahman_…</td><td class="num">6</td><td class="num">৳4,52,826</td><td><span class="badge b-ok">Delivered</span></td></tr>
+          <tr><td class="mid">ord_88a7e3…</td><td>Jul 6, 2026</td><td class="mid">ret_alam_fa…</td><td class="num">3</td><td class="num">৳4,45,495</td><td><span class="badge b-bad">Cancelled</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<h2>What the screen does not contain</h2>
+<p class="note">
+  No status branching. Every label, tone, transition and explanation lives in one lookup
+  table, so the screens hold zero <span class="mono">if (status === …)</span>. An
+  unrecognised status from the server renders as itself rather than being coerced to
+  "Pending" — the server is ahead of the console more often than the reverse, and
+  mislabelling an order's actual state is worse than admitting we do not know it.
+  <br><br>
+  No <span class="mono">dialogOpen</span> boolean beside a <span class="mono">chosenStatus</span>
+  string either. The write flow is one nullable value, because that pair admits
+  <span class="mono">open: true, status: null</span> — a confirmation dialog asking the
+  operator to approve nothing.
+  <br><br>
+  Rows are real links, not click handlers on a <span class="mono">tr</span>. Operators
+  working a queue middle-click and open in new tabs; a div with an
+  <span class="mono">onClick</span> silently does nothing and gives no sign that it will.
+</p>
+
+<h2>Three bugs this screen surfaced</h2>
+<p class="note">
+  All three were invisible to a green test suite, because jsdom has no stylesheet, no
+  stacking contexts and no hit testing.
+  <br><br>
+  <strong>Sortable headers rendered in a different case</strong> from plain ones — the UA
+  stylesheet resets <span class="mono">text-transform</span> on form controls and that reset
+  beats inheritance, so the <span class="mono">button</span> inside a
+  <span class="mono">th</span> ignored the uppercase. Only visible on a table that mixes
+  sortable and unsortable columns, which this is the first to do.
+  <br><br>
+  <strong>The sticky header did nothing.</strong> Its scroll container was an unbounded
+  wrapper that never scrolled, so the header rode off the top of the page with the rest of
+  the table.
+  <br><br>
+  <strong>Region-level skeletons announced nothing</strong> while loading, leaving a
+  screen-reader user unable to distinguish a slow table from an empty one.
+</p>
+
+</body>
+</html>

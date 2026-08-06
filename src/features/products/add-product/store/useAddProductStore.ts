@@ -35,7 +35,12 @@ export const emptyVariationMedia = (): VariationMediaState => ({
   video: { ...emptySlot(), thumbnail: '' },
 });
 
-const INITIAL_STATE: WizardState = {
+/**
+ * Exported so tests build fixtures from the real default rather than a
+ * hand-written copy — a hand-written one silently drifts when a field is added,
+ * and a fixture that no longer matches the type is a test that proves nothing.
+ */
+export const INITIAL_STATE: WizardState = {
   name: '',
   brandName: '',
   unitType: '',

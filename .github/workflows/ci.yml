@@ -1,0 +1,81 @@
+name: CI
+
+# The admin app had no CI at all, while the backend has had `ci.yml` for a
+# while. Everything below was already failing locally and nobody was running it:
+# `tsc` reported errors that shipped because the build never invoked it, and
+# eslint reported 37 errors including a render-body component bug that dropped
+# input focus on every keystroke.
+
+on:
+  push:
+    branches: [main, master, nextgen-integration]
+  pull_request:
+
+concurrency:
+  # A new push supersedes an in-flight run on the same ref.
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `nextgen-password` is a file: dependency on a sibling directory, so a
+      # standalone checkout of this repo cannot resolve it. Skip lifecycle
+      # scripts and stub it if it is absent, rather than failing opaquely.
+      - name: Install
+        run: npm ci --ignore-scripts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Guards
+        run: npm run guard
+
+      # Coverage thresholds live in vitest.config.ts and are a ratchet, not a
+      # target: each is set to what the pure-logic layer measures today, so the
+      # build fails if it slips and the numbers get raised as gaps are filled.
+      - name: Test with coverage
+        run: npm run test:coverage
+
+      - name: Report coverage
+        if: always()
+        run: |
+          if [ -f coverage/coverage-summary.json ]; then
+            echo "### Coverage (pure logic layer)" >> "$GITHUB_STEP_SUMMARY"
+            node -e '
+              const t = require("./coverage/coverage-summary.json").total;
+              for (const k of ["statements", "branches", "functions", "lines"]) {
+                console.log(`${k.padEnd(11)} ${String(t[k].pct).padStart(6)}%  (${t[k].covered}/${t[k].total})`);
+              }
+            ' >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Build
+        run: npm run build
+
+      # A bundle that grows silently is how the 368 KB vendor chunk got onto the
+      # login screen in the first place. Print the gzip size of every entry
+      # chunk so a regression is visible in the PR log.
+      - name: Report bundle size
+        if: always()
+        run: |
+          echo "### Bundle (gzip)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          for f in dist/assets/*.js dist/assets/*.css; do
+            [ -f "$f" ] || continue
+            printf '%8s  %s\n' "$(gzip -c "$f" | wc -c | tr -d ' ')" "$(basename "$f")"
+          done | sort -rn | head -12 >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"

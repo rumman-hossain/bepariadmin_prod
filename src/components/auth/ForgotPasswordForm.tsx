@@ -1,39 +1,43 @@
 /**
- * ForgotPasswordForm — Request password reset email.
- *
- * Matches mobile app's ForgotPasswordScreen behavior.
+ * ForgotPasswordForm — request a reset code by email.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
+import { MailCheck } from 'lucide-react';
 import { apiForgotPassword } from '../../api/auth';
 import { validateEmail } from '../../utils/validation';
+import { friendlyError } from '../../utils/errors';
+import { Button, Input } from '@/src/components/controls';
+import { useNavigate } from 'react-router-dom';
+import { Alert } from '@/src/components/feedback';
+import { Form, FormActions } from '@/src/components/forms/Form';
+import { Stack } from '@/src/components/layout/primitives';
 
 export function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
   const [email, setEmail] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const [fieldError, setFieldError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
+  async function handleSubmit() {
+    setFieldError(null);
+    setFormError(null);
 
     const result = validateEmail(email);
     if (!result.valid) {
-      setError(result.message);
+      setFieldError(result.message);
       return;
     }
 
     setIsSubmitting(true);
     try {
       const res = await apiForgotPassword(email.trim().toLowerCase());
-      if (res.ok) {
-        setSent(true);
-      } else {
-        setError('Something went wrong. Please try again.');
-      }
+      if (res.ok) setSent(true);
+      else setFormError(friendlyError(res));
     } catch {
-      setError('Network error. Please try again.');
+      setFormError('Could not reach the server. Check your connection and try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -41,67 +45,96 @@ export function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 
   if (sent) {
     return (
-      <div className="space-y-4 text-center">
-        <div className="text-4xl mb-3">📧</div>
-        <h2 className="text-xl font-bold text-slate-800">Check Your Email</h2>
-        <p className="text-sm text-slate-500">
-          If an account with that email exists, a password reset link has been sent.
-        </p>
-        <button
-          onClick={onBack}
-          className="text-sm text-emerald-600 font-semibold hover:underline"
+      <Stack gap="md" align="center" className="text-center">
+        <MailCheck className="h-8 w-8 text-ok" aria-hidden="true" />
+        <div>
+          <h2 className="text-md font-semibold text-ink">Check your email</h2>
+          {/*
+            Deliberately non-committal about whether the account exists. Saying
+            "no account with that email" turns this form into an account
+            enumeration oracle — anyone can test addresses against it.
+          */}
+          <p className="mt-1 text-sm text-ink-2">
+            If an account exists for {email.trim().toLowerCase()}, a reset code is on its way. It
+            expires shortly, so use it soon.
+          </p>
+        </div>
+        {/*
+          The code has been emailed; this is the only thing that gets the
+          operator to the screen that consumes it. `/reset-password` existed as a
+          route the whole time and nothing linked to it, so the flow dead-ended
+          here — the code arrived and there was nowhere to type it.
+
+          The email is carried in the query string, which ResetPasswordForm
+          already reads and prefills.
+        */}
+        <Button
+          onClick={() =>
+            // Router state, not a query string: the address would otherwise
+            // land in browser history and in the Hosting/Cloudflare access
+            // logs, which record full request URLs.
+            void navigate('/reset-password', { state: { email: email.trim().toLowerCase() } })
+          }
         >
-          ← Back to Login
-        </button>
-      </div>
+          Enter the code
+        </Button>
+        <Button variant="ghost" onClick={onBack}>
+          Back to sign in
+        </Button>
+      </Stack>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="text-center mb-2">
-        <h2 className="text-xl font-bold text-slate-800">Reset Password</h2>
-        <p className="text-sm text-slate-500 mt-1">
-          Enter your email and we'll send you a reset link
+    <Form onSubmit={handleSubmit}>
+      {/*
+        The sent state has always had a heading; this one had none, so the
+        screen opened as a bare email field with a "Send reset code" button and
+        never said what it was for. Found by opening it in a browser — every
+        test passed, because a missing heading is missing markup, not broken
+        markup.
+
+        The copy promises a code is *sent*, not that the account *exists*: the
+        server answers 200 either way on purpose, and wording that implied
+        otherwise here would leak what the endpoint refuses to.
+      */}
+      <div>
+        <h2 className="text-md font-semibold text-ink">Reset your password</h2>
+        <p className="mt-1 text-sm text-ink-2">
+          Enter the email on your staff account and we&rsquo;ll send a code to set a new password.
         </p>
       </div>
 
-      {error && (
-        <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
-          {error}
-        </div>
-      )}
+      {formError && <Alert tone="bad">{formError}</Alert>}
 
-      <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">
-          Email Address
-        </label>
-        <input
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          className="w-full px-4 py-2 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none"
-          placeholder="you@example.com"
-          autoComplete="email"
-          disabled={isSubmitting}
-        />
-      </div>
-
-      <button
-        type="submit"
+      <Input
+        type="email"
+        name="email"
+        label="Email address"
+        placeholder="you@example.com"
+        autoComplete="email"
+        autoFocus
+        value={email}
+        onChange={(e) => {
+          setEmail(e.target.value);
+          if (fieldError) setFieldError(null);
+        }}
+        error={fieldError ?? undefined}
         disabled={isSubmitting}
-        className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl transition-colors disabled:opacity-50"
-      >
-        {isSubmitting ? 'Sending...' : 'Send Reset Link'}
-      </button>
+        required
+      />
 
-      <button
-        type="button"
-        onClick={onBack}
-        className="w-full text-sm text-slate-500 hover:text-slate-700 font-medium"
+      <FormActions
+        aside={
+          <Button variant="ghost" size="sm" onClick={onBack} disabled={isSubmitting}>
+            Back to sign in
+          </Button>
+        }
       >
-        ← Back to Login
-      </button>
-    </form>
+        <Button type="submit" loading={isSubmitting}>
+          Send reset code
+        </Button>
+      </FormActions>
+    </Form>
   );
 }

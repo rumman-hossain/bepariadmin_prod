@@ -1,0 +1,155 @@
+<!-- @dsCard group="Controls" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Controls</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .btn { display:inline-flex; align-items:center; gap:6px; height:36px; padding:0 14px;
+         border-radius: var(--radius-sm); font-size: var(--text-base);
+         font-weight: var(--font-weight-medium); border:1px solid transparent; cursor:pointer;
+         font-family: var(--font-sans); }
+  .primary { background: var(--brass); color: var(--brass-content); }
+  .outline { background: var(--sheet); color: var(--ink); border-color: var(--rule-strong); }
+  .ghost   { background: transparent; color: var(--ink-2); }
+  .danger  { background: var(--bad); color: #fff; }
+  .attn    { background: var(--warn); color: #fff; }
+  .btn.sm { height:30px; padding:0 10px; font-size: var(--text-sm); }
+  .btn.lg { height:42px; padding:0 18px; }
+  .btn[disabled] { opacity: var(--opacity-disabled); cursor: not-allowed; }
+  .field { display:flex; flex-direction:column; gap:5px; max-width:320px; }
+  input, select {
+    height:36px; padding:0 11px; border-radius: var(--radius-sm);
+    border:1px solid var(--rule-input); background: var(--sheet); color: var(--ink);
+    font-family: var(--font-sans); font-size: var(--text-base); width:100%;
+  }
+  input::placeholder { color: var(--ink-4); }
+  input:focus-visible, select:focus-visible { outline:2px solid var(--rule-focus); outline-offset:1px; border-color: var(--rule-focus); }
+  input.err { border-color: var(--bad); }
+  .err-msg { font-size: var(--text-sm); color: var(--bad); }
+  .hint { font-size: var(--text-sm); color: var(--ink-3); }
+  .seg { display:inline-flex; background: var(--sheet-2); border:1px solid var(--rule);
+         border-radius: var(--radius-md); padding:3px; gap:2px; }
+  .seg button { border:none; background:transparent; height:30px; padding:0 12px;
+                border-radius: var(--radius-sm); font-size: var(--text-base); color: var(--ink-3);
+                font-family: var(--font-sans); font-weight: var(--font-weight-medium); cursor:pointer; }
+  .seg button[aria-checked=true] { background: var(--sheet); color: var(--ink); box-shadow: var(--shadow-raised); }
+  .tabs { display:flex; gap:20px; border-bottom:1px solid var(--rule); }
+  .tabs button { border:none; background:none; padding:8px 0; font-size: var(--text-base);
+                 color: var(--ink-3); border-bottom:2px solid transparent; cursor:pointer;
+                 font-family: var(--font-sans); font-weight: var(--font-weight-medium); }
+  .tabs button[aria-selected=true] { color: var(--brass); border-bottom-color: var(--brass); }
+  .drop { border:2px dashed var(--rule-strong); border-radius: var(--radius-xl);
+          padding:26px; text-align:center; color: var(--ink-3); background: var(--sheet-2); max-width:420px; }
+  .steps { display:flex; align-items:center; gap:10px; }
+  .step { display:flex; align-items:center; gap:7px; font-size: var(--text-sm); color: var(--ink-3); }
+  .step .n { width:22px; height:22px; border-radius: var(--radius-full); display:grid; place-items:center;
+             font-size: var(--text-2xs); font-weight: var(--font-weight-semibold);
+             background: var(--mute-wash); color: var(--ink-3); border:1px solid var(--mute-border); }
+  .step.done .n { background: var(--ok); color:#fff; border-color: var(--ok); }
+  .step.now  .n { background: var(--brass); color:#fff; border-color: var(--brass); }
+  .step.now { color: var(--ink); font-weight: var(--font-weight-semibold); }
+  .step .bar { width:34px; height:1px; background: var(--rule); }
+</style>
+</head>
+<body>
+
+<h1>Controls</h1>
+<p class="lede">
+  Nine of these are new. Several exist because their predecessor was unusable rather than
+  merely ugly.
+</p>
+
+<h2>Buttons</h2>
+<div class="row">
+  <button class="btn primary">Save changes</button>
+  <button class="btn outline">Cancel</button>
+  <button class="btn ghost">Skip</button>
+  <button class="btn danger">Suspend supplier</button>
+  <button class="btn attn">Review flagged</button>
+  <button class="btn primary" disabled>Saving…</button>
+</div>
+<div class="row" style="margin-top:10px">
+  <button class="btn primary sm">Small</button>
+  <button class="btn primary">Medium</button>
+  <button class="btn primary lg">Large</button>
+</div>
+<p class="note">
+  Three sizes — 30 / 36 / 42px — against the previous kit's 32 / 40 / 48, which no other
+  control matched. Jute is the attention fill and never carries button text at small sizes;
+  where a warning needs <em>text</em>, it uses <span class="mono">warn</span>.
+</p>
+
+<h2>Fields</h2>
+<div class="row" style="align-items:flex-start; gap:24px">
+  <div class="field">
+    <label class="label" for="a">Company name</label>
+    <input id="a" placeholder="e.g. Elegant Apparel Ltd">
+    <span class="hint">As registered on the trade licence.</span>
+  </div>
+  <div class="field">
+    <label class="label" for="b">Commission rate</label>
+    <input id="b" class="err" value="-2">
+    <span class="err-msg">Rate cannot be negative.</span>
+  </div>
+  <div class="field">
+    <label class="label" for="c">District</label>
+    <select id="c"><option>Dhaka</option><option>Chittagong</option><option>Sylhet</option></select>
+  </div>
+</div>
+<p class="note">
+  Borders are <span class="mono">rule-input</span> at 3.2:1, which clears WCAG 1.4.11 for
+  non-text contrast — the previous input border was 1.4:1 and effectively invisible against
+  the page. Focus is a two-pixel <span class="mono">outline</span> with offset, applied
+  consistently; the old kit mixed <span class="mono">ring</span> and
+  <span class="mono">outline</span> depending on which component you landed on.
+  <br><br>
+  <span class="mono">FormField</span> generates an id when you do not pass one. The first
+  version <em>prohibited</em> <span class="mono">id</span> with
+  <span class="mono">Omit&lt;…, 'id'&gt;</span> — auto-generation should be a default, not a ban.
+</p>
+
+<h2>Choice</h2>
+<div class="row" style="gap:28px">
+  <div class="seg" role="radiogroup" aria-label="Filter by status">
+    <button role="radio" aria-checked="true">All</button>
+    <button role="radio" aria-checked="false">Pending</button>
+    <button role="radio" aria-checked="false">Shipped</button>
+    <button role="radio" aria-checked="false">Delivered</button>
+  </div>
+</div>
+<div class="tabs" style="margin-top:20px; max-width:420px">
+  <button aria-selected="true">Overview</button>
+  <button aria-selected="false">Products</button>
+  <button aria-selected="false">Activity</button>
+</div>
+<p class="note">
+  <span class="mono">Radio</span> had zero call sites in the old kit for a simple reason:
+  there was no <span class="mono">RadioGroup</span>, so it was unusable. <span class="mono">Tabs</span>
+  generated its own <span class="mono">baseId</span> with <span class="mono">useId()</span>
+  but <em>required</em> the same id as a prop on <span class="mono">TabPanel</span> — an
+  ARIA contract that could not be satisfied from outside the component.
+</p>
+
+<h2>Upload and progress</h2>
+<div class="row" style="align-items:flex-start; gap:24px">
+  <div class="drop">
+    <div style="font-weight:var(--font-weight-semibold); color:var(--ink-2)">Drop the trade licence here</div>
+    <div class="hint" style="margin-top:4px">PDF, PNG or JPG · up to 5 MB</div>
+  </div>
+  <div class="steps">
+    <div class="step done"><span class="n">✓</span>Details</div><span class="bar"></span>
+    <div class="step now"><span class="n">2</span>Documents</div><span class="bar"></span>
+    <div class="step"><span class="n">3</span>Review</div>
+  </div>
+</div>
+<p class="note">
+  <span class="mono">Stepper</span> takes an explicit <span class="mono">furthest</span>
+  prop. Its first version computed the first incomplete step and used that as the boundary,
+  which meant a wizard with nothing filled in had <em>every</em> step navigable — the exact
+  opposite of what its own docstring claimed.
+</p>
+
+</body>
+</html>

@@ -1,256 +1,56 @@
 /**
- * Product list state management — Zustand store.
- * Centralized state for product list, fetch, pagination, and actions.
- * Follows the same pattern as dashboard store.
- * No mock data — starts empty, populated only from API.
+ * CLIENT state for the product list.
+ *
+ * This file used to be 255 lines and held the product list, the selected
+ * product, a category-name lookup, two loading booleans and an error string —
+ * a hand-rolled server cache whose defects were:
+ *
+ *   - no staleness guard at all on `fetchProducts`, so with an undebounced
+ *     search box a slow response for "shi" could overwrite the results for
+ *     "shirt" (I added a generation counter as a stop-gap; the query key makes
+ *     it unnecessary — two searches are two cache entries);
+ *   - `setCategoryNameMap` triggered a SECOND full product fetch as a side
+ *     effect, so every mount of the list issued two identical requests;
+ *   - `removeProduct` spliced the row out locally and then refetched the whole
+ *     page anyway, so the optimism bought nothing and briefly disagreed with
+ *     the server about `total`.
+ *
+ * All of that now lives in `queries.ts`. What remains is what was always
+ * genuinely client state: the operator's filter selections and current page.
  */
 import { create } from 'zustand';
-import {
-  getProducts,
-  getProductById,
-  updateProductStatus,
-  deleteProduct,
-} from '@/src/api/products';
-import { productListResponseSchema, productResponseSchema } from './schemas/productSchema';
 import { INITIAL_FILTERS, INITIAL_PAGINATION } from './types';
-import type { Product, ProductFilters, ProductPagination, ProductStatus } from './types';
+import type { ProductFilters, ProductPagination } from './types';
 
-interface ProductStore {
-  /** Product list — empty array by default (no mock data) */
-  products: Product[];
-  /** Currently selected product detail */
-  selectedProduct: Product | null;
-  /** Selected product ID */
-  selectedId: string | null;
-
-  /** Filters applied to list */
+interface ProductUiStore {
   filters: ProductFilters;
-  /** Pagination state */
-  pagination: ProductPagination;
+  pagination: Pick<ProductPagination, 'page' | 'limit'>;
 
-  /** Category id → name map for list normalization */
-  categoryNameMap: Record<string, string>;
-
-  /** Loading / error states */
-  isLoading: boolean;
-  isDetailLoading: boolean;
-  error: string | null;
-
-  // ── Actions — Data Fetching ─────────────────────────────────
-
-  /** Fetch product list from API with current filters + page */
-  fetchProducts: () => Promise<void>;
-  /** Fetch single product detail by ID */
-  fetchProductDetail: (id: string) => Promise<void>;
-
-  // ── Actions — Mutations ─────────────────────────────────────
-
-  /** Update product status (approve/reject/archive etc.) */
-  setProductStatus: (id: string, status: ProductStatus, reason?: string) => Promise<void>;
-  /** Delete product by ID */
-  removeProduct: (id: string) => Promise<void>;
-
-  // ── Actions — Local State ───────────────────────────────────
-
-  /** Set a single filter value */
   setFilter: (key: keyof ProductFilters, value: string | boolean) => void;
-  /** Reset all filters to defaults */
   clearFilters: () => void;
-  /** Go to a specific page */
   setPage: (page: number) => void;
-  /** Change page size */
   setLimit: (limit: number) => void;
-  /** Set category id → name lookup for API normalization */
-  setCategoryNameMap: (map: Record<string, string>) => void;
-  /** Select a product by ID */
-  selectProduct: (id: string) => void;
-  /** Clear selected product */
-  clearSelection: () => void;
-  /** Clear error state */
-  clearError: () => void;
 }
 
-export const useProductStore = create<ProductStore>((set, get) => ({
-  products: [],
-  selectedProduct: null,
-  selectedId: null,
-
+export const useProductStore = create<ProductUiStore>((set) => ({
   filters: { ...INITIAL_FILTERS },
-  pagination: { ...INITIAL_PAGINATION },
-  categoryNameMap: {},
+  pagination: { page: INITIAL_PAGINATION.page, limit: INITIAL_PAGINATION.limit },
 
-  isLoading: true,
-  isDetailLoading: false,
-  error: null,
-
-  // ── Fetch List ─────────────────────────────────────────────────
-
-  fetchProducts: async () => {
-    const { filters, pagination, categoryNameMap } = get();
-
-    set({ isLoading: true, error: null });
-
-    try {
-      const res = await getProducts(
-        {
-          page: pagination.page,
-          limit: pagination.limit,
-          search: filters.search || undefined,
-          category: filters.category !== 'All' ? filters.category : undefined,
-          status: filters.status !== 'All' ? filters.status : undefined,
-          visibility: filters.visibility !== 'All' ? filters.visibility : undefined,
-        },
-        { categoryNames: categoryNameMap },
-      );
-
-      if (!res.ok) {
-        set({ isLoading: false, error: `Failed to load products (${res.status}) — check that the backend is running and the dev proxy is configured` });
-        return;
-      }
-
-      const parsed = productListResponseSchema.safeParse(res.data);
-
-      if (!parsed.success) {
-        console.error('[Products] Schema validation failed:', parsed.error.flatten());
-        set({ isLoading: false, error: 'Invalid product data received from server' });
-        return;
-      }
-
-      set({
-        products: parsed.data.products,
-        pagination: {
-          page: parsed.data.page,
-          limit: parsed.data.limit,
-          total: parsed.data.total,
-        },
-        isLoading: false,
-        error: null,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Network error';
-      set({ isLoading: false, error: message });
-    }
-  },
-
-  // ── Fetch Detail ──────────────────────────────────────────────
-
-  fetchProductDetail: async (id) => {
-    set({ isDetailLoading: true });
-
-    try {
-      const { categoryNameMap } = get();
-      const res = await getProductById(id, { categoryNames: categoryNameMap, resolveCatalog: true });
-
-      if (!res.ok || !res.data?.data) {
-        set({ isDetailLoading: false, error: `Failed to load product (${res.status})` });
-        return;
-      }
-
-      const product = res.data.data;
-      const parsed = productResponseSchema.safeParse(product);
-
-      if (!parsed.success) {
-        console.error('[Products] Detail schema validation failed:', parsed.error.flatten());
-        set({ isDetailLoading: false, error: 'Invalid product detail received from server' });
-        return;
-      }
-
-      set({
-        selectedProduct: parsed.data,
-        selectedId: parsed.data.id,
-        isDetailLoading: false,
-        error: null,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Network error';
-      set({ isDetailLoading: false, error: message });
-    }
-  },
-
-  // ── Mutations ─────────────────────────────────────────────────
-
-  setProductStatus: async (id, status, reason) => {
-    try {
-      const res = await updateProductStatus(id, status, reason);
-
-      if (!res.ok) {
-        set({ error: `Failed to update status (${res.status})` });
-        return;
-      }
-
-      const parsed = productResponseSchema.safeParse(res.data);
-      if (!parsed.success) return;
-
-      const updated = parsed.data;
-
-      set((state) => ({
-        products: state.products.map((p) => (p.id === updated.id ? updated : p)),
-        selectedProduct: state.selectedProduct?.id === updated.id ? updated : state.selectedProduct,
-        error: null,
-      }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Network error';
-      set({ error: message });
-    }
-  },
-
-  removeProduct: async (id) => {
-    try {
-      const res = await deleteProduct(id);
-
-      if (!res.ok) {
-        set({ error: `Failed to delete product (${res.status})` });
-        return;
-      }
-
-      set((state) => ({
-        products: state.products.filter((p) => p.id !== id),
-        pagination: { ...state.pagination, total: state.pagination.total - 1 },
-        selectedId: state.selectedId === id ? null : state.selectedId,
-        selectedProduct: state.selectedId === id ? null : state.selectedProduct,
-        error: null,
-      }));
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Network error';
-      set({ error: message });
-    }
-  },
-
-  // ── Local State ──────────────────────────────────────────────
-
-  setFilter: (key, value) => {
+  setFilter: (key, value) =>
     set((state) => ({
       filters: { ...state.filters, [key]: value },
+      // Changing a filter must reset to page 1 — otherwise a narrower result
+      // set leaves you on a page that no longer exists, showing an empty table.
       pagination: { ...state.pagination, page: 1 },
-    }));
-  },
+    })),
 
   clearFilters: () =>
-    set({
+    set((state) => ({
       filters: { ...INITIAL_FILTERS },
-      pagination: { ...INITIAL_PAGINATION },
-    }),
-
-  setPage: (page) =>
-    set((state) => ({
-      pagination: { ...state.pagination, page },
+      pagination: { ...state.pagination, page: 1 },
     })),
 
-  setLimit: (limit) =>
-    set((state) => ({
-      pagination: { ...state.pagination, limit, page: 1 },
-    })),
+  setPage: (page) => set((state) => ({ pagination: { ...state.pagination, page } })),
 
-  setCategoryNameMap: (map) => {
-    set({ categoryNameMap: map });
-    if (Object.keys(map).length > 0) {
-      void get().fetchProducts();
-    }
-  },
-
-  selectProduct: (id) => set({ selectedId: id }),
-
-  clearSelection: () => set({ selectedId: null, selectedProduct: null }),
-
-  clearError: () => set({ error: null }),
+  setLimit: (limit) => set(() => ({ pagination: { page: 1, limit } })),
 }));

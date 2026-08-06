@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { cn } from '@/src/design-system/utils/cn';
 import { useAddProductStore } from '../store/useAddProductStore';
+import { Text } from '@/src/components/data';
 
 interface CatalogDetail {
   id: string;
@@ -13,7 +14,15 @@ export function ClassificationTemplates() {
   const productDetailId = useAddProductStore((s) => s.productDetailId);
   const setField = useAddProductStore((s) => s.setField);
 
-  const details = (classificationDetails as CatalogDetail[]) ?? [];
+  /*
+   * `?? []` produces a NEW array every render, so the effect below re-ran on
+   * every render and re-checked (and could re-write) the store each time.
+   * Memoised on the store value, the identity is stable until the data changes.
+   */
+  const details = useMemo(
+    () => (classificationDetails as CatalogDetail[]) ?? [],
+    [classificationDetails],
+  );
 
   useEffect(() => {
     if (details.length > 0 && !productDetailId) {
@@ -28,8 +37,8 @@ export function ClassificationTemplates() {
   return (
     <div className="sm:col-span-2 space-y-3">
       <div>
-        <p className="text-sm font-semibold text-text-primary">Classification Templates</p>
-        <p className="text-xs text-text-tertiary mt-0.5">Pick the one that best describes your product</p>
+        <Text as="p" variant="strong">Classification Templates</Text>
+        <Text as="p" variant="caption" className="mt-0.5">Pick the one that best describes your product</Text>
       </div>
       <div className="space-y-2">
         {details.map((detail) => {
@@ -45,18 +54,18 @@ export function ClassificationTemplates() {
               className={cn(
                 'w-full text-left p-3 rounded-xl border transition-colors',
                 isSelected
-                  ? 'border-accent-primary bg-accent-primary-light/40'
-                  : 'border-border-default hover:bg-surface-muted',
+                  ? 'border-brass bg-brass-wash/40'
+                  : 'border-rule hover:bg-sheet-2',
               )}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-text-primary">{detail.name}</span>
+                <Text variant="strong">{detail.name}</Text>
                 {isSelected && (
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-accent-primary">Selected</span>
+                  <span className="text-2xs font-bold uppercase tracking-wide text-brass">Selected</span>
                 )}
               </div>
               {detail.details && (
-                <p className="text-xs text-text-secondary mt-1.5 line-clamp-3">{detail.details}</p>
+                <p className="text-xs text-ink-2 mt-1.5 line-clamp-3">{detail.details}</p>
               )}
             </button>
           );

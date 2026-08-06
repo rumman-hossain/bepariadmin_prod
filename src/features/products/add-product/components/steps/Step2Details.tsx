@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Input } from '@/src/components/ui/Input';
+import { useMemo } from 'react';
+import { Input } from '@/src/components/controls';
 import { useAddProductStore } from '../../store/useAddProductStore';
 import { DispatchTimeField } from '../DispatchTimeField';
 import { ClassificationTemplates } from '../ClassificationTemplates';
@@ -57,7 +57,7 @@ export function Step2Details({ sizeConfig, errors = {} }: Props) {
 
       {isFootwear && sizeConfig?.scales && sizeConfig.scales.length > 0 && (
         <div className="sm:col-span-2 space-y-2">
-          <p className="text-sm font-medium text-text-primary">Size Scale</p>
+          <p className="text-sm font-medium text-ink">Size Scale</p>
           <ToggleBar
             options={sizeConfig.scales as FootwearScale[]}
             selected={fwScale as FootwearScale}
@@ -71,7 +71,7 @@ export function Step2Details({ sizeConfig, errors = {} }: Props) {
 
       {!isFootwear && (
         <div className="sm:col-span-2 space-y-2">
-          <p className="text-sm font-medium text-text-primary">Size Type</p>
+          <p className="text-sm font-medium text-ink">Size Type</p>
           <ToggleBar
             options={['AUTO', 'LETTER', 'NUMBER', 'UNIQUE'] as SizeMode[]}
             selected={sizeMode as SizeMode}

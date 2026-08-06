@@ -1,6 +1,22 @@
 # BepariBDAdmin-prod Memory Bank
 # Last updated: 2026-05-21
 # Purpose: Persistent knowledge base for AI-assisted development
+#
+# ⚠️ LARGELY OUT OF DATE. Read this for background, not for instructions.
+#
+# What it describes that no longer exists:
+#   - `src/design-system/tokens/tokens.ts` — deleted. Tokens are Tailwind v4
+#     `@theme` custom properties now; see `src/design-system/index.ts` for why.
+#   - `src/components/ui/` and everything in it (Button, Input, Select,
+#     Textarea, DatePicker, Modal, Card, StatusBadge, Toast…) — that folder is
+#     gone. The kit lives in `components/{controls,data,feedback,layout}`.
+#   - The `@/src/components/ui` barrel import in every example below.
+#
+# What is actually authoritative:
+#   - `src/design-system/DESIGN_SYSTEM.md` — the current kit and its rules.
+#   - `scripts/guard.sh` — the rules that are mechanically enforced. If a
+#     convention matters, it is in there, and it fails the build when broken.
+#     That file is the one to trust, because it cannot go stale silently.
 
 ## Quick Reference Paths
 

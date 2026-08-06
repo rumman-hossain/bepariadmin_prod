@@ -10,40 +10,17 @@ export type {
   DashboardStatsRaw,
 } from '../schemas/dashboardSchema';
 
-/** Processed dashboard stats ready for UI consumption */
-export interface DashboardStats {
-  /** KPI metrics cards */
-  kpis: Array<{
-    label: string;
-    value: string;
-    trend: number;
-    isCurrency?: boolean;
-  }>;
-  /** Sales trend over time */
-  salesChart: Array<{
-    name: string;
-    value: number;
-  }>;
-  /** Order distribution by status */
-  statusChart: Array<{
-    name: string;
-    value: number;
-  }>;
-  /** Security / risk alerts */
-  alerts: Array<{
-    id: string;
-    type: 'info' | 'warning' | 'error' | 'success';
-    title: string;
-    message: string;
-    createdAt?: string;
-  }>;
-  /** Latest 5 orders */
-  recentOrders: Array<{
-    id: string;
-    orderNo?: string;
-    customerName?: string;
-    amount: number;
-    status: string;
-    date: string;
-  }>;
-}
+/**
+ * Dashboard stats as the screen consumes them.
+ *
+ * An alias, deliberately — this was a hand-written interface restating every
+ * field of `dashboardStatsSchema`, which is one contract maintained in two
+ * places. It had already drifted: it declared `trend` as a required number
+ * while the API omits it when there is no prior period, and it knew nothing of
+ * `key`. Typecheck passed throughout, because the duplicate agreed with itself.
+ *
+ * The schema is what the payload is actually validated against, so the schema
+ * is the definition and this name is kept only because it reads better at call
+ * sites than `DashboardStatsRaw`.
+ */
+export type { DashboardStatsRaw as DashboardStats } from '../schemas/dashboardSchema';

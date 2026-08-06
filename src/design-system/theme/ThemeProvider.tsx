@@ -1,15 +1,5 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
-
-type Theme = 'light' | 'dark';
-
-interface ThemeContextValue {
-  theme: Theme;
-  toggleTheme: () => void;
-  setTheme: (theme: Theme) => void;
-  isDark: boolean;
-}
-
-const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
+import React, { useEffect, useState, useCallback } from 'react';
+import { ThemeContext, type Theme } from './useTheme';
 
 const STORAGE_KEY = 'beparibd-theme';
 
@@ -80,12 +70,4 @@ export function ThemeProvider({ children }: ThemeProviderProps) {
       {children}
     </ThemeContext.Provider>
   );
-}
-
-export function useTheme(): ThemeContextValue {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useTheme must be used within a <ThemeProvider>');
-  }
-  return context;
 }

@@ -7,192 +7,19 @@
  * - Uses DataTable, SearchFilterBar, StatusBadge UI components
  * - Handles: loading, empty, error, success states
  */
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Pencil, Trash2, RefreshCw, AlertTriangle, ChevronLeft, ChevronRight, Info } from 'lucide-react';
-import { Button } from '@/src/components/ui/Button';
-import { DataTable } from '@/src/components/ui/DataTable';
-import { SearchFilterBar } from '@/src/components/ui/SearchFilterBar';
-import { StatusBadge } from '@/src/components/ui/StatusBadge';
-import { Card } from '@/src/components/ui/Card';
-import { Modal } from '@/src/components/ui/Modal';
+import { Plus, RefreshCw, AlertTriangle, Info } from 'lucide-react';
+import { Button } from '@/src/components/controls';
+import { DataTable, Text } from '@/src/components/data';
+import { Pagination } from '@/src/components/data/Pagination';
+import { SearchFilterBar } from '@/src/components/data/SearchFilterBar';
+import { EmptyState, SkeletonPage, ErrorState } from '@/src/components/feedback';
+import { Dialog } from '@/src/components/feedback';
 import { useProductList } from '../hooks/useProductList';
 import { PRODUCT_ROUTES } from '../routes';
 import { PRODUCT_STATUSES } from '../constants';
-import type { Product } from '../types';
-
-// ─── Table columns ─────────────────────────────────────────────
-
-type ProductRow = Record<string, unknown> & {
-  id: string;
-  name: string;
-  sku: string;
-  category: string;
-  basePrice: number;
-  sellingPrice: number | undefined;
-  stock: number;
-  status: string;
-  visibility: string;
-  product: Product;
-};
-
-function buildColumns(
-  onEdit: (id: string) => void,
-  onDelete: (id: string) => void,
-) {
-  return [
-    {
-      key: 'name',
-      header: 'Name',
-      className: '',
-      render: (row: ProductRow) => (
-        <div className="min-w-0">
-          <p className="font-medium text-text-primary truncate" title={row.name}>
-            {row.name}
-          </p>
-          <p className="text-xs text-text-tertiary">{row.sku}</p>
-        </div>
-      ),
-    },
-    {
-      key: 'category',
-      header: 'Category',
-      className: '',
-      render: (row: ProductRow) => (
-        <span className="text-sm text-text-secondary">{row.category}</span>
-      ),
-    },
-    {
-      key: 'basePrice',
-      header: 'Base Price',
-      className: 'text-right',
-      render: (row: ProductRow) => (
-        <span className="tabular-nums text-sm font-medium text-text-primary">
-          ৳{row.basePrice.toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      key: 'sellingPrice',
-      header: 'Selling',
-      className: 'text-right',
-      render: (row: ProductRow) => (
-        <span className="tabular-nums text-sm text-text-secondary">
-          ৳{(row.sellingPrice ?? 0).toLocaleString()}
-        </span>
-      ),
-    },
-    {
-      key: 'stock',
-      header: 'Stock',
-      className: 'text-center',
-      render: (row: ProductRow) => {
-        const available = row.stock;
-        return (
-          <span
-            className={`text-sm font-medium tabular-nums ${
-              available <= 5
-                ? 'text-semantic-danger'
-                : available <= 20
-                  ? 'text-semantic-warning'
-                  : 'text-text-primary'
-            }`}
-          >
-            {available}
-          </span>
-        );
-      },
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      className: 'text-center',
-      render: (row: ProductRow) => <StatusBadge status={row.status} />,
-    },
-    {
-      key: 'visibility',
-      header: 'Visibility',
-      className: 'text-center',
-      render: (row: ProductRow) => (
-        <span
-          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            row.visibility === 'Public'
-              ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400'
-              : 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'
-          }`}
-        >
-          {row.visibility}
-        </span>
-      ),
-    },
-    {
-      key: 'actions',
-      header: '',
-      className: 'text-center w-[80px]',
-      render: (row: ProductRow) => (
-        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="sm"
-            iconLeft={Pencil}
-            aria-label="Edit product"
-            onClick={() => onEdit(row.id)}
-          >
-            {''}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            iconLeft={Trash2}
-            aria-label="Delete product"
-            className="text-semantic-danger hover:bg-semantic-danger-light"
-            onClick={() => onDelete(row.id)}
-          >
-            {''}
-          </Button>
-        </div>
-      ),
-    },
-  ];
-}
-
-function ListSkeleton() {
-  return (
-    <div className="space-y-4 animate-fade-in" aria-busy="true" aria-label="Loading products">
-      <div className="h-10 w-72 bg-surface-muted rounded-lg animate-pulse" />
-      <div className="grid grid-cols-1 gap-3">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Card key={i} className="p-4">
-            <div className="flex items-center gap-4 animate-pulse">
-              <div className="h-10 w-10 bg-surface-muted rounded-lg" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 w-48 bg-surface-muted rounded" />
-                <div className="h-3 w-24 bg-surface-muted rounded" />
-              </div>
-              <div className="h-4 w-16 bg-surface-muted rounded" />
-              <div className="h-6 w-20 bg-surface-muted rounded-full" />
-            </div>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ListError({ message, onRetry }: { message: string; onRetry: () => void }) {
-  return (
-    <div className="flex flex-col items-center justify-center min-h-[40vh] gap-4 text-center">
-      <AlertTriangle className="w-12 h-12 text-semantic-danger" aria-hidden="true" />
-      <div className="space-y-1">
-        <h2 className="text-lg font-semibold text-text-primary">Failed to load products</h2>
-        <p className="text-sm text-text-secondary max-w-md">{message}</p>
-      </div>
-      <Button variant="outline" size="md" iconLeft={RefreshCw} onClick={onRetry}>
-        Retry
-      </Button>
-    </div>
-  );
-}
+import { buildColumns, type ProductRow } from './productColumns';
 
 export function ProductListPage() {
   const navigate = useNavigate();
@@ -205,6 +32,7 @@ export function ProductListPage() {
     filters,
     pagination,
     categoryOptions,
+    categoryNames,
     wholesalerOptions,
     isLoading,
     error,
@@ -233,7 +61,6 @@ export function ProductListPage() {
     [],
   );
 
-  const totalPages = Math.max(1, Math.ceil(pagination.total / pagination.limit));
 
   const rows = useMemo<ProductRow[]>(
     () =>
@@ -241,7 +68,14 @@ export function ProductListPage() {
         id: p.id,
         name: p.name,
         sku: p.sku,
-        category: p.category,
+        /*
+         * Resolved HERE, from the live map — not from `p.category`, which
+         * `mapProduct` baked in when the row was fetched. Products and
+         * categories are two independent requests, and products almost always
+         * win, so the baked label was the empty-map fallback (`2a7be0ef…`) and
+         * nothing ever re-mapped it.
+         */
+        category: (p.categoryId ? categoryNames[p.categoryId] : '') || p.category,
         basePrice: p.basePrice,
         sellingPrice: p.sellingPrice,
         stock: p.availableStock ?? p.stock,
@@ -249,7 +83,7 @@ export function ProductListPage() {
         visibility: p.visibility,
         product: p,
       })),
-    [filteredProducts],
+    [filteredProducts, categoryNames],
   );
 
   const handleEdit = useCallback(
@@ -289,34 +123,29 @@ export function ProductListPage() {
   }, [navigate]);
 
   if (isLoading && products.length === 0) {
-    return <ListSkeleton />;
+    return <SkeletonPage shape="list" />;
   }
 
   if (error && products.length === 0) {
-    return <ListError message={error} onRetry={refetch} />;
+    return <ErrorState title="Products could not be loaded" message={error} onRetry={refetch} />;
   }
 
-  const isEmpty = products.length === 0;
-  const emptyMessage =
-    isEmpty && !filters.search && filters.category === 'All' && filters.status === 'All'
-      ? 'No products yet. Use Add Product to create one, or adjust filters to see pending items.'
-      : 'No products match your filters';
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-text-primary tracking-tight">Products</h1>
-          <p className="text-sm text-text-secondary mt-1">
+          <h1 className="text-2xl font-bold text-ink tracking-tight">Products</h1>
+          <Text as="p" variant="secondary" className="mt-1">
             {filteredProducts.length} shown · {pagination.total} total
-          </p>
+          </Text>
         </div>
         <div className="flex items-center gap-2">
           <Button
             variant="secondary"
             size="sm"
             iconLeft={RefreshCw}
-            onClick={refetch}
+            onClick={() => void refetch()}
             aria-label="Refresh products"
           >
             Refresh
@@ -330,7 +159,7 @@ export function ProductListPage() {
       {showsApiDefaultFilters && (
         <div
           role="status"
-          className="flex items-start gap-2 p-3 rounded-lg bg-surface-muted text-sm text-text-secondary"
+          className="flex items-start gap-2 p-3 rounded-lg bg-sheet-2 text-sm text-ink-2"
         >
           <Info className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
           <span>
@@ -344,12 +173,12 @@ export function ProductListPage() {
       {error && (
         <div
           role="alert"
-          className="flex items-center gap-2 p-3 rounded-lg bg-semantic-danger-light text-sm text-semantic-danger"
+          className="flex items-center gap-2 p-3 rounded-lg bg-bad-wash text-sm text-bad"
         >
           <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
           <span>{error}</span>
           <button
-            onClick={refetch}
+            onClick={() => void refetch()}
             className="ml-auto text-xs font-medium underline hover:no-underline"
           >
             Retry
@@ -378,7 +207,7 @@ export function ProductListPage() {
           },
           {
             key: 'wholesalerId',
-            label: 'Wholesaler',
+            label: 'Supplier',
             value: filters.wholesalerId,
             options: wholesalerOptions,
             onChange: (value) => setFilter('wholesalerId', value),
@@ -394,55 +223,45 @@ export function ProductListPage() {
         onClearAll={clearFilters}
       />
 
+      {/* The casts these props used to need are gone: DataTable is generic over
+          T now, instead of forcing every caller through Record<string, unknown>. */}
       <DataTable
-        columns={
-          columns as Array<{
-            key: string;
-            header: string;
-            className?: string;
-            render: (row: Record<string, unknown>) => React.ReactNode;
-          }>
+        columns={columns}
+        data={rows}
+        rowKey={(row) => row.id}
+        onRowClick={handleRowClick}
+        empty={
+          products.length === 0 ? (
+            <EmptyState
+              title="No products yet"
+              message="Products appear here once a supplier lists one."
+            />
+          ) : (
+            <EmptyState
+              title="No matches"
+              message="No product matches these filters. Try clearing them."
+            />
+          )
         }
-        data={rows as Record<string, unknown>[]}
-        keyField="id"
-        onRowClick={handleRowClick as (row: Record<string, unknown>) => void}
-        emptyMessage={emptyMessage}
+        caption="Products"
       />
 
       {pagination.total > pagination.limit && (
-        <div className="flex items-center justify-between gap-4 pt-2">
-          <p className="text-sm text-text-secondary">
-            Page {pagination.page} of {totalPages}
-          </p>
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              iconLeft={ChevronLeft}
-              disabled={pagination.page <= 1 || isLoading}
-              onClick={() => setPage(pagination.page - 1)}
-            >
-              Previous
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              iconRight={ChevronRight}
-              disabled={pagination.page >= totalPages || isLoading}
-              onClick={() => setPage(pagination.page + 1)}
-            >
-              Next
-            </Button>
-          </div>
-        </div>
+        <Pagination
+          page={pagination.page}
+          pageSize={pagination.limit}
+          total={pagination.total}
+          disabled={isLoading}
+          onPageChange={setPage}
+        />
       )}
 
-      <Modal open={deleteTargetId != null} onClose={() => setDeleteTargetId(null)} size="sm">
+      <Dialog open={deleteTargetId != null} onClose={() => setDeleteTargetId(null)} size="sm">
         <div className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-text-primary">Delete product?</h3>
-          <p className="text-sm text-text-secondary">
+          <h3 className="text-lg font-semibold text-ink">Delete product?</h3>
+          <Text as="p" variant="secondary">
             This action cannot be undone. The product will be removed permanently.
-          </p>
+          </Text>
           <div className="flex gap-3">
             <Button variant="danger" loading={isDeleting} onClick={() => void handleConfirmDelete()}>
               Delete
@@ -452,7 +271,7 @@ export function ProductListPage() {
             </Button>
           </div>
         </div>
-      </Modal>
+      </Dialog>
     </div>
   );
 }

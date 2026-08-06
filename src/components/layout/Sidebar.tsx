@@ -1,72 +1,88 @@
 /**
- * Sidebar — navigation rail/panel.
- * Uses react-router for navigation (URL is the single source of truth).
- * Parent controls visibility via isOpen/onToggle.
+ * Sidebar — primary navigation.
+ *
+ * The URL is the single source of truth for what is active; the parent owns
+ * open/closed. Rewritten for the Ledger direction: a dense, quiet rail where
+ * the only saturated colour on screen is the active row's accent bar.
  */
 import React, { useCallback, useEffect, useRef } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 import { cn } from '@/src/design-system/utils/cn';
-import { ROUTES } from '@/src/app/routes';
-import { ChevronLeft } from 'lucide-react';
-
-// ─── Types ───────────────────────────────────────────────
+import { ROUTE_GROUPS, type Route } from '@/src/app/routes';
+import { useAuth } from '@/src/hooks/useAuth';
+import { hasRole } from '@/src/auth/roles';
+import { PanelLeftClose } from 'lucide-react';
+import { Text } from '@/src/components/data';
 
 export interface SidebarProps {
-  /** Whether sidebar is expanded */
   isOpen: boolean;
-  /** Called when user toggles sidebar (collapse button or mobile backdrop) */
   onToggle: () => void;
-  /** Optional class override */
   className?: string;
 }
 
-// ─── Token-derived constants ──────────────────────────────
+const HAIRLINE = 'border-rule-subtle';
 
-const NAV_ITEM_CLASS =
-  'w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[#007AFF]/50 dark:focus-visible:ring-[#0A84FF]/50 focus-visible:ring-offset-0 min-h-[44px]';
+/**
+ * A route that exists in name only.
+ *
+ * Shown as a dot rather than a word so the rail stays scannable, with the
+ * reason in the tooltip. Amber for `inert` because a screen that would silently
+ * report zeroes is worse than one that plainly is not there.
+ */
+function StatusDot({ status }: { status: Route['status'] }) {
+  if (status === 'live') return null;
 
-const NAV_ITEM_ACTIVE_CLASS = cn(
-  'bg-[#F2F2F7] dark:bg-[#2C2C2E]',
-  'text-[#1C1C1E] dark:text-[#FFFFFF]',
-  'font-medium',
-);
+  const isInert = status === 'inert';
+  return (
+    <span
+      className={cn(
+        'ml-auto h-1.5 w-1.5 shrink-0 rounded-full',
+        isInert ? 'bg-warn' : 'bg-ink-3/40',
+      )}
+      aria-hidden="true"
+    />
+  );
+}
 
-const NAV_ITEM_INACTIVE_CLASS = cn(
-  'bg-transparent',
-  'text-[#6D6D72] dark:text-[#AEAEB2]',
-  'font-normal',
-  'hover:bg-[#F2F2F7]/70 dark:hover:bg-[#2C2C2E]/70',
-  'hover:text-[#1C1C1E] dark:hover:text-[#FFFFFF]',
-);
+function statusHint(route: Route): string {
+  if (route.status === 'live') return route.label;
+  const suffix = route.status === 'inert' ? 'not running' : 'not built yet';
+  return `${route.label} — ${suffix}`;
+}
 
-const ICON_CLASS = 'w-5 h-5 shrink-0';
-
-// ─── Component ───────────────────────────────────────────
-
-export const Sidebar: React.FC<SidebarProps> = ({
-  isOpen,
-  onToggle,
-  className,
-}) => {
-  const sidebarRef = useRef<HTMLDivElement>(null);
+export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, className }) => {
   const isOpenRef = useRef(isOpen);
-  const location = useLocation();
-  const navigate = useNavigate();
+  const { user } = useAuth();
 
-  // Current active route id derived from URL path
-  const currentPath = location.pathname.replace(/^\/+/, '');
+  /*
+   * Destinations this person can actually reach.
+   *
+   * A route with no `roles` is visible to every staff role, which is all but
+   * one of them today. Hiding rather than disabling is the right call here:
+   * a greyed-out Accounting row tells a viewer the books exist and that they
+   * are being kept from them, which is information, and it is not information
+   * the nav is for.
+   *
+   * A group whose every route is filtered out is dropped, so no heading is
+   * left labelling nothing.
+   */
+  const visibleGroups = React.useMemo(
+    () =>
+      ROUTE_GROUPS.map((group) => ({
+        ...group,
+        routes: group.routes.filter((r) => !r.roles || hasRole(user?.role, r.roles)),
+      })).filter((group) => group.routes.length > 0),
+    [user?.role],
+  );
 
-  // Track isOpen for escape key handler without stale closure
   useEffect(() => {
     isOpenRef.current = isOpen;
   }, [isOpen]);
 
-  // Close on Escape key
+  // Escape closes the mobile overlay.
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpenRef.current) {
-        onToggle();
-      }
+      if (e.key === 'Escape' && isOpenRef.current) onToggle();
     },
     [onToggle],
   );
@@ -76,219 +92,148 @@ export const Sidebar: React.FC<SidebarProps> = ({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [handleKeyDown]);
 
-  // Lock body scroll when mobile overlay is open
+  // Lock the page behind the mobile overlay.
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
+    if (!isOpen) return;
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
     return () => {
-      document.body.style.overflow = '';
+      document.body.style.overflow = previous;
     };
   }, [isOpen]);
 
-  // Separate bottom group: Settings, Audit Logs (last 2 routes)
-  const mainRoutes = ROUTES.slice(0, -2);
-  const bottomRoutes = ROUTES.slice(-2);
+  const closeOnMobile = () => {
+    if (window.innerWidth < 1024) onToggle();
+  };
 
   return (
     <>
-      {/* Mobile backdrop */}
       <div
         onClick={onToggle}
         aria-hidden="true"
         className={cn(
-          'fixed inset-0 z-40',
-          'bg-black/20 dark:bg-black/40',
-          'backdrop-blur-sm',
-          'transition-opacity duration-300 ease-out',
-          'lg:hidden',
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none',
+          'fixed inset-0 z-(--z-overlay) bg-sheet-inverse/30 backdrop-blur-sm lg:hidden',
+          'transition-opacity duration-200 ease-out',
+          isOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
         )}
       />
 
-      {/* Sidebar */}
       <aside
-        ref={sidebarRef}
-        role="navigation"
         aria-label="Main navigation"
         className={cn(
-          // Positioning
-          'fixed top-0 left-0 bottom-0 z-50',
-          'flex flex-col',
-
-          // Glass surface
-          'bg-[rgba(255,255,255,0.88)] dark:bg-[rgba(28,28,30,0.88)]',
-          'backdrop-blur-xl',
-
-          // Border — right edge hairline only
-          'border-r border-[rgba(60,60,67,0.12)] dark:border-[rgba(255,255,255,0.08)]',
-
-          // Width transition
-          'transition-all duration-300 ease-out',
-          isOpen ? 'w-64' : 'w-[72px]',
-
-          // Mobile: slide in overlay
-          'lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-(--z-nav) flex flex-col',
+          'bg-sheet',
+          `border-r ${HAIRLINE}`,
+          'transition-[width,transform] duration-200 ease-out',
+          isOpen ? 'w-60' : 'w-[68px]',
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0',
-
-          // Shadow — soft edge on desktop only
-          'lg:shadow-[0_0_0_1px_rgba(0,0,0,0.04)]',
-
           className,
         )}
       >
         {/* Brand */}
         <div
           className={cn(
-            'h-16 flex items-center shrink-0',
-            'border-b border-[rgba(60,60,67,0.08)] dark:border-[rgba(255,255,255,0.04)]',
-            isOpen ? 'px-5' : 'px-5 justify-center',
+            'flex h-14 shrink-0 items-center gap-2.5 px-4',
+            `border-b ${HAIRLINE}`,
+            !isOpen && 'justify-center px-0',
           )}
         >
-          <div className="flex items-center gap-3 overflow-hidden">
-            {/* Logo mark */}
-            <div
-              className={cn(
-                'w-8 h-8 rounded-xl shrink-0',
-                'bg-[#007AFF] dark:bg-[#0A84FF]',
-                'flex items-center justify-center',
-                'text-white font-bold text-[15px]',
-              )}
-              aria-hidden="true"
-            >
-              B
-            </div>
-
-            {/* Wordmark */}
-            <span
-              className={cn(
-                'font-semibold text-[17px] tracking-tight whitespace-nowrap',
-                'text-[#1C1C1E] dark:text-[#FFFFFF]',
-                'transition-opacity duration-200',
-                isOpen ? 'opacity-100' : 'opacity-0 w-0 overflow-hidden',
-              )}
-              aria-hidden={!isOpen}
-            >
+          <span
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-brass text-sm font-bold text-brass-content"
+            aria-hidden="true"
+          >
+            B
+          </span>
+          {isOpen && (
+            <span className="truncate text-md font-semibold tracking-tight text-ink">
               BepariBD
             </span>
-          </div>
+          )}
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
-          {mainRoutes.map((route) => {
-            const Icon = route.icon as React.FC<{ className?: string }>;
-            const isActive = currentPath === route.id;
+        <nav className="flex-1 overflow-y-auto overflow-x-hidden py-3">
+          {visibleGroups.map((group) => (
+            <div key={group.id} className="mb-1 px-2 last:mb-0">
+              {/*
+                A heading only when there is more than one group to tell apart.
+                The registry is currently a single flat list of sixteen, and a
+                lone "Navigation" heading above it labels nothing.
 
-            return (
-              <button
-                key={route.id}
-                onClick={() => {
-                  navigate(`/${route.id}`);
-                  // Close on mobile after navigation
-                  if (window.innerWidth < 1024) {
-                    onToggle();
+                Collapsed, a heading has nothing to label either — a rule
+                separates instead.
+              */}
+              {group.label && visibleGroups.length > 1 ? (
+                isOpen ? (
+                  <Text as="p" variant="label" className="px-2 pb-1 pt-3">
+                    {group.label}
+                  </Text>
+                ) : (
+                  <div className={cn('mx-3 my-2 border-t', HAIRLINE)} aria-hidden="true" />
+                )
+              ) : null}
+
+              {group.routes.map((route) => (
+                <NavLink
+                  key={route.id}
+                  to={`/${route.id}`}
+                  onClick={closeOnMobile}
+                  title={!isOpen ? statusHint(route) : route.note}
+                  aria-label={!isOpen ? statusHint(route) : undefined}
+                  className={({ isActive }) =>
+                    cn(
+                      'group relative flex min-h-9 items-center gap-2.5 rounded-md px-2 py-1.5',
+                      'text-sm transition-colors duration-150',
+                      'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rule-focus',
+                      !isOpen && 'justify-center px-0',
+                      isActive
+                        ? 'bg-sheet-selected font-medium text-ink'
+                        : 'font-normal text-ink-2 hover:bg-sheet-hover hover:text-ink',
+                      // Unbuilt sections stay reachable but visibly recede.
+                      route.status !== 'live' && 'text-ink-3',
+                    )
                   }
-                }}
-                aria-current={isActive ? 'page' : undefined}
-                aria-label={!isOpen ? route.label : undefined}
-                title={!isOpen ? route.label : undefined}
-                className={cn(
-                  NAV_ITEM_CLASS,
-                  isActive ? NAV_ITEM_ACTIVE_CLASS : NAV_ITEM_INACTIVE_CLASS,
-                  !isOpen && 'justify-center px-0',
-                )}
-              >
-                <Icon className={cn(ICON_CLASS, isActive ? 'opacity-100' : 'opacity-60')} aria-hidden="true" />
-                <span
-                  className={cn(
-                    'text-sm whitespace-nowrap',
-                    !isOpen && 'hidden',
-                  )}
                 >
-                  {route.label}
-                </span>
-              </button>
-            );
-          })}
-
-          {/* Separator before bottom group */}
-          <div className="my-3 mx-1 border-t border-[rgba(60,60,67,0.08)] dark:border-[rgba(255,255,255,0.04)]" />
-
-          {/* Bottom nav group (last 2 items: Settings, Audit Logs) */}
-          {bottomRoutes.map((route) => {
-            const Icon = route.icon as React.FC<{ className?: string }>;
-            const isActive = currentPath === route.id;
-
-            return (
-              <button
-                key={route.id}
-                onClick={() => {
-                  navigate(`/${route.id}`);
-                  if (window.innerWidth < 1024) {
-                    onToggle();
-                  }
-                }}
-                aria-current={isActive ? 'page' : undefined}
-                aria-label={!isOpen ? route.label : undefined}
-                title={!isOpen ? route.label : undefined}
-                className={cn(
-                  NAV_ITEM_CLASS,
-                  isActive ? NAV_ITEM_ACTIVE_CLASS : NAV_ITEM_INACTIVE_CLASS,
-                  !isOpen && 'justify-center px-0',
-                )}
-              >
-                <Icon className={cn(ICON_CLASS, isActive ? 'opacity-100' : 'opacity-60')} aria-hidden="true" />
-                <span
-                  className={cn(
-                    'text-sm whitespace-nowrap',
-                    !isOpen && 'hidden',
+                  {({ isActive }) => (
+                    <>
+                      {/* The one saturated mark in the rail. */}
+                      {isActive && (
+                        <span
+                          className="absolute inset-y-1 left-0 w-[3px] rounded-r bg-brass"
+                          aria-hidden="true"
+                        />
+                      )}
+                      <route.icon className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+                      {isOpen && <span className="truncate">{route.label}</span>}
+                      {isOpen && <StatusDot status={route.status} />}
+                    </>
                   )}
-                >
-                  {route.label}
-                </span>
-              </button>
-            );
-          })}
+                </NavLink>
+              ))}
+            </div>
+          ))}
         </nav>
 
-        {/* Collapse toggle */}
-        <div
-          className={cn(
-            'shrink-0',
-            'border-t border-[rgba(60,60,67,0.08)] dark:border-[rgba(255,255,255,0.04)]',
-            isOpen ? 'px-3 py-3' : 'px-0 py-3 flex justify-center',
-          )}
-        >
+        <div className={cn('shrink-0 p-2', `border-t ${HAIRLINE}`)}>
           <button
+            type="button"
             onClick={onToggle}
             aria-label={isOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             className={cn(
-              'flex items-center gap-2',
-              'w-full rounded-xl',
-              'px-3 py-2',
-              'text-[#6D6D72] dark:text-[#AEAEB2]',
-              'hover:bg-[#F2F2F7] dark:hover:bg-[#2C2C2E]',
-              'hover:text-[#1C1C1E] dark:hover:text-[#FFFFFF]',
-              'transition-all duration-200 ease-out',
-              'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[#007AFF]/50 dark:focus-visible:ring-[#0A84FF]/50',
-              'min-h-[44px]',
+              'flex min-h-9 w-full items-center gap-2.5 rounded-md px-2 py-1.5',
+              'text-sm text-ink-2 transition-colors duration-150',
+              'hover:bg-sheet-hover hover:text-ink',
+              'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rule-focus',
               !isOpen && 'justify-center px-0',
             )}
           >
-            <ChevronLeft
+            <PanelLeftClose
               className={cn(
-                'w-5 h-5 shrink-0',
-                'transition-transform duration-300 ease-out',
+                'h-[18px] w-[18px] shrink-0 transition-transform duration-200',
                 !isOpen && 'rotate-180',
               )}
               aria-hidden="true"
             />
-            <span className={cn('text-sm font-medium', !isOpen && 'hidden')}>
-              Collapse
-            </span>
+            {isOpen && <span>Collapse</span>}
           </button>
         </div>
       </aside>

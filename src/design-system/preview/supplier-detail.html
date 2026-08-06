@@ -1,0 +1,474 @@
+<!-- @dsCard group="Screens" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Supplier detail — the paperwork ledger, and what a supplier actually sells</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .app { border:1px solid var(--rule); border-radius: var(--radius-lg); overflow:hidden;
+         background: var(--paper); margin-bottom: 8px; }
+  .app .inner { padding:20px; display:flex; flex-direction:column; gap:16px; }
+
+  /* ── HEADER ────────────────────────────────────────────────────────
+     The status was inside the title: "Mayer Doa Store (Active)". That puts
+     a state machine inside a proper noun — the name of the business changes
+     when it is suspended. It is a badge everywhere else in this console,
+     including the list column beside it, so it is a badge here. */
+  .hd { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; }
+  .hd .who { display:flex; flex-direction:column; gap:3px; min-width:0; }
+  .hd .title { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .hd h2 { margin:0; font-size: var(--text-xl); letter-spacing: var(--tracking-tight); }
+  .hd .sub { font-size: var(--text-sm); color: var(--ink-2); display:flex; gap:8px; flex-wrap:wrap; }
+  .hd .sub .code { font-family: var(--font-mono); color: var(--ink-2); }
+  .hd .sub .dot { color: var(--ink-4); }
+  .acts { display:flex; gap:8px; flex-shrink:0; }
+
+  .btn { height:32px; padding:0 13px; border-radius: var(--radius-md); font-size: var(--text-sm);
+         font-family: var(--font-sans); font-weight: var(--font-weight-medium); cursor:pointer;
+         border:1px solid var(--rule-strong); background: var(--sheet); color: var(--ink); }
+  .btn-primary { background: var(--brass); border-color: var(--brass); color: var(--brass-content); }
+  .btn-danger  { background: var(--bad); border-color: var(--bad); color: #fff; }
+  .btn-back { border-color:transparent; background:transparent; color: var(--ink-2); padding:0 6px; }
+
+  .badge { display:inline-flex; align-items:center; gap:5px; padding:2px 9px;
+           border-radius: var(--radius-full); font-size: var(--text-xs);
+           font-weight: var(--font-weight-medium); border:1px solid transparent; }
+  .badge::before { content:""; width:5px; height:5px; border-radius:50%; background: currentColor; }
+  .badge.ok      { background: var(--ok-wash);   color: var(--ok);   border-color: var(--ok-border); }
+  .badge.warn    { background: var(--warn-wash); color: var(--warn); border-color: var(--warn-border); }
+  .badge.mute    { background: var(--mute-wash); color: var(--ink-3);border-color: var(--mute-border); }
+
+  /* ── THE GRID ──────────────────────────────────────────────────────
+     Two equal columns, matching the retailer detail screen. It used to be
+     three, with two-thirds given to Assigned orders, Payout history and
+     Decision history — panels whose four data sources all returned an
+     empty array unconditionally. Two thirds of the screen could not ever
+     contain anything, and said so five times over. */
+  .grid { display:grid; grid-template-columns: 1fr 1fr; gap:14px; }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+  .card { border:1px solid var(--rule); border-radius: var(--radius-lg); background: var(--sheet);
+          overflow:hidden; display:flex; flex-direction:column; }
+  .card > h3 { margin:0; padding:11px 14px; font-size: var(--text-2xs);
+               text-transform:uppercase; letter-spacing: var(--tracking-caps);
+               font-weight: var(--font-weight-semibold); color: var(--ink-3);
+               border-bottom:1px solid var(--rule-subtle); display:flex;
+               justify-content:space-between; align-items:center; gap:8px; }
+  .card > h3 .count { text-transform:none; letter-spacing:normal; color: var(--ink-2);
+                      font-weight: var(--font-weight-normal); font-size: var(--text-xs); }
+  .card .body { padding:12px 14px; }
+
+  /* ── THE PAPERWORK LEDGER — the signature of this screen ───────────
+     On the LIST this is four small marks in a fixed order. Here it is the
+     same four slots at full size, in the same order, so the shape an
+     operator learned scanning the column is the shape they read when they
+     open the record. Position is identity in both: the third row is the
+     VAT certificate whether it is 6px wide or a full row.
+
+     It leads the screen because reviewing it IS the job. It used to be a
+     row inside "Business Profile", between Company Logo and Addresses —
+     the evidence behind Approve and Reject, filed under decoration. */
+  .paper-row { display:flex; align-items:center; gap:11px; padding:9px 0;
+               border-bottom:1px solid var(--rule-subtle); }
+  .paper-row:last-child { border-bottom:none; }
+  .paper-mark { width:6px; height:30px; border-radius: var(--radius-xs); flex-shrink:0;
+                border:1px solid var(--ok-border); background: var(--ok); }
+  /* The missing mark carries a full-strength border, not the hairline the
+     list quartet uses. At 6×30 a wash fill inside a pale outline reads as
+     an empty slot rather than a flagged one, and this is the row the
+     operator is here to act on. */
+  .paper-row.missing .paper-mark { border-color: var(--warn); background: var(--warn-wash); }
+  .paper-row.gone .paper-mark { border-color: var(--rule); background: var(--mute-wash); }
+  .paper-name { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+  .paper-name .n { font-size: var(--text-sm); color: var(--ink); font-weight: var(--font-weight-medium); }
+  .paper-name .m { font-size: var(--text-xs); color: var(--ink-3); }
+  .paper-row.missing .paper-name .m { color: var(--warn); }
+  .paper-acts { display:flex; gap:4px; flex-shrink:0; }
+  .icon-btn { width:28px; height:28px; display:grid; place-items:center; cursor:pointer;
+              border:1px solid var(--rule-strong); border-radius: var(--radius-md);
+              background: var(--sheet); color: var(--ink-2); font-size:13px; }
+  .paper-foot { margin-top:10px; padding-top:10px; border-top:1px solid var(--rule);
+                font-size: var(--text-xs); color: var(--ink-2); display:flex;
+                justify-content:space-between; align-items:center; gap:8px; }
+
+  /* ── FIELD LISTS ───────────────────────────────────────────────────
+     Label above value, two per row. The old screen ran one field per row
+     down a third-width column, so "Contact" and its two lines occupied the
+     same vertical space as the entire document vault. */
+  .fields { display:grid; grid-template-columns: 1fr 1fr; gap:11px 14px; }
+  .fields.one { grid-template-columns: 1fr; }
+  .f { display:flex; flex-direction:column; gap:2px; min-width:0; }
+  .f .k { font-size: var(--text-2xs); text-transform:uppercase;
+          letter-spacing: var(--tracking-caps); color: var(--ink-3);
+          font-weight: var(--font-weight-semibold); }
+  .f .v { font-size: var(--text-sm); color: var(--ink); overflow-wrap:anywhere; }
+  .f .v.mono { font-family: var(--font-mono); }
+  .f .v.none { color: var(--ink-4); }
+  .chip { display:inline-block; padding:1px 7px; border-radius: var(--radius-sm);
+          font-size: var(--text-2xs); text-transform:uppercase;
+          letter-spacing: var(--tracking-caps); font-weight: var(--font-weight-semibold);
+          background: var(--brass-wash); color: var(--brass); border:1px solid var(--rule-subtle); }
+
+  /* Commission: a plain numeric setting. It carried a warning triangle,
+     which said something was wrong when nothing was. An icon that cries
+     wolf on a routine field teaches people to ignore the icon. */
+  .comm { display:flex; gap:8px; align-items:center; }
+  .comm input { flex:1; height:34px; padding:0 11px; border-radius: var(--radius-md);
+                border:1px solid var(--rule-input); background: var(--sheet);
+                font-family: var(--font-sans); font-size: var(--text-sm); color: var(--ink);
+                text-align:right; font-variant-numeric: tabular-nums; }
+  .comm .pct { font-size: var(--text-sm); color: var(--ink-3); }
+  .comm-note { margin-top:7px; font-size: var(--text-xs); color: var(--ink-3); }
+
+  /* ── PRODUCTS — full width, and real ───────────────────────────────
+     This is what replaced the three empty panels. The endpoint already
+     exists: the console's ProductListParams carries wholesalerId and the
+     server's product repository already does `AND wholesaler_id = $N`.
+     The Suppliers list can filter for "never listed a product"; there was
+     no way to see what a supplier who HAS listed actually sells. */
+  .wide { border:1px solid var(--rule); border-radius: var(--radius-lg);
+          background: var(--sheet); overflow:hidden; }
+  .wide-h { margin:0; padding:11px 14px; font-size: var(--text-2xs);
+            text-transform:uppercase; letter-spacing: var(--tracking-caps);
+            font-weight: var(--font-weight-semibold); color: var(--ink-3);
+            border-bottom:1px solid var(--rule-subtle); display:flex;
+            justify-content:space-between; align-items:center; gap:8px; }
+  .wide-h .count { text-transform:none; letter-spacing:normal; color: var(--ink-2);
+                   font-weight: var(--font-weight-normal); font-size: var(--text-xs); }
+  table { width:100%; border-collapse:collapse; }
+  th { text-align:left; font-size: var(--text-2xs); text-transform:uppercase;
+       letter-spacing: var(--tracking-caps); color: var(--ink-3);
+       font-weight: var(--font-weight-semibold); padding:9px 14px;
+       border-bottom:1px solid var(--rule); }
+  td { padding:10px 14px; font-size: var(--text-sm); color: var(--ink);
+       border-bottom:1px solid var(--rule-subtle); }
+  tr:last-child td { border-bottom:none; }
+  .num { text-align:right; font-variant-numeric: tabular-nums; }
+  .oos { color: var(--warn); font-weight: var(--font-weight-medium); }
+
+  .banner { display:flex; gap:11px; padding:12px 14px; border-radius: var(--radius-lg);
+            border:1px solid var(--warn-border); background: var(--warn-wash); }
+  .banner .bt { font-size: var(--text-sm); font-weight: var(--font-weight-semibold); color: var(--ink); }
+  .banner .bm { font-size: var(--text-sm); color: var(--ink-2); margin-top:2px; }
+
+  .empty { padding:34px 14px; text-align:center; }
+  .empty h4 { margin:0 0 4px; font-size: var(--text-md); color: var(--ink); }
+  .empty p { margin:0; font-size: var(--text-sm); color: var(--ink-3); }
+
+  h2.sec { font-size: var(--text-lg); margin: 26px 0 6px; }
+  p.note { font-size: var(--text-sm); color: var(--ink-2); max-width: var(--container-prose);
+           margin: 0 0 14px; line-height:1.65; }
+</style>
+</head>
+<body>
+
+<h2 class="sec">1 · A supplier with everything on file</h2>
+<p class="note">
+  The paperwork leads, because deciding on it is why this screen is opened. Two equal columns,
+  matching the retailer detail screen. Nothing below them: the screen shows the record and the
+  decisions it earns, and stops.
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="hd">
+      <div class="who">
+        <div class="title">
+          <button class="btn btn-back">← Back</button>
+          <h2>Mayer Doa Store</h2>
+          <span class="badge ok">Active</span>
+        </div>
+        <div class="sub">
+          <span class="code">WHL-00007</span>
+          <span class="dot">·</span><span>Noakhali</span>
+          <span class="dot">·</span><span>Mayer Doa Wholesaler</span>
+        </div>
+      </div>
+      <div class="acts">
+        <button class="btn">Edit profile</button>
+        <button class="btn btn-danger">Suspend account</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Paperwork <span class="count">4 of 4 on file</span></h3>
+        <div class="body">
+          <div class="paper-row">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">Trade License</span><span class="m">Uploaded 14 Jan 2026 · PDF</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-row">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">TIN Certificate</span><span class="m">Uploaded 14 Jan 2026 · PDF</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-row">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">VAT Registration</span><span class="m">Uploaded 14 Jan 2026 · PDF</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-row">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">Owner NID Photo</span><span class="m">Uploaded 14 Jan 2026 · JPG</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-foot">
+            <span>Links last ten minutes and only open in this browser.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Business profile</h3>
+        <div class="body">
+          <div class="fields">
+            <div class="f"><span class="k">Owner</span><span class="v">Mayer Doa Wholesaler</span></div>
+            <div class="f"><span class="k">Added by</span><span class="v">Self-registered</span></div>
+            <div class="f"><span class="k">Phone</span><span class="v mono">01700000000</span></div>
+            <div class="f"><span class="k">Email</span><span class="v">wholesaler@bepari-bd.test</span></div>
+            <div class="f"><span class="k">District</span><span class="v">Noakhali</span></div>
+            <div class="f"><span class="k">Joined</span><span class="v">14 Jan 2026</span></div>
+            <div class="f" style="grid-column:1/-1"><span class="k">Categories</span>
+              <span class="v"><span class="chip">Grocery</span></span></div>
+            <div class="f" style="grid-column:1/-1"><span class="k">Address</span>
+              <span class="v">House 42, Road 3, Maijdee — Noakhali 3800</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Commission</h3>
+        <div class="body">
+          <div class="comm">
+            <span class="k" style="font-size:var(--text-sm);color:var(--ink-2)">Platform commission</span>
+            <input value="12" style="max-width:90px">
+            <span class="pct">%</span>
+            <button class="btn btn-primary">Save</button>
+          </div>
+          <p class="comm-note">Taken from each order at the time of sale. The standard rate is 9.5%.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Bank &amp; mobile wallets</h3>
+        <div class="body">
+          <div class="fields one">
+            <div class="f"><span class="k">Bank account</span>
+              <span class="v">Dutch-Bangla Bank · <span class="mono">1042 7788 3391</span></span></div>
+            <div class="f"><span class="k">bKash</span><span class="v mono">01700000000</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<h2 class="sec">2 · Waiting on review, with a certificate missing</h2>
+<p class="note">
+  The one row an operator has to act on is the one that is different. The gap has a body — drawn as
+  a transparent outline it disappeared at this size, and a slot with nothing in it read as a slot
+  that was not there. The header carries the decision this status is waiting for.
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="hd">
+      <div class="who">
+        <div class="title">
+          <button class="btn btn-back">← Back</button>
+          <h2>Nadia Traders</h2>
+          <span class="badge warn">Review</span>
+        </div>
+        <div class="sub">
+          <span class="code">WHL-00031</span>
+          <span class="dot">·</span><span>Dhaka</span>
+          <span class="dot">·</span><span>Nadia Rahman</span>
+        </div>
+      </div>
+      <div class="acts">
+        <button class="btn btn-primary">Approve</button>
+        <button class="btn btn-danger">Reject</button>
+        <button class="btn">Request resubmit</button>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Paperwork <span class="count">3 of 4 on file</span></h3>
+        <div class="body">
+          <div class="paper-row">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">Trade License</span><span class="m">Uploaded 2 Aug 2026 · PDF</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-row">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">TIN Certificate</span><span class="m">Uploaded 2 Aug 2026 · PDF</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-row missing">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">VAT Registration</span><span class="m">Not uploaded</span></span>
+            <span class="paper-acts"></span>
+          </div>
+          <div class="paper-row">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">Owner NID Photo</span><span class="m">Uploaded 2 Aug 2026 · JPG</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-foot">
+            <span>Links last ten minutes and only open in this browser.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Business profile</h3>
+        <div class="body">
+          <div class="fields">
+            <div class="f"><span class="k">Owner</span><span class="v">Nadia Rahman</span></div>
+            <div class="f"><span class="k">Added by</span><span class="v">Admin</span></div>
+            <div class="f"><span class="k">Phone</span><span class="v mono">01812345678</span></div>
+            <div class="f"><span class="k">Email</span><span class="v">nadia@nadiatraders.com</span></div>
+            <div class="f"><span class="k">District</span><span class="v">Dhaka</span></div>
+            <div class="f"><span class="k">Joined</span><span class="v">2 Aug 2026</span></div>
+            <div class="f" style="grid-column:1/-1"><span class="k">Categories</span>
+              <span class="v"><span class="chip">Gents Textile</span> <span class="chip">Ladies Textile</span></span></div>
+            <div class="f" style="grid-column:1/-1"><span class="k">Address</span>
+              <span class="v none">Not added</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<h2 class="sec">3 · Removed</h2>
+<p class="note">
+  Reachable, and read-only. The directory's Removed filter lists these and every row is a link;
+  before the detail endpoint returned them, all of those links landed on "Resource not found". One
+  action, because it is the only one the server would accept — every lifecycle write requires
+  <code>deleted_at IS NULL</code>.
+</p>
+
+<div class="app">
+  <div class="inner">
+    <div class="hd">
+      <div class="who">
+        <div class="title">
+          <button class="btn btn-back">← Back</button>
+          <h2 style="text-decoration:line-through; text-decoration-color:var(--ink-4)">QA Verify Store</h2>
+          <span class="badge mute">Removed</span>
+        </div>
+        <div class="sub">
+          <span class="code">—</span>
+          <span class="dot">·</span><span>QA Verify</span>
+        </div>
+      </div>
+      <div class="acts"><button class="btn btn-primary">↺ Restore supplier</button></div>
+    </div>
+
+    <div class="banner">
+      <div>
+        <div class="bt">Removed on 27 Jul 2026</div>
+        <div class="bm">Hidden from the directory and cannot sign in. Its orders, payments and
+          documents are kept. Restoring puts it back with the status it had.</div>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>Paperwork <span class="count">kept, not destroyed</span></h3>
+        <div class="body">
+          <div class="paper-row gone">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">Trade License</span><span class="m">Uploaded 27 Jul 2026 · PDF</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-row gone">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">TIN Certificate</span><span class="m">Uploaded 27 Jul 2026 · PDF</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-row gone">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">VAT Registration</span><span class="m">Uploaded 27 Jul 2026 · PDF</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+          <div class="paper-row gone">
+            <span class="paper-mark"></span>
+            <span class="paper-name"><span class="n">Owner NID Photo</span><span class="m">Uploaded 27 Jul 2026 · JPG</span></span>
+            <span class="paper-acts"><button class="icon-btn">◱</button><button class="icon-btn">⤓</button></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- The profile stays. Deciding whether to restore a supplier means
+           looking at who they were, so the record reads exactly as it did —
+           only the controls that would be refused are gone. -->
+      <div class="card">
+        <h3>Business profile</h3>
+        <div class="body">
+          <div class="fields">
+            <div class="f"><span class="k">Owner</span><span class="v">QA Verify</span></div>
+            <div class="f"><span class="k">Added by</span><span class="v">Self-registered</span></div>
+            <div class="f"><span class="k">Phone</span><span class="v mono">01797707888</span></div>
+            <div class="f"><span class="k">Email</span><span class="v">qa+178513@bepari-bd.com</span></div>
+            <div class="f"><span class="k">District</span><span class="v none">Not specified</span></div>
+            <div class="f"><span class="k">Joined</span><span class="v">27 Jul 2026</span></div>
+            <div class="f" style="grid-column:1/-1"><span class="k">Categories</span>
+              <span class="v"><span class="chip">Fashion</span></span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Commission</h3>
+        <div class="body">
+          <div class="comm">
+            <span class="k" style="font-size:var(--text-sm);color:var(--ink-3)">Platform commission</span>
+            <input value="15" disabled style="max-width:90px; opacity:var(--opacity-disabled)">
+            <span class="pct">%</span>
+            <button class="btn" disabled style="opacity:var(--opacity-disabled)">Save</button>
+          </div>
+          <p class="comm-note">Read-only while removed. Restore the supplier to change it.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2 class="sec">What this screen deliberately does not have</h2>
+<p class="note">
+  <strong>No performance tiles, and no apology for them.</strong> The screen showed four figures —
+  total orders, total payout, rating, dispatch speed — sourced from functions that returned
+  <code>null</code> unconditionally, and a banner explaining they were not connected. Below it,
+  three more panels sourced from functions returning <code>[]</code>, each carrying the same
+  sentence: <em>"This will populate once the endpoint is connected."</em> Five apologies on one
+  screen, occupying two thirds of it. A screen that spends its largest region explaining what it
+  cannot do has been designed around its backlog rather than around its reader.
+  <br><br>
+  <strong>No products panel.</strong> One briefly listed what a supplier sells, on a real
+  endpoint. It was removed as unnecessary — a supplier record is opened to check paperwork and
+  decide, and the catalogue has its own screen with its own supplier filter. It goes back in only
+  if a need for it actually appears.
+  <br><br>
+  <strong>No status in the page title.</strong> "Mayer Doa Store (Active)" makes the name of the
+  business change when it is suspended. The badge carries the state, as it does in the list.
+  <br><br>
+  <strong>No warning icon on the commission field.</strong> It had one. Nothing was wrong. An icon
+  that cries wolf on a routine numeric setting is how people learn to stop reading icons.
+  <br><br>
+  <strong>No second document vault.</strong> The panel is a frame around the shared
+  <code>DocumentVault</code> that the retailer screen also uses. Two vaults would eventually answer
+  "what does a document that is still saving look like" two different ways — the supplier and
+  retailer document rules on the server had already drifted apart that way once.
+</p>
+
+</body>
+</html>

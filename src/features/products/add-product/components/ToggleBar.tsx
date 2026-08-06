@@ -1,4 +1,3 @@
-import React from 'react';
 import { cn } from '@/src/design-system/utils/cn';
 
 interface Props<T extends string> {
@@ -21,8 +20,8 @@ export function ToggleBar<T extends string>({ options, selected, onSelect, class
             className={cn(
               'px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors',
               isSelected
-                ? 'bg-accent-primary text-white border-accent-primary'
-                : 'bg-surface-primary text-text-secondary border-border-default hover:bg-surface-muted',
+                ? 'bg-brass text-white border-brass'
+                : 'bg-sheet text-ink-2 border-rule hover:bg-sheet-2',
             )}
           >
             {opt}

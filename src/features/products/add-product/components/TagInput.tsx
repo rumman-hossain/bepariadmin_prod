@@ -1,6 +1,6 @@
-import React, { useState, KeyboardEvent } from 'react';
+import { useState, KeyboardEvent } from 'react';
 import { X } from 'lucide-react';
-import { Input } from '@/src/components/ui/Input';
+import { Input } from '@/src/components/controls';
 
 interface Props {
   tags: string[];
@@ -38,7 +38,7 @@ export function TagInput({ tags, onChange }: Props) {
           {tags.map((tag) => (
             <span
               key={tag}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-muted text-sm border border-border-default"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sheet-2 text-sm border border-rule"
             >
               {tag}
               <button
@@ -46,7 +46,7 @@ export function TagInput({ tags, onChange }: Props) {
                 onClick={() => onChange(tags.filter((t) => t !== tag))}
                 aria-label={`Remove ${tag}`}
               >
-                <X className="w-3.5 h-3.5 text-text-tertiary" />
+                <X className="w-3.5 h-3.5 text-ink-3" />
               </button>
             </span>
           ))}

@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { cn } from '@/src/design-system/utils/cn';
-import { Input } from '@/src/components/ui/Input';
+import { Input } from '@/src/components/controls';
 import { useAddProductStore } from '../store/useAddProductStore';
 import {
   DISPATCH_QUICK_OPTIONS,
@@ -20,33 +20,36 @@ export function DispatchTimeField({ hasError, errorText }: Props) {
   const setField = useAddProductStore((s) => s.setField);
 
   const parsed = useMemo(() => parseDispatchTime(dispatchTime), [dispatchTime]);
-  const [customValue, setCustomValue] = useState(parsed.value);
-  const [unit, setUnit] = useState<DispatchUnit>(parsed.unit);
 
-  useEffect(() => {
-    if (isQuickDispatchOption(dispatchTime)) {
-      setCustomValue('');
-      setUnit('H');
-      return;
-    }
-    if (parsed.value !== customValue) setCustomValue(parsed.value);
-    if (parsed.unit !== unit) setUnit(parsed.unit);
-  }, [dispatchTime, parsed.value, parsed.unit]);
+  /**
+   * The stored `dispatchTime` (e.g. "5D") already encodes both the number and
+   * the unit, so both inputs derive from it rather than mirroring it in local
+   * state — an effect used to copy one into the other on every change.
+   *
+   * The one thing it cannot encode is a unit chosen before any number is typed:
+   * `formatDispatchTime('', 'D')` is `''`, so pressing "Day" on an empty field
+   * would have nowhere to be recorded. That, and only that, is local.
+   */
+  const [pendingUnit, setPendingUnit] = useState<DispatchUnit>(parsed.unit);
+
+  const isQuick = isQuickDispatchOption(dispatchTime);
+  const customValue = isQuick ? '' : parsed.value;
+  const unit = customValue ? parsed.unit : pendingUnit;
 
   const handleQuickSelect = (option: string) => {
-    setCustomValue('');
-    setUnit('H');
+    setPendingUnit('H');
     setField('dispatchTime', option);
   };
 
   const handleCustomChange = (value: string) => {
     const digitsOnly = value.replace(/[^0-9]/g, '');
-    setCustomValue(digitsOnly);
+    // Clearing the field must not also clear the unit the operator picked.
+    if (!digitsOnly) setPendingUnit(unit);
     setField('dispatchTime', digitsOnly ? formatDispatchTime(digitsOnly, unit) : '');
   };
 
   const handleUnitChange = (next: DispatchUnit) => {
-    setUnit(next);
+    setPendingUnit(next);
     if (customValue) {
       setField('dispatchTime', formatDispatchTime(customValue, next));
     }
@@ -55,8 +58,8 @@ export function DispatchTimeField({ hasError, errorText }: Props) {
   return (
     <div className="space-y-4 sm:col-span-2">
       <div>
-        <p className="text-sm font-medium text-text-primary mb-2">
-          Dispatch Time <span className="text-semantic-danger">*</span>
+        <p className="text-sm font-medium text-ink mb-2">
+          Dispatch Time <span className="text-bad">*</span>
         </p>
         <div className="flex flex-wrap gap-2">
           {DISPATCH_QUICK_OPTIONS.map((option) => {
@@ -69,10 +72,10 @@ export function DispatchTimeField({ hasError, errorText }: Props) {
                 className={cn(
                   'px-4 py-2 rounded-xl text-sm font-medium border transition-colors',
                   selected
-                    ? 'bg-accent-primary text-white border-accent-primary'
+                    ? 'bg-brass text-white border-brass'
                     : hasError
-                      ? 'bg-surface-primary text-text-primary border-semantic-danger'
-                      : 'bg-surface-primary text-text-primary border-border-default hover:bg-surface-muted',
+                      ? 'bg-sheet text-ink border-bad'
+                      : 'bg-sheet text-ink border-rule hover:bg-sheet-2',
                 )}
               >
                 {option}
@@ -81,12 +84,12 @@ export function DispatchTimeField({ hasError, errorText }: Props) {
           })}
         </div>
         {hasError && errorText && (
-          <p className="text-xs text-semantic-danger mt-1.5">{errorText}</p>
+          <p className="text-xs text-bad mt-1.5">{errorText}</p>
         )}
       </div>
 
       <div>
-        <p className="text-sm font-medium text-text-primary mb-2">Custom Dispatch Time (optional)</p>
+        <p className="text-sm font-medium text-ink mb-2">Custom Dispatch Time (optional)</p>
         <div className="flex flex-col sm:flex-row gap-3">
           <Input
             type="text"
@@ -94,7 +97,7 @@ export function DispatchTimeField({ hasError, errorText }: Props) {
             placeholder="Enter number"
             value={customValue}
             onChange={(e) => handleCustomChange(e.target.value)}
-            variant={hasError && customValue ? 'error' : undefined}
+            error={hasError && customValue ? (errorText ?? ' ') : undefined}
             fullWidth
             className="flex-1"
           />
@@ -112,8 +115,8 @@ export function DispatchTimeField({ hasError, errorText }: Props) {
                 className={cn(
                   'px-4 py-2.5 rounded-xl text-sm font-medium border min-w-[72px] transition-colors',
                   unit === key
-                    ? 'bg-accent-primary text-white border-accent-primary'
-                    : 'bg-surface-primary text-text-primary border-border-default hover:bg-surface-muted',
+                    ? 'bg-brass text-white border-brass'
+                    : 'bg-sheet text-ink border-rule hover:bg-sheet-2',
                 )}
               >
                 {label}

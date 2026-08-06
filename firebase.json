@@ -6,11 +6,77 @@
       "**/.*",
       "**/node_modules/**"
     ],
-      "rewrites": [
+    "rewrites": [
       { "source": "/api/**", "run": { "serviceId": "beparibd-backend-dev", "region": "asia-southeast1" } },
       { "source": "/health", "run": { "serviceId": "beparibd-backend-dev", "region": "asia-southeast1" } },
       { "source": "/uploads/**", "run": { "serviceId": "beparibd-backend-dev", "region": "asia-southeast1" } },
       { "source": "**", "destination": "/index.html" }
+    ],
+    "headers": [
+      {
+        "//": "The app previously shipped NO security headers at all — a repo-wide grep for CSP, X-Frame-Options or HSTS returned zero hits, and Firebase Hosting sets none by default. That left an admin console with approve / suspend / delete controls framable by any origin, and no second line of defence if an injection ever landed.",
+        "source": "**",
+        "headers": [
+          {
+            "key": "Content-Security-Policy",
+            "//": "script-src is 'self' plus ONE host, and no inline: the built index.html contains no inline script, only the hashed module. style-src needs 'unsafe-inline' for the scrollbar block in index.html and Google Fonts' injected stylesheet — a real but small concession that does not weaken script execution. storage.googleapis.com appears in img/media (product photos, wholesaler logos) and in connect-src (uploads PUT directly to a signed GCS URL). blob: covers the local object-URL previews the upload flow creates.",
+            "// CLOUDFLARE WEB ANALYTICS — the two hosts are NOT the same, and both are required": "Cloudflare injects <script src=https://static.cloudflareinsights.com/beacon.min.js> into the HTML after Firebase serves it. Measured: bepari-bd-dev.web.app returns 1 script tag (ours); dev.bepari-bd.com returns 3. The beacon is a normal external script, so allowing its host needs NO unsafe-inline. But it then reports via navigator.sendBeacon to https://cloudflareinsights.com/cdn-cgi/rum — a DIFFERENT host, governed by connect-src, and read out of beacon.min.js rather than guessed. Allowing only the script host swaps a script-src error for a connect-src one. Removing Web Analytics in the Cloudflare dashboard is the way to take both back out.",
+            "// KNOWN CONSOLE ERROR — DO NOT 'FIX' BY ADDING unsafe-inline": "Every page logs 'Executing inline script violates ... script-src self'. It is NOT our code. Cloudflare's JavaScript Detections injects an inline bootstrap (window.__CF$cv$params -> /cdn-cgi/challenge-platform/scripts/jsd/main.js) after Firebase serves the page; dist/index.html has zero inline scripts. Nothing breaks — JSD is passive bot telemetry and the request still passes. The hash the console offers CANNOT be allowlisted: it embeds a per-request cf-ray, so it differs on every load (measured across this project: sha256-MGw7l3/..., sha256-877nh6dj..., sha256-vverznN6..., sha256-M4W81Nqv...). A nonce is impossible too — Firebase serves static files and cannot mint one per request, and Cloudflare's injected tag would not carry ours. The only real fix is Cloudflare dashboard -> Security -> Bots -> JavaScript Detections -> off, which is right on the merits: every page here is behind a staff login, so JSD guards an authenticated back office against a threat that cannot reach it. src/__tests__/csp.test.ts fails if script-src ever gains unsafe-inline, unsafe-eval, or any host beyond the one named above.",
+            "value": "default-src 'self'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://storage.googleapis.com; media-src 'self' blob: https://storage.googleapis.com; connect-src 'self' https://storage.googleapis.com https://cloudflareinsights.com; frame-ancestors 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
+          },
+          {
+            "key": "X-Frame-Options",
+            "//": "Redundant with frame-ancestors for modern browsers, kept for older ones.",
+            "value": "DENY"
+          },
+          { "key": "X-Content-Type-Options", "value": "nosniff" },
+          {
+            "key": "Referrer-Policy",
+            "//": "Admin URLs carry wholesaler and product ids in the path; none of that should leak to a third party in a Referer header.",
+            "value": "no-referrer"
+          },
+          {
+            "key": "Permissions-Policy",
+            "//": "This console needs none of these. Denying them shrinks what a compromised page could ask the browser for.",
+            "value": "camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()"
+          },
+          {
+            "key": "Strict-Transport-Security",
+            "//": "One year, subdomains included. Note this interacts with the backend's refresh cookie, which is currently scoped to .bepari-bd.com — see ADMIN_API_GAPS.md.",
+            "value": "max-age=31536000; includeSubDomains"
+          },
+          { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
+          {
+            "key": "Cache-Control",
+            "//": "EVERY path revalidates. Header rules match the REQUESTED path, not the file a rewrite resolves to — so a rule on /index.html fires only when somebody literally asks for /index.html. Real navigations (/retailers, /dashboard, /) matched only this `**` block, which set no Cache-Control, so they took Firebase's max-age=3600 default and clients stayed pinned to the PREVIOUS bundle for up to an hour after every deploy. Measured on /retailers: max-age=3600, while /index.html correctly returned no-cache. The cost is not the stale page — it is that a fix ships, the person who asked for it reloads, sees the old build, and reasonably reports the bug as still present. /assets/** below overrides this for fingerprinted files.",
+            "value": "no-cache"
+          }
+        ]
+      },
+      {
+        "//": "Declared AFTER the catch-all so it wins for fingerprinted assets: Vite hashes every filename, so the content at a given URL never changes and a year is safe. This ordering is load-bearing — moved above the `**` rule, these would revalidate on every request instead.",
+        "source": "/assets/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
+        "// MEASURED: Firebase REPLACES the origin's headers on a rewrite, it does not defer to them": "The `**` block above matches /api/** too, because header rules match the requested path and a Cloud Run rewrite is still a request for that path. So the document proxy's own Cache-Control and CSP — set in beparibd-backend/internal/admin/document_proxy.go:writeDocumentHeaders — were overwritten before the bytes reached the browser. Measured on a live PNG through /api/v1/doc/<token>: cache-control came back `no-cache` (the console's) instead of `private, no-store`, and the CSP came back the console's whole policy instead of `default-src 'none'; sandbox`. Both losses are silent — the file still renders, so nothing reports it.",
+        "// WHY EACH ONE MATTERS": "no-cache still permits STORING the response; a national ID then sits in the browser's disk cache after the operator signs out, and without `private` a shared cache may keep it too. And `default-src 'self'` in place of `'none'; sandbox` drops the sandbox that stops an uploaded file doing anything at all — the upload gate allows no SVG and no HTML today, which is what kept this from being exploitable, but the sandbox exists so that allow-list is not the only thing standing there.",
+        "// SCOPED TO THE PROXY, NOT ALL OF /api/**": "The JSON endpoints are correct under the catch-all and gain nothing from no-store. Only the route that serves user-uploaded bytes needs its own headers back. Declared AFTER `**` so it wins, the same ordering /assets/** relies on. The two values must stay identical to writeDocumentHeaders; src/__tests__/cache-headers.test.ts asserts them here and TestTheResponseCannotBeSniffedOrExecuted asserts them there.",
+        "source": "/api/v1/doc/**",
+        "headers": [
+          { "key": "Cache-Control", "value": "private, no-store" },
+          { "key": "Content-Security-Policy", "value": "default-src 'none'; sandbox" }
+        ]
+      },
+      {
+        "//": "Kept explicit for the direct /index.html request, which no longer needs it but costs nothing and documents the intent.",
+        "source": "/index.html",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache" }
+        ]
+      }
     ]
   }
 }

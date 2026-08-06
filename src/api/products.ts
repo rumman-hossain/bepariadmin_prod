@@ -25,11 +25,11 @@ import {
 } from '@/src/features/products/utils/resolveCatalogLabels';
 import { DISPLAY_STATUS_TO_BACKEND } from '@/src/features/products/constants';
 
-export interface GetProductsOptions {
+interface GetProductsOptions {
   categoryNames?: Record<string, string>;
 }
 
-export interface GetProductByIdOptions {
+interface GetProductByIdOptions {
   categoryNames?: Record<string, string>;
   /** Resolve full catalog hierarchy names (detail/edit). Default true. */
   resolveCatalog?: boolean;
@@ -165,7 +165,7 @@ export async function getClassifications(productGroupId: string): Promise<ApiRes
   );
 }
 
-export interface SkuResponse {
+interface SkuResponse {
   sku: string;
   details?: unknown[];
 }
@@ -199,13 +199,3 @@ export async function getSizeConfig(productGroupId: string): Promise<ApiResponse
   );
 }
 
-export async function generateVariants(
-  productTemplateId: string,
-  colors: string[],
-  designs: string[],
-): Promise<ApiResponse<unknown[]>> {
-  return request<unknown[]>('POST', `/api/v1/catalog/product-templates/${productTemplateId}/variants`, {
-    auth: true,
-    body: { colors, designs } as unknown as Record<string, unknown>,
-  });
-}

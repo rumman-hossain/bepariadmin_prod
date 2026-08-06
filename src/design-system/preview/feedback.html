@@ -1,0 +1,119 @@
+<!-- @dsCard group="Feedback" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Feedback — the states that are not data</title>
+<link rel="stylesheet" href="_tokens.css">
+<style>
+  .alert { display:flex; gap:10px; padding:11px 14px; border-radius: var(--radius-md);
+           border:1px solid; font-size: var(--text-base); margin-bottom:10px; max-width:620px; }
+  .a-ok   { background: var(--ok-wash);   border-color: var(--ok-border);   color: var(--ok); }
+  .a-warn { background: var(--warn-wash); border-color: var(--warn-border); color: var(--warn); }
+  .a-bad  { background: var(--bad-wash);  border-color: var(--bad-border);  color: var(--bad); }
+  .a-note { background: var(--note-wash); border-color: var(--note-border); color: var(--note); }
+  .alert strong { display:block; margin-bottom:2px; }
+  .state { border:1px solid var(--rule); border-radius: var(--radius-lg); background: var(--sheet);
+           min-height:224px; display:grid; place-content:center; text-align:center; padding:24px; gap:6px; }
+  .state .t { font-size: var(--text-md); font-weight: var(--font-weight-semibold); }
+  .state .m { font-size: var(--text-sm); color: var(--ink-2); max-width:340px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .bar { height:12px; background: var(--sheet-2); border-radius: var(--radius-xs); }
+  .sk { border:1px solid var(--rule); border-radius: var(--radius-lg); overflow:hidden; background: var(--sheet); max-width:560px; }
+  .sk .hd { background: var(--sheet-2); border-bottom:1px solid var(--rule); padding:9px 14px; display:flex; gap:14px; }
+  .sk .rw { padding:11px 14px; border-bottom:1px solid var(--rule-subtle); display:flex; gap:14px; }
+  .dlg-scene { position:relative; height:270px; border:1px solid var(--rule);
+               border-radius: var(--radius-lg); overflow:hidden; background: var(--paper); max-width:560px; }
+  .dlg-back { position:absolute; inset:0; background: var(--sheet-inverse); opacity:.45; }
+  .dlg { position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:330px;
+         background: var(--sheet); border:1px solid var(--rule); border-radius: var(--radius-lg);
+         box-shadow: var(--shadow-modal); }
+  .dlg h3 { margin:0; padding:13px 18px; border-bottom:1px solid var(--rule-subtle); font-size: var(--text-lg); }
+  .dlg p { margin:0; padding:14px 18px; font-size: var(--text-sm); color: var(--ink-2); }
+  .dlg .ft { display:flex; justify-content:flex-end; gap:8px; padding:11px 18px;
+             border-top:1px solid var(--rule-subtle); background: var(--sheet-2); }
+  .btn { height:32px; padding:0 13px; border-radius: var(--radius-sm); font-size: var(--text-sm);
+         font-weight: var(--font-weight-medium); border:1px solid transparent; cursor:pointer; font-family: var(--font-sans); }
+  .outline { background: var(--sheet); border-color: var(--rule-strong); color: var(--ink); }
+  .danger { background: var(--bad); color:#fff; }
+</style>
+</head>
+<body>
+
+<h1>Feedback</h1>
+<p class="lede">
+  What a screen shows when it is not showing data. Seven copies of the confirm dialog, five
+  retry blocks across three different minimum heights, and three rival empty states are all
+  one component each now.
+</p>
+
+<h2>Alerts</h2>
+<div class="alert a-bad"><div><strong>The status was not changed</strong>The order service rejected the change. It is still processing.</div></div>
+<div class="alert a-warn"><div><strong>Two documents are expiring</strong>The trade licence and TIN certificate expire within 30 days.</div></div>
+<div class="alert a-ok"><div><strong>Supplier approved</strong>They can now receive orders.</div></div>
+<div class="alert a-note"><div><strong>Read-only</strong>Your role can view suppliers but not edit them.</div></div>
+<p class="note">
+  Errors say what happened <em>and what is still true</em> — "It is still processing" is the
+  part that stops an operator chasing an order the supplier never dispatched. They never
+  apologise and never show the server's own words: raw messages were being rendered straight
+  onto an unauthenticated password-reset page.
+</p>
+
+<h2>Empty is not the same as broken</h2>
+<div class="grid2">
+  <div class="state"><div class="t">No orders yet</div><div class="m">Orders placed by retailers will appear here.</div></div>
+  <div class="state"><div class="t">No cancelled orders</div><div class="m">Try another status filter.</div></div>
+  <div class="state"><div class="t">Orders could not be loaded</div><div class="m">The order service did not respond. Nothing has changed.</div><div style="margin-top:8px"><button class="btn outline">Try again</button></div></div>
+  <div class="state"><div class="t" style="color:var(--warn)">Fraud detection is not running</div><div class="m">This is not a clean result — no checks have been performed.</div></div>
+</div>
+<p class="note">
+  Four distinct facts that a single "no data" state conflates. The last one is why
+  <span class="mono">EmptyState</span> has variants at all: a fraud screen showing zero
+  flags reads as <em>"no fraud detected"</em> when the truth is <em>"detection is not
+  running"</em> — worse than an empty state, because it looks like a negative result rather
+  than no result.
+</p>
+
+<h2>Loading</h2>
+<div class="sk" role="status" aria-label="Loading table">
+  <div class="hd"><div class="bar" style="flex:1"></div><div class="bar" style="flex:1"></div><div class="bar" style="flex:1"></div></div>
+  <div class="rw"><div class="bar" style="flex:1"></div><div class="bar" style="flex:1"></div><div class="bar" style="flex:1"></div></div>
+  <div class="rw"><div class="bar" style="flex:1"></div><div class="bar" style="flex:1"></div><div class="bar" style="flex:1"></div></div>
+  <div class="rw"><div class="bar" style="flex:1"></div><div class="bar" style="flex:1"></div><div class="bar" style="flex:1"></div></div>
+</div>
+<p class="note">
+  Every grey bar is <span class="mono">aria-hidden</span> — a rectangle is not information.
+  But that left the region-level skeletons announcing <strong>nothing at all</strong>: a
+  screen-reader user waiting on a slow table heard silence and could not tell it from an
+  empty one. The composites carry <span class="mono">role="status"</span>; nest one inside
+  another and you pass <span class="mono">label={null}</span>, because two live regions
+  announce the same load twice.
+</p>
+
+<h2>Confirm</h2>
+<div class="dlg-scene">
+  <div class="dlg-back"></div>
+  <div class="dlg">
+    <h3>Move to Cancelled?</h3>
+    <p>Cancelling releases the committed stock and notifies the retailer. This cannot be undone from here.</p>
+    <div class="ft"><button class="btn outline">Cancel</button><button class="btn danger">Move to Cancelled</button></div>
+  </div>
+</div>
+<p class="note">
+  Cancel comes before confirm — two of the seven hand-rolled copies had it the other way,
+  and the dialog exists precisely when the other option is expensive. A backdrop click does
+  <em>not</em> dismiss: a confirmation must be answered, not lost to a stray click.
+  <br><br>
+  <strong>The bug in this exact markup.</strong> The backdrop carried the page-level
+  <span class="mono">overlay</span> step (40) while the panel was
+  <span class="mono">position: relative</span> at <span class="mono">z-index: auto</span>.
+  Both sit inside one container at <span class="mono">modal</span>, and within a stacking
+  context a positive z-index paints above auto — so the backdrop covered the panel and
+  <strong>every button in every confirm dialog in the app was unclickable</strong>, Cancel
+  included. The whole test suite passed: jsdom does no hit testing and
+  <span class="mono">fireEvent.click</span> dispatches straight at the node. It took
+  <span class="mono">elementFromPoint</span> in a real browser to see it.
+</p>
+
+</body>
+</html>

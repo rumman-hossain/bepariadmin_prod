@@ -29,6 +29,38 @@ export {
   normalizeIdentifier,
   CryptoUnavailableError,
   HashTimeoutError,
+  /**
+   * The canonical password policy: required, >= 8 chars, >= 1 uppercase,
+   * >= 1 digit.
+   *
+   * Re-exported here because the admin app used to carry its own copy in
+   * `src/utils/validation.ts` that enforced only the first two rules, and a
+   * third, length-only copy in the wholesaler Zod schema. The effect was that
+   * an admin could set a wholesaler password — say all-lowercase, no digits —
+   * that the mobile app would then refuse at its own registration screen. This
+   * is exactly the drift the shared package's own docstring says it exists to
+   * prevent, so the package is now the only definition in the app.
+   */
+  validatePassword,
+
+  /**
+   * Strength estimation and generation, also from the shared package.
+   *
+   * They live there rather than here for the same reason the policy does: the
+   * mobile app shows a strength meter on its own registration screen, and two
+   * implementations would eventually disagree about the same password. The
+   * package stays framework-free — the React components that render these are
+   * in `src/components/auth/`.
+   */
+  scorePassword,
+  generatePassword,
+} from 'nextgen-password';
+
+export type {
+  PasswordValidation,
+  PasswordStrength,
+  StrengthLevel,
+  GeneratePasswordOptions,
 } from 'nextgen-password';
 
 /**

@@ -1,21 +1,16 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAddProductStore } from '../store/useAddProductStore';
 import { useProductFormLifecycle } from './useProductFormLifecycle';
 import { useProductRegistration } from './useProductRegistration';
-import {
-  getCategories,
-  getSubCategories,
-  getProductGroups,
-  getClassifications,
-  getSizeConfig,
-  getPlatformMargin,
-} from '@/src/api/products';
-import type { CatalogNode, SizeConfig } from '../../types/registration';
+import { useCatalogCascade } from './useCatalogCascade';
+import { useWizardNavigation, type WizardStep } from './useWizardNavigation';
+import { syncSizeSelection } from '../utils/syncSizeSelection';
 import { resolveHasVariant } from '../utils/resolveHasVariant';
+import type { CatalogNode } from '../../types/registration';
 import { PRODUCT_ROUTES } from '../../routes';
 
-export type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
+export type { WizardStep };
 export type SelectionType =
   | 'none'
   | 'category'
@@ -34,46 +29,43 @@ const UNIT_TYPES = [
   { name: 'Set', code: 'S' },
 ];
 
+/** Store field holding the display name for each catalogue level. */
+const NAME_MIRRORS = [
+  { id: 'categoryId', name: 'category' },
+  { id: 'subCategoryId', name: 'subCategory' },
+  { id: 'productGroupId', name: 'productGroup' },
+  { id: 'classificationId', name: 'productClassification' },
+] as const;
+
+/**
+ * The add-product wizard's controller.
+ *
+ * Was 420 lines and 13 effects. It now composes four pieces, each with one job:
+ *
+ *   - `useProductFormLifecycle` — hydrate an existing product for editing
+ *   - `useCatalogCascade`       — the five catalogue fetches, as queries
+ *   - `useWizardNavigation`     — step transitions and confirmation dialogs
+ *   - `useProductRegistration`  — SKU, variation generation, submit
+ *
+ * What remains here is the wiring between them plus the derived pricing values.
+ */
 export function useAddProductLogic() {
   const navigate = useNavigate();
   const { productId: routeProductId } = useParams<{ productId?: string }>();
   const store = useAddProductStore();
-  const {
-    basePrice,
-    margin,
-    moqSet,
-    moq,
-    hasVariant,
-    selectedSizes,
-    productGroupId,
-    sizeMode,
-    sizeStockSet,
-    sizeLowStockAlertSet,
-    variations,
-    colors,
-    setField,
-    reset,
-  } = store;
+  const { setField, reset } = store;
 
-  const [currentStep, setCurrentStep] = useState<WizardStep>(1);
-  const [platformMargin, setPlatformMargin] = useState(9.5);
-  const [showVariantPrompt, setShowVariantPrompt] = useState(false);
-  const [showPricingReusePrompt, setShowPricingReusePrompt] = useState(false);
-  const [pendingVariantChoice, setPendingVariantChoice] = useState<boolean | null>(null);
-  const [showResetPrompt, setShowResetPrompt] = useState(false);
-  const [showSubmitPrompt, setShowSubmitPrompt] = useState(false);
-  const [showDiscardPricingPrompt, setShowDiscardPricingPrompt] = useState(false);
   const [selectionType, setSelectionType] = useState<SelectionType>('none');
   const [listSearch, setListSearch] = useState('');
 
-  const [categories, setCategories] = useState<CatalogNode[]>([]);
-  const [subCategories, setSubCategories] = useState<CatalogNode[]>([]);
-  const [productGroups, setProductGroups] = useState<CatalogNode[]>([]);
-  const [classifications, setClassifications] = useState<CatalogNode[]>([]);
-  const [catalogLoading, setCatalogLoading] = useState(false);
-  const [sizeConfig, setSizeConfig] = useState<SizeConfig | null>(null);
-
   const { editingProductId, isHydrating, isEditMode } = useProductFormLifecycle();
+
+  const catalog = useCatalogCascade({
+    categoryId: store.categoryId,
+    subCategoryId: store.subCategoryId,
+    productGroupId: store.productGroupId,
+  });
+
   const {
     registrationState,
     sku: activeSku,
@@ -84,187 +76,9 @@ export function useAddProductLogic() {
     error: registrationError,
   } = useProductRegistration(editingProductId);
 
-  useEffect(() => {
-    void getPlatformMargin().then((res) => {
-      if (res.ok && res.data.marginPercent != null) {
-        setPlatformMargin(res.data.marginPercent);
-        if (!store.margin) setField('margin', String(res.data.marginPercent));
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    setCurrentStep(1);
-  }, [routeProductId]);
-
-  useEffect(() => {
-    void getCategories().then((res) => {
-      if (res.ok) setCategories(res.data);
-    });
-  }, []);
-
-  useEffect(() => {
-    if (!store.categoryId) {
-      setSubCategories([]);
-      return;
-    }
-    setCatalogLoading(true);
-    void getSubCategories(store.categoryId).then((res) => {
-      if (res.ok) setSubCategories(res.data);
-      setCatalogLoading(false);
-    });
-  }, [store.categoryId]);
-
-  useEffect(() => {
-    if (!store.subCategoryId) {
-      setProductGroups([]);
-      return;
-    }
-    setCatalogLoading(true);
-    void getProductGroups(store.subCategoryId).then((res) => {
-      if (res.ok) setProductGroups(res.data);
-      setCatalogLoading(false);
-    });
-  }, [store.subCategoryId]);
-
-  useEffect(() => {
-    if (!productGroupId) {
-      setClassifications([]);
-      return;
-    }
-    setCatalogLoading(true);
-    void getClassifications(productGroupId).then((res) => {
-      if (res.ok) setClassifications(res.data);
-      setCatalogLoading(false);
-    });
-  }, [productGroupId]);
-
-  useEffect(() => {
-    if (!productGroupId) {
-      setSizeConfig(null);
-      return;
-    }
-    void getSizeConfig(productGroupId).then((res) => {
-      if (res.ok && res.data) {
-        setSizeConfig(res.data);
-        setField('sizeType', res.data.type);
-      }
-    });
-  }, [productGroupId, setField]);
-
-  useEffect(() => {
-    if (sizeMode === 'AUTO') {
-      setField('sizeType', sizeConfig?.type || 'UNIQUE');
-    } else {
-      setField('sizeType', sizeMode);
-    }
-  }, [sizeMode, sizeConfig, setField]);
-
-  useEffect(() => {
-    if (isEditMode && hasVariant === null) {
-      setField('hasVariant', resolveHasVariant(null, variations));
-    }
-  }, [isEditMode, hasVariant, variations, setField]);
-
-  useEffect(() => {
-    if (store.categoryId && categories.length > 0) {
-      const match = categories.find((c) => c.id === store.categoryId);
-      if (match && store.category !== match.name) setField('category', match.name);
-    }
-  }, [store.categoryId, categories, store.category, setField]);
-
-  useEffect(() => {
-    if (store.subCategoryId && subCategories.length > 0) {
-      const match = subCategories.find((c) => c.id === store.subCategoryId);
-      if (match && store.subCategory !== match.name) setField('subCategory', match.name);
-    }
-  }, [store.subCategoryId, subCategories, store.subCategory, setField]);
-
-  useEffect(() => {
-    if (store.productGroupId && productGroups.length > 0) {
-      const match = productGroups.find((c) => c.id === store.productGroupId);
-      if (match && store.productGroup !== match.name) setField('productGroup', match.name);
-    }
-  }, [store.productGroupId, productGroups, store.productGroup, setField]);
-
-  useEffect(() => {
-    if (store.classificationId && classifications.length > 0) {
-      const match = classifications.find((c) => c.id === store.classificationId);
-      if (match && store.productClassification !== match.name) setField('productClassification', match.name);
-    }
-  }, [store.classificationId, classifications, store.productClassification, setField]);
-
-  useEffect(() => {
-    if (selectedSizes.length === 0) return;
-    const sizeSet = new Set(selectedSizes);
-    const pruneSet = (current: Record<string, string>) => {
-      let changed = false;
-      const next = { ...current };
-      Object.keys(next).forEach((k) => {
-        if (!sizeSet.has(k)) {
-          delete next[k];
-          changed = true;
-        }
-      });
-      return changed ? next : null;
-    };
-    const nextStock = pruneSet(sizeStockSet);
-    if (nextStock) setField('sizeStockSet', nextStock);
-    const nextMoq = pruneSet(moqSet);
-    if (nextMoq) setField('moqSet', nextMoq);
-    const nextAlert = pruneSet(sizeLowStockAlertSet);
-    if (nextAlert) setField('sizeLowStockAlertSet', nextAlert);
-
-    if (hasVariant && variations.length > 0) {
-      let varChanged = false;
-      const nextVars = variations.map((v) => {
-        const currentInventory = v.inventory || [];
-        const currentSizes = new Set(currentInventory.map((i) => i.size));
-        let nextInventory = currentInventory.filter((item) => sizeSet.has(item.size));
-        let added = false;
-        selectedSizes.forEach((size) => {
-          if (!currentSizes.has(size)) {
-            nextInventory.push({
-              size,
-              stock: Number(sizeStockSet[size]) || (selectedSizes.length === 1 ? Number(store.stock) || 0 : 0),
-              moq: Number(moqSet[size]) || Number(store.moq) || 1,
-              lowStockAlert: Number(sizeLowStockAlertSet[size]) || Number(store.lowStockAlert) || 5,
-            });
-            added = true;
-          }
-        });
-        if (nextInventory.length !== currentInventory.length || added) {
-          varChanged = true;
-          const sizeOrder = new Map(selectedSizes.map((s, i) => [s, i]));
-          nextInventory.sort((a, b) => (sizeOrder.get(a.size) || 0) - (sizeOrder.get(b.size) || 0));
-          return { ...v, inventory: nextInventory };
-        }
-        return v;
-      });
-      if (varChanged) setField('variations', nextVars);
-    }
-  }, [selectedSizes, hasVariant, setField]);
-
-  const pricing = useMemo(() => {
-    const base = parseFloat(basePrice) || 0;
-    const marginVal = margin === '' ? platformMargin : parseFloat(margin) || 0;
-    const sell = base > 0 ? base * (1 + marginVal / 100) : 0;
-    return { base, margin: marginVal, sell: Math.round(sell * 100) / 100 };
-  }, [basePrice, margin, platformMargin]);
-
-  const totalMoq = useMemo(() => {
-    const moqSetSum = Object.values(moqSet).reduce((sum, value) => sum + (Number(value) || 0), 0);
-    if (moqSetSum > 0) return moqSetSum;
-    return Number(moq) || 0;
-  }, [moqSet, moq]);
-
-  useEffect(() => {
-    setField('moq', totalMoq > 0 ? String(totalMoq) : '');
-  }, [totalMoq, setField]);
-
   const resetPricingState = useCallback(() => {
     setField('basePrice', '');
-    setField('margin', String(platformMargin));
+    setField('margin', String(catalog.platformMargin));
     setField('stock', '');
     setField('moq', '');
     setField('lowStockAlert', '');
@@ -275,129 +89,162 @@ export function useAddProductLogic() {
     setField('variationColors', []);
     setField('variationDesigns', []);
     setField('variations', []);
-  }, [setField, platformMargin]);
-
-  const hasExistingPricingData = useMemo(() => {
-    const hasBase = Boolean(basePrice && basePrice !== '0');
-    const hasSizedData =
-      Object.values(sizeStockSet).some((v) => v && v !== '0') || Object.values(moqSet).some((v) => v && v !== '0');
-    const hasSingleData = (store.stock && store.stock !== '0') || (moq && moq !== '0');
-    return hasBase || hasSizedData || hasSingleData;
-  }, [basePrice, store.stock, moq, sizeStockSet, moqSet]);
+  }, [setField, catalog.platformMargin]);
 
   const handleResetForm = useCallback(() => {
     reset();
-    setCurrentStep(1);
-    setShowResetPrompt(false);
     setSelectionType('none');
     setListSearch('');
   }, [reset]);
+
+  const nav = useWizardNavigation({
+    isEditMode,
+    state: store,
+    setField,
+    resetPricing: resetPricingState,
+    resetForm: handleResetForm,
+  });
+  const { setCurrentStep } = nav;
+
+  // Navigating from one product's edit form to another reuses this component,
+  // so the wizard has to be sent back to step 1 explicitly.
+  useEffect(() => {
+    setCurrentStep(1);
+  }, [routeProductId, setCurrentStep]);
+
+  // Seed the margin field from the platform default, but never overwrite a
+  // figure the operator has already typed.
+  useEffect(() => {
+    if (!store.margin) setField('margin', String(catalog.platformMargin));
+  }, [catalog.platformMargin, store.margin, setField]);
+
+  // AUTO follows whatever the product group declares; anything else is an
+  // explicit override by the operator.
+  const resolvedSizeType =
+    store.sizeMode === 'AUTO' ? catalog.sizeConfig?.type || 'UNIQUE' : store.sizeMode;
+  useEffect(() => {
+    if (store.sizeType !== resolvedSizeType) setField('sizeType', resolvedSizeType);
+  }, [resolvedSizeType, store.sizeType, setField]);
+
+  // An existing product has no stored answer to "does this have variants?" —
+  // infer it from whether it actually has any.
+  useEffect(() => {
+    if (isEditMode && store.hasVariant === null) {
+      setField('hasVariant', resolveHasVariant(null, store.variations));
+    }
+  }, [isEditMode, store.hasVariant, store.variations, setField]);
+
+  /**
+   * Mirror catalogue display names into the store.
+   *
+   * The store holds both the id and the name because the summary step renders
+   * names while the payload sends ids. On a hydrated product only the ids come
+   * back, so the names have to be looked up once the catalogue arrives — four
+   * near-identical effects, now one loop.
+   */
+  const catalogLevels = useMemo(
+    () =>
+      [
+        catalog.categories,
+        catalog.subCategories,
+        catalog.productGroups,
+        catalog.classifications,
+      ] as CatalogNode[][],
+    [catalog.categories, catalog.subCategories, catalog.productGroups, catalog.classifications],
+  );
+
+  /*
+   * Reads the current values through `getState()` rather than closing over
+   * `store`, which is what the effect below already does.
+   *
+   * `store` was in this dependency array alongside the eight specific fields —
+   * and `store` is a new object on every mutation, so the eight were doing
+   * nothing and this ran after every keystroke anywhere in the wizard, four
+   * `find`s over the catalogue each time. Naming the fields it should actually
+   * react to makes the array mean what it says.
+   */
+  useEffect(() => {
+    const current = useAddProductStore.getState();
+    NAME_MIRRORS.forEach(({ id, name }, level) => {
+      const selectedId = current[id];
+      const nodes = catalogLevels[level];
+      if (!selectedId || !nodes?.length) return;
+      const match = nodes.find((node) => node.id === selectedId);
+      if (match && current[name] !== match.name) setField(name, match.name);
+    });
+  }, [
+    catalogLevels,
+    store.categoryId,
+    store.subCategoryId,
+    store.productGroupId,
+    store.classificationId,
+    setField,
+  ]);
+
+  // Reconcile per-size data whenever the size selection changes. The transform
+  // is pure and returns only what differs, so a no-op change writes nothing.
+  useEffect(() => {
+    const patch = syncSizeSelection(useAddProductStore.getState());
+    (Object.keys(patch) as Array<keyof typeof patch>).forEach((key) => {
+      setField(key, patch[key] as never);
+    });
+  }, [store.selectedSizes, store.hasVariant, setField]);
+
+  const pricing = useMemo(() => {
+    const base = parseFloat(store.basePrice) || 0;
+    const marginVal =
+      store.margin === '' ? catalog.platformMargin : parseFloat(store.margin) || 0;
+    const sell = base > 0 ? base * (1 + marginVal / 100) : 0;
+    return { base, margin: marginVal, sell: Math.round(sell * 100) / 100 };
+  }, [store.basePrice, store.margin, catalog.platformMargin]);
+
+  const totalMoq = useMemo(() => {
+    const perSizeTotal = Object.values(store.moqSet).reduce(
+      (sum, value) => sum + (Number(value) || 0),
+      0,
+    );
+    return perSizeTotal > 0 ? perSizeTotal : Number(store.moq) || 0;
+  }, [store.moqSet, store.moq]);
+
+  // The top-level MOQ is the sum of the per-size minimums, so it is derived,
+  // not entered — keep the stored value in step with it.
+  useEffect(() => {
+    const next = totalMoq > 0 ? String(totalMoq) : '';
+    if (store.moq !== next) setField('moq', next);
+  }, [totalMoq, store.moq, setField]);
 
   const handleBack = useCallback(() => {
     navigate(PRODUCT_ROUTES.LIST);
   }, [navigate]);
 
-  const handleStepChange = useCallback(
-    (nextStep: number) => {
-      if (currentStep === 2 && nextStep === 3) {
-        if (isEditMode) {
-          if (hasVariant === null) {
-            setField('hasVariant', resolveHasVariant(null, variations));
-          }
-          setCurrentStep(3);
-        } else setShowVariantPrompt(true);
-        return;
-      }
-      if (currentStep === 3 && nextStep === 2) {
-        if (isEditMode) setCurrentStep(2);
-        else setShowDiscardPricingPrompt(true);
-        return;
-      }
-      setCurrentStep(nextStep as WizardStep);
-    },
-    [currentStep, isEditMode, hasVariant, variations, setField],
-  );
-
-  const handleVariantChoice = useCallback(
-    (value: boolean) => {
-      setShowVariantPrompt(false);
-      setPendingVariantChoice(value);
-
-      if (!value) {
-        const nextMoqSet = { ...moqSet };
-        const nextStockSet = { ...sizeStockSet };
-        const nextAlertSet = { ...sizeLowStockAlertSet };
-        selectedSizes.forEach((size) => {
-          if (nextMoqSet[size] === undefined) nextMoqSet[size] = '';
-          if (nextStockSet[size] === undefined) nextStockSet[size] = '';
-          if (nextAlertSet[size] === undefined) nextAlertSet[size] = '';
-        });
-        setField('moqSet', nextMoqSet);
-        setField('sizeStockSet', nextStockSet);
-        setField('sizeLowStockAlertSet', nextAlertSet);
-      }
-
-      if (hasExistingPricingData) {
-        setShowPricingReusePrompt(true);
-        return;
-      }
-
-      if (value && colors) {
-        const colorsArr = colors.split(',').map((c) => c.trim()).filter(Boolean);
-        setField('variationColors', colorsArr);
-      }
-
-      setField('hasVariant', value);
-      setCurrentStep(3);
-    },
-    [hasExistingPricingData, selectedSizes, moqSet, sizeStockSet, sizeLowStockAlertSet, colors, setField],
-  );
-
-  const handlePricingReuseChoice = useCallback(
-    (reusePrevious: boolean) => {
-      if (!reusePrevious) resetPricingState();
-      if (pendingVariantChoice !== null) {
-        if (pendingVariantChoice && colors) {
-          const colorsArr = colors.split(',').map((c) => c.trim()).filter(Boolean);
-          setField('variationColors', colorsArr);
-        }
-        setField('hasVariant', pendingVariantChoice);
-      }
-      setPendingVariantChoice(null);
-      setShowPricingReusePrompt(false);
-      setCurrentStep(3);
-    },
-    [pendingVariantChoice, resetPricingState, colors, setField],
-  );
-
-  const handleDiscardPricingConfirm = useCallback(() => {
-    resetPricingState();
-    setShowDiscardPricingPrompt(false);
-    setCurrentStep(2);
-  }, [resetPricingState]);
-
   return {
-    currentStep,
-    handleStepChange,
-    showVariantPrompt,
-    handleVariantChoice,
-    showPricingReusePrompt,
-    handlePricingReuseChoice,
-    showDiscardPricingPrompt,
-    setShowDiscardPricingPrompt,
-    handleDiscardPricingConfirm,
-    showResetPrompt,
-    setShowResetPrompt,
-    handleResetForm,
-    showSubmitPrompt,
-    setShowSubmitPrompt,
+    currentStep: nav.currentStep,
+    handleStepChange: nav.goToStep,
+
+    // The six dialogs are one state internally; the boolean surface is kept so
+    // the step components stay unchanged.
+    showVariantPrompt: nav.prompt === 'variant',
+    handleVariantChoice: nav.chooseVariant,
+    showPricingReusePrompt: nav.prompt === 'pricing-reuse',
+    handlePricingReuseChoice: nav.choosePricingReuse,
+    showDiscardPricingPrompt: nav.prompt === 'discard-pricing',
+    setShowDiscardPricingPrompt: (open: boolean) =>
+      nav.setPrompt(open ? 'discard-pricing' : 'none'),
+    handleDiscardPricingConfirm: nav.confirmDiscardPricing,
+    showResetPrompt: nav.prompt === 'reset',
+    setShowResetPrompt: (open: boolean) => nav.setPrompt(open ? 'reset' : 'none'),
+    handleResetForm: nav.confirmReset,
+    showSubmitPrompt: nav.prompt === 'submit',
+    setShowSubmitPrompt: (open: boolean) => nav.setPrompt(open ? 'submit' : 'none'),
+
     handleSubmitProduct,
     registrationState,
+    registrationError,
     activeSku,
     pricing,
     totalMoq,
     handleGenerateVariations,
-    hasVariant,
+    hasVariant: store.hasVariant,
     selectionType,
     setSelectionType,
     listSearch,
@@ -405,16 +252,15 @@ export function useAddProductLogic() {
     handleBack,
     isEditMode,
     isHydrating,
-    categories,
-    subCategories,
-    productGroups,
-    classifications,
-    catalogLoading,
+    categories: catalog.categories,
+    subCategories: catalog.subCategories,
+    productGroups: catalog.productGroups,
+    classifications: catalog.classifications,
+    catalogLoading: catalog.catalogLoading,
     handleGenerateSku,
     isGeneratingSku,
-    sizeConfig,
-    platformMargin,
+    sizeConfig: catalog.sizeConfig,
+    platformMargin: catalog.platformMargin,
     unitTypes: UNIT_TYPES,
-    registrationError,
   };
 }

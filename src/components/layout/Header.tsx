@@ -1,153 +1,176 @@
-import React from 'react';
-import { Menu, Moon, Sun, LogOut } from 'lucide-react';
-import { NotificationsPopover } from '@/components/NotificationsPopover';
-import type { AppNotification } from '@/src/types/domain';
+import React, { useState } from 'react';
+import { KeyRound, PanelLeft, Moon, Sun, LogOut } from 'lucide-react';
+import { Dialog } from '@/src/components/feedback';
+import { ChangePasswordForm } from '@/src/components/auth/ChangePasswordForm';
+import { useToast } from '@/src/components/feedback/useToast';
+import type { AuthUser } from '@/src/types/auth';
 import { useTheme } from '@/src/design-system';
 import { cn } from '@/src/design-system/utils/cn';
-import { Input } from '@/src/components/ui/Input';
-
-// ─── Types ───────────────────────────────────────────────
+import { asStaffRole } from '@/src/auth/roles';
 
 export interface HeaderProps {
-  /** Toggle sidebar open/close */
   toggleSidebar: () => void;
-  /** Notification data */
-  notifications: AppNotification[];
-  /** Mark single notification as read */
-  onMarkNotificationRead: (id: string) => void;
-  /** Mark all notifications as read */
-  onMarkAllNotificationsRead: () => void;
-  /** Logout handler */
   onLogout?: () => void;
-  /** Global search query */
+  user?: AuthUser | null;
   searchQuery?: string;
-  /** Called when search query changes */
   onSearchChange?: (query: string) => void;
-  /** Optional class override */
   className?: string;
 }
 
-// ─── Component ───────────────────────────────────────────
+/** Shared shape for the icon-only controls, so they line up and behave alike. */
+const ICON_BUTTON = cn(
+  'flex h-8 w-8 items-center justify-center rounded-md',
+  'text-ink-2 transition-colors duration-150',
+  'hover:bg-sheet-hover hover:text-ink',
+  'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rule-focus',
+);
+
+const ROLE_LABEL: Record<string, string> = {
+  super_admin: 'Super admin',
+  admin: 'Admin',
+  finance: 'Finance',
+  operations: 'Operations',
+  viewer: 'Viewer',
+};
+
+function initials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '?';
+  return (parts[0]![0]! + (parts.length > 1 ? parts[parts.length - 1]![0]! : '')).toUpperCase();
+}
+
+/**
+ * Who you are signed in as.
+ *
+ * The shell showed no identity at all — no name, no role — on a console where
+ * five staff tiers see different affordances. An operator had no way to tell
+ * whether a control was missing because of their permissions or because it was
+ * never built.
+ */
+function UserBadge({ user, onChangePassword }: { user: AuthUser; onChangePassword: () => void }) {
+  const role = asStaffRole(user.role);
+  return (
+    <div className="ml-1 flex items-center gap-2 border-l border-rule-subtle pl-3">
+      <button
+        type="button"
+        onClick={onChangePassword}
+        aria-label="Change your password"
+        title="Change your password"
+        className={cn(ICON_BUTTON, 'mr-0.5')}
+      >
+        <KeyRound className="h-[18px] w-[18px]" aria-hidden="true" />
+      </button>
+      <span
+        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brass-wash text-2xs font-semibold text-brass"
+        aria-hidden="true"
+      >
+        {initials(user.name || user.email)}
+      </span>
+      <span className="hidden leading-tight sm:block">
+        <span className="block max-w-[14ch] truncate text-sm font-medium text-ink">
+          {user.name || user.email}
+        </span>
+        <span className="block text-2xs text-ink-3">
+          {/* An unrecognised role is named as such rather than shown raw or blank. */}
+          {role ? ROLE_LABEL[role] : 'Unknown role'}
+        </span>
+      </span>
+    </div>
+  );
+}
 
 export const Header: React.FC<HeaderProps> = ({
   toggleSidebar,
-  notifications,
-  onMarkNotificationRead,
-  onMarkAllNotificationsRead,
   onLogout,
-  searchQuery = '',
-  onSearchChange,
+  user,
   className,
 }) => {
+  /*
+   * `searchQuery` and `onSearchChange` are still on HeaderProps and still
+   * passed by AppShell, but the search box they fed is commented out below.
+   * They are deliberately NOT destructured: an unused binding fails the build,
+   * and removing them from the interface would break the caller. Restoring the
+   * box is a matter of uncommenting it and taking them back.
+   */
   const { isDark, toggleTheme } = useTheme();
+  const toast = useToast();
+  const [changingPassword, setChangingPassword] = useState(false);
 
   return (
     <header
       className={cn(
-        // Height
-        'h-16',
-
-        // Glass surface
-        'bg-[rgba(255,255,255,0.88)] dark:bg-[rgba(28,28,30,0.88)]',
-        'backdrop-blur-xl',
-
-        // Hairline bottom border
-        'border-b border-[rgba(60,60,67,0.08)] dark:border-[rgba(255,255,255,0.04)]',
-
-        // Layout
-        'flex items-center justify-between',
-
-        // Padding
-        'px-4 lg:px-6',
-
-        // Sticky
-        'sticky top-0 z-40',
-
+        'sticky top-0 z-(--z-nav) flex h-14 shrink-0 items-center justify-between gap-3',
+        'border-b border-rule-subtle bg-sheet px-3 lg:px-5',
         className,
       )}
     >
-      {/* Left section */}
-      <div className="flex items-center gap-3">
-        {/* Sidebar toggle */}
-        <button
-          onClick={toggleSidebar}
-          aria-label="Toggle sidebar"
-          className={cn(
-            'flex items-center justify-center',
-            'w-10 h-10 rounded-xl',
-            'text-[#6D6D72] dark:text-[#AEAEB2]',
-            'hover:bg-[#F2F2F7] dark:hover:bg-[#2C2C2E]',
-            'hover:text-[#1C1C1E] dark:hover:text-[#FFFFFF]',
-            'transition-all duration-200 ease-out',
-            'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[#007AFF]/50 dark:focus-visible:ring-[#0A84FF]/50',
-          )}
-        >
-          <Menu className="w-5 h-5" aria-hidden="true" />
+      <div className="flex min-w-0 flex-1 items-center gap-2">
+        <button type="button" onClick={toggleSidebar} aria-label="Toggle sidebar" className={ICON_BUTTON}>
+          <PanelLeft className="h-[18px] w-[18px]" aria-hidden="true" />
         </button>
 
-        {/* Global search */}
-        {onSearchChange && (
-          <div className="hidden md:block w-64">
+        {/* {onSearchChange && (
+          <div className="hidden w-full max-w-xs md:block">
             <Input
               type="search"
               size="sm"
-              placeholder="Global Search..."
+              placeholder="Search suppliers and products"
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              aria-label="Global search"
+              aria-label="Search suppliers and products"
             />
           </div>
-        )}
+        )} */}
       </div>
 
-      {/* Right section */}
-      <div className="flex items-center gap-1">
-        {/* Theme toggle */}
+      <div className="flex shrink-0 items-center gap-0.5">
         <button
+          type="button"
           onClick={toggleTheme}
-          aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
-          className={cn(
-            'flex items-center justify-center',
-            'w-10 h-10 rounded-xl',
-            'text-[#6D6D72] dark:text-[#AEAEB2]',
-            'hover:bg-[#F2F2F7] dark:hover:bg-[#2C2C2E]',
-            'hover:text-[#1C1C1E] dark:hover:text-[#FFFFFF]',
-            'transition-all duration-200 ease-out',
-            'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[#007AFF]/50 dark:focus-visible:ring-[#0A84FF]/50',
-          )}
+          aria-label={isDark ? 'Switch to light theme' : 'Switch to dark theme'}
+          className={ICON_BUTTON}
         >
           {isDark ? (
-            <Sun className="w-5 h-5" aria-hidden="true" />
+            <Sun className="h-[18px] w-[18px]" aria-hidden="true" />
           ) : (
-            <Moon className="w-5 h-5" aria-hidden="true" />
+            <Moon className="h-[18px] w-[18px]" aria-hidden="true" />
           )}
         </button>
 
-        {/* Notifications */}
-        <NotificationsPopover
-          notifications={notifications}
-          onMarkRead={onMarkNotificationRead}
-          onMarkAllRead={onMarkAllNotificationsRead}
-        />
+        {user && (
+          <UserBadge user={user} onChangePassword={() => setChangingPassword(true)} />
+        )}
 
-        {/* Logout */}
         {onLogout && (
           <button
+            type="button"
             onClick={onLogout}
-            aria-label="Logout"
-            className={cn(
-              'flex items-center justify-center',
-              'w-10 h-10 rounded-xl ml-1',
-              'text-[#FF3B30] dark:text-[#FF453A]',
-              'hover:bg-[#FF3B30]/8 dark:hover:bg-[#FF453A]/10',
-              'transition-all duration-200 ease-out',
-              'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[#FF3B30]/50 dark:focus-visible:ring-[#FF453A]/50',
-            )}
+            aria-label="Sign out"
+            className={cn(ICON_BUTTON, 'ml-1 hover:bg-bad-wash hover:text-bad')}
           >
-            <LogOut className="w-5 h-5" aria-hidden="true" />
+            <LogOut className="h-[18px] w-[18px]" aria-hidden="true" />
           </button>
         )}
       </div>
+
+      <Dialog
+        open={changingPassword}
+        onClose={() => setChangingPassword(false)}
+        size="sm"
+        title="Change your password"
+      >
+        {/* Mounted only while open, so a half-filled form is discarded on
+            close rather than lingering with the old password still in state. */}
+        {changingPassword && (
+          <ChangePasswordForm
+            onCancel={() => setChangingPassword(false)}
+            onSuccess={() => {
+              setChangingPassword(false);
+              toast.success('Password changed', 'Use your new password next time you sign in.');
+            }}
+          />
+        )}
+      </Dialog>
     </header>
   );
 };

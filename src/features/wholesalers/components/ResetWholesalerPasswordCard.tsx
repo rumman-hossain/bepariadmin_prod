@@ -1,14 +1,13 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { FormSection } from '@/src/components/forms/FormSection';
-import { FormField } from '@/src/components/forms/FormField';
-import { Input } from '@/src/components/ui/Input';
-import { Button } from '@/src/components/ui/Button';
-import { ConfirmDialog } from '@/src/components/shared/ConfirmDialog';
+import { Button } from '@/src/components/controls';
+import { ConfirmDialog } from '@/src/components/feedback';
 import { ShieldAlert } from 'lucide-react';
-import { hashPassword, hashErrorMessage } from '@/src/auth/passwordHasher';
+import { hashPassword, hashErrorMessage, validatePassword } from '@/src/auth/passwordHasher';
+import { PasswordField } from '@/src/components/auth/PasswordField';
 import { resetWholesalerPassword } from '../api/wholesalerApi';
 import { toWholesalerApiError } from '../api/errors';
-import { useToast } from '@/src/components/ui/Toast';
+import { useToast } from '@/src/components/feedback/useToast';
 
 interface ResetWholesalerPasswordCardProps {
   wholesalerId: string;
@@ -29,8 +28,19 @@ export function ResetWholesalerPasswordCard({
   const [loading, setLoading] = useState(false);
 
   const validate = (): boolean => {
-    if (newPassword.length < 8) {
-      setLocalError('Password must be at least 8 characters.');
+    /*
+     * The canonical policy, not a local length check.
+     *
+     * This was `newPassword.length < 8` — no uppercase, no digit — on the one
+     * screen where an admin sets somebody ELSE'S password. So a supplier could
+     * be handed a credential their own app would refuse to let them choose, and
+     * the console's own policy-conformance test did not cover this component.
+     */
+    const verdict = validatePassword(newPassword);
+    if (!verdict.valid) {
+      // `message` is optional on the shared type; it is always set on a failure,
+      // but the fallback keeps the UI from rendering an empty error box.
+      setLocalError(verdict.message ?? 'That password does not meet the policy.');
       return false;
     }
     if (newPassword !== confirmPassword) {
@@ -73,46 +83,68 @@ export function ResetWholesalerPasswordCard({
   return (
     <>
       <FormSection icon={ShieldAlert} title="Reset login password">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <FormField
-            label="New password"
-            htmlFor="reset-password-new"
-            required
-            error={localError ?? undefined}
-            className="flex-1 min-w-0"
-          >
-            <Input
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+          <div className="min-w-0 flex-1">
+            {/*
+             * The generator belongs here: an admin is setting a password FOR a
+             * supplier, then reading it out or emailing it. Generated passwords
+             * omit confusable characters (I l 1 O 0) for exactly that reason,
+             * and Copy is offered so nobody retypes a 16-character string by
+             * eye and locks the supplier out of their own account.
+             */}
+            <PasswordField
               id="reset-password-new"
-              type="password"
+              name="reset-password-new"
+              label="New password"
               autoComplete="new-password"
               placeholder="Minimum 8 characters"
               value={newPassword}
-              onChange={(e) => {
-                setNewPassword(e.target.value);
+              onChange={(value) => {
+                setNewPassword(value);
                 setLocalError(null);
               }}
+              error={localError ?? undefined}
+              allowGenerate
               disabled={loading}
+              /*
+               * NOT `required`, and that is the whole point.
+               *
+               * This card is rendered INSIDE the profile form, and Save Changes
+               * is a `type="submit"` button. A `required` input anywhere in that
+               * form makes the browser refuse the submit and focus this field
+               * with "Please fill out this field." — so an operator correcting
+               * an address could not save at all unless they also set a new
+               * password, and the only clue was a native tooltip on a card they
+               * were not using.
+               *
+               * Measured on dev: pressing Save Changes produced no request at
+               * all, and no message from the app.
+               *
+               * Nothing is lost. Resetting a password is a SEPARATE action with
+               * its own button, and `canSubmit` below already refuses an empty
+               * or mismatched pair — a rule this form has no business enforcing
+               * on somebody who is not resetting anything.
+               */
             />
-          </FormField>
-          <FormField
-            label="Confirm password"
-            htmlFor="reset-password-confirm"
-            required
-            className="flex-1 min-w-0"
-          >
-            <Input
+          </div>
+          <div className="min-w-0 flex-1">
+            <PasswordField
               id="reset-password-confirm"
-              type="password"
+              name="reset-password-confirm"
+              label="Confirm password"
               autoComplete="new-password"
               placeholder="Re-enter password"
               value={confirmPassword}
-              onChange={(e) => {
-                setConfirmPassword(e.target.value);
+              onChange={(value) => {
+                setConfirmPassword(value);
                 setLocalError(null);
               }}
+              showStrength={false}
               disabled={loading}
+              // Not `required`, for the same reason as the field above: it would
+              // block the profile form's own submit.
             />
-          </FormField>
+          </div>
           <Button
             variant="danger"
             size="md"
@@ -134,7 +166,7 @@ export function ResetWholesalerPasswordCard({
         message={`This will replace the login password for ${companyName} (${loginEmail}) and sign them out of all devices.`}
         confirmLabel="Reset password"
         cancelLabel="Cancel"
-        variant="danger"
+        tone="danger"
         loading={loading}
       />
     </>

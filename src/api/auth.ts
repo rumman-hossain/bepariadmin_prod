@@ -13,19 +13,10 @@ import type {
   LoginPayload,
   VerifyOtpPayload,
   LoginResponseData,
-  RefreshResponseData,
   MeResponseData,
   ForgotPasswordResponseData,
   ResetPasswordResponseData,
 } from '../types/api';
-
-// ═══════════════════════════════════════════════════════════════
-// Auth Endpoints
-// ═══════════════════════════════════════════════════════════════
-
-export function apiHealthCheck(): Promise<ApiResponse<string>> {
-  return request<string>('GET', '/health');
-}
 
 export function apiLogin(payload: LoginPayload): Promise<ApiResponse<LoginResponseData>> {
   return request<LoginResponseData>('POST', '/api/v1/auth/login', { body: payload as unknown as Record<string, unknown> });
@@ -41,10 +32,6 @@ export function apiVerifyLoginOtp(
 
 export function apiGetMe(): Promise<ApiResponse<MeResponseData>> {
   return request<MeResponseData>('GET', '/api/v1/auth/me', { auth: true });
-}
-
-export function apiRefresh(): Promise<ApiResponse<RefreshResponseData>> {
-  return request<RefreshResponseData>('POST', '/api/v1/auth/refresh');
 }
 
 export function apiLogout(): Promise<ApiResponse<string>> {
@@ -103,5 +90,22 @@ export function apiResendLoginOtp(
 ): Promise<ApiResponse<{ message: string }>> {
   return request<{ message: string }>('POST', '/api/v1/auth/login/resend-otp', {
     body: { identifier, user_type: userType },
+  });
+}
+/**
+ * Change the signed-in user's own password.
+ *
+ * Both values are the client-side PBKDF2 hashes, never plaintext — the backend
+ * compares `old_password_hash` against the stored argon2id(clientHash) and
+ * re-hashes the new one. `auth: true` because this is the only password
+ * endpoint that requires an existing session.
+ */
+export function apiChangePassword(
+  oldPasswordHash: string,
+  newPasswordHash: string
+): Promise<ApiResponse<{ message: string }>> {
+  return request<{ message: string }>('POST', '/api/v1/auth/change-password', {
+    auth: true,
+    body: { old_password_hash: oldPasswordHash, new_password_hash: newPasswordHash },
   });
 }

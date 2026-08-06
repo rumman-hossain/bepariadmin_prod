@@ -10,7 +10,6 @@ export type AuthStep =
   | 'idle'
   | 'login_form'
   | 'verifying_login'
-  | 'forgot_password'
   | 'reset_password'
   | 'dashboard';
 
@@ -24,6 +23,13 @@ export interface AuthState {
 
   /** User-friendly error message, or null */
   error: string | null;
+
+  /**
+   * Why the user is looking at the login form, when there is a reason worth
+   * giving — a session that ended on its own. Not an error: nothing went wrong
+   * and nobody mistyped anything, so it is rendered as information.
+   */
+  notice: string | null;
 
   /** Authenticated user profile (from GET /me), or null if not logged in */
   user: AuthUser | null;

@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
-import { Button } from '@/src/components/ui/Button';
-import { Modal } from '@/src/components/ui/Modal';
-import { Input } from '@/src/components/ui/Input';
+import { Button } from '@/src/components/controls';
+import { Dialog } from '@/src/components/feedback';
+import { Input } from '@/src/components/controls';
+import { Money, Text } from '@/src/components/data';
 import { useAddProductStore } from '../store/useAddProductStore';
 import type { ProductVariation } from '../../types/registration';
 
 interface Props {
   onGenerate: () => void;
   platformMargin: number;
-  isEditMode?: boolean;
   errorMessage?: string;
 }
 
@@ -30,7 +30,7 @@ function ChipList({
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-text-primary">{label}</p>
+      <p className="text-sm font-medium text-ink">{label}</p>
       <div className="flex gap-2">
         <Input
           value={input}
@@ -51,11 +51,11 @@ function ChipList({
         {items.map((item, idx) => (
           <span
             key={`${item}-${idx}`}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-surface-muted text-sm border border-border-default"
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sheet-2 text-sm border border-rule"
           >
             {item}
             <button type="button" onClick={() => onRemove(idx)} aria-label={`Remove ${item}`}>
-              <X className="w-3.5 h-3.5 text-text-tertiary" />
+              <X className="w-3.5 h-3.5 text-ink-3" />
             </button>
           </span>
         ))}
@@ -64,7 +64,7 @@ function ChipList({
   );
 }
 
-export function VariationConfigSection({ onGenerate, platformMargin, isEditMode, errorMessage }: Props) {
+export function VariationConfigSection({ onGenerate, platformMargin, errorMessage }: Props) {
   const { variationColors, variationDesigns, variations, sku, basePrice, setField } = useAddProductStore();
   const [colorInput, setColorInput] = useState('');
   const [designInput, setDesignInput] = useState('');
@@ -149,7 +149,7 @@ export function VariationConfigSection({ onGenerate, platformMargin, isEditMode,
       />
 
       {(alert || errorMessage) && (
-        <p className="text-sm text-semantic-danger">{alert || errorMessage}</p>
+        <Text as="p" variant="error">{alert || errorMessage}</Text>
       )}
 
       <div className="flex flex-wrap gap-2">
@@ -163,21 +163,21 @@ export function VariationConfigSection({ onGenerate, platformMargin, isEditMode,
         )}
       </div>
 
-      <Modal open={managerOpen} onClose={() => setManagerOpen(false)} size="lg">
+      <Dialog open={managerOpen} onClose={() => setManagerOpen(false)} size="lg">
         <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
           <h3 className="text-lg font-semibold">Variation Manager</h3>
           {variations.length === 0 ? (
-            <p className="text-sm text-text-secondary">No variations yet. Generate from colors/designs above.</p>
+            <Text as="p" variant="secondary">No variations yet. Generate from colors/designs above.</Text>
           ) : (
             <div className="space-y-3">
               {variations.map((v, idx) => (
-                <div key={v.id ?? idx} className="p-3 rounded-xl border border-border-default space-y-2">
+                <div key={v.id ?? idx} className="p-3 rounded-xl border border-rule space-y-2">
                   <div className="flex justify-between gap-2">
                     <div>
                       <p className="font-semibold text-sm">{v.displayLabel || v.subName}</p>
-                      <p className="text-xs text-text-tertiary">{v.subSku}</p>
+                      <Text as="p" variant="caption">{v.subSku}</Text>
                     </div>
-                    <p className="text-sm font-bold text-emerald-600">৳ {calcRetail(v.price)}</p>
+                    <Money amount={calcRetail(v.price)} className="text-sm font-semibold" />
                   </div>
                   <div className="grid grid-cols-3 gap-2">
                     <Input
@@ -207,7 +207,7 @@ export function VariationConfigSection({ onGenerate, platformMargin, isEditMode,
             Done
           </Button>
         </div>
-      </Modal>
+      </Dialog>
     </div>
   );
 }

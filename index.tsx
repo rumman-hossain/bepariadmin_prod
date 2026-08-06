@@ -4,8 +4,10 @@ import { RouterProvider } from 'react-router-dom';
 import { router } from '@/src/router';
 import { AuthProvider } from '@/src/auth/AuthContext';
 import { ThemeProvider } from '@/src/design-system';
-import { ToastProvider } from '@/src/components/ui/Toast';
-import { AppErrorBoundary } from '@/src/app/AppErrorBoundary';
+import { ToastProvider } from '@/src/components/feedback/Toast';
+import { ErrorBoundary } from '@/src/components/feedback';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/src/app/queryClient';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -15,14 +17,16 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <AppErrorBoundary>
-      <ThemeProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <RouterProvider router={router} />
-          </ToastProvider>
-        </AuthProvider>
-      </ThemeProvider>
-    </AppErrorBoundary>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <ThemeProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <RouterProvider router={router} />
+            </ToastProvider>
+          </AuthProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   </React.StrictMode>,
 );

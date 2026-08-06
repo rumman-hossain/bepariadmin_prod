@@ -15,14 +15,14 @@ export function FormField({ label, htmlFor, error, required, children, className
     <div className={cn('flex flex-col gap-1.5', className)}>
       <label
         htmlFor={htmlFor}
-        className="text-sm font-bold text-text-default"
+        className="text-sm font-bold text-ink"
       >
         {label}
-        {required && <span className="text-semantic-danger ml-0.5">*</span>}
+        {required && <span className="text-bad ml-0.5">*</span>}
       </label>
       {children}
       {error && (
-        <p role="alert" className="text-sm text-semantic-danger">
+        <p role="alert" className="text-sm text-bad">
           {error}
         </p>
       )}
