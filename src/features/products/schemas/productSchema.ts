@@ -200,6 +200,18 @@ export const productResponseSchema = z.object({
   trendTags: z.array(z.string()).optional().nullable(),
   visibility: z.string(),
   wholesalerId: z.string(),
+  /*
+   * WHOSE product this is, in the words an operator uses.
+   *
+   * The detail response carried only `wholesalerId` — a UUID — so the one
+   * screen where every rule is about the supplier could not name them. The
+   * margin comes from their row, a rejection notifies them, a take-down affects
+   * them, and the self-approval guard compares against who submitted. An
+   * approver had to go back to the list to find out whose product they were
+   * judging. Same field names the admin list row uses, so the two agree.
+   */
+  supplierName: z.string().optional().default(''),
+  supplierCode: z.string().optional().default(''),
   status: z.string(),
   imageUrl: z.string().optional().nullable(),
   imageUrls: z.array(z.string()).optional().nullable(),

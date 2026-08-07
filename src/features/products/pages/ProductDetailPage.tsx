@@ -286,6 +286,25 @@ export function ProductDetailPage() {
                   {variations.length} variant{variations.length === 1 ? '' : 's'}
                 </span>
               )}
+              {/*
+                WHOSE PRODUCT THIS IS — the page never said.
+
+                Every rule on this screen is about the supplier: the margin
+                comes from their row, a rejection notifies them, a take-down
+                affects them, and the self-approval guard compares against who
+                submitted. The payload carried only a UUID, so an approver had
+                to go back to the list to find out whose product they were
+                about to publish. Beside the state, because that is the pair
+                being judged together.
+              */}
+              {product.supplierName && (
+                <span className="inline-flex items-baseline gap-1.5 text-2xs text-ink-2">
+                  <span className="text-ink">{product.supplierName}</span>
+                  {product.supplierCode && (
+                    <span className="font-mono text-ink-3">{product.supplierCode}</span>
+                  )}
+                </span>
+              )}
               <Text variant="caption">
                 {[product.category, product.subCategory, product.productGroup]
                   .filter(Boolean)

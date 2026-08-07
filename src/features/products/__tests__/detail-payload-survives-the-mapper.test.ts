@@ -29,6 +29,8 @@ function serverPayload(overrides: Record<string, unknown> = {}) {
     basePrice: 100,
     platformPrice: 120,
     marginPercent: 20,
+    supplierName: 'Karim Textiles',
+    supplierCode: 'WHL-99001',
     stock: 30,
     material: 'Cotton 100%',
     availableSizes: ['S', 'M', 'L'],
@@ -73,6 +75,14 @@ describe('the mapper keeps what the approval screen judges on', () => {
     // product ever shipped.
     const p = normalizeBackendProduct(serverPayload());
     expect(p.imageUrls).toHaveLength(2);
+  });
+
+  it('names the supplier, so an approver can see whose product they are judging', () => {
+    // The payload carried only a UUID. Every rule on the detail screen is about
+    // the supplier, and it could not say who they were.
+    const p = normalizeBackendProduct(serverPayload());
+    expect(p.supplierName).toBe('Karim Textiles');
+    expect(p.supplierCode).toBe('WHL-99001');
   });
 
   it.each(['material', 'availableSizes', 'videoUrl', 'trendTags'])(

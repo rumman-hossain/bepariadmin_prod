@@ -219,6 +219,8 @@ export function normalizeBackendProduct(
     trendTags: Array.isArray(raw.productTags) ? (raw.productTags as string[]) : [],
     visibility: mapVisibility(raw.visibility),
     wholesalerId: raw.wholesalerId ?? '',
+    supplierName: typeof raw.supplierName === 'string' ? raw.supplierName : '',
+    supplierCode: typeof raw.supplierCode === 'string' ? raw.supplierCode : '',
     status: mapStatus(raw.status),
     imageUrl,
     imageUrls,
