@@ -27,6 +27,7 @@ import {
 import { StatusBadge } from '@/src/components/data/StatusBadge';
 import { Text, Money, formatAge } from '@/src/components/data';
 import { Panel } from '@/src/components/layout/primitives';
+import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { useProductDetail } from '../hooks/useProductDetail';
 import {
   useApproveProduct,
@@ -210,11 +211,24 @@ export function ProductDetailPage() {
     );
   }
 
-  const images = product.imageUrls?.length
+  /*
+   * Stored references are `gs://bucket/path`, which is not a scheme a browser
+   * implements and which the CSP's img-src rejects outright. `mediaDisplayUrl`
+   * rewrites them to the public bucket host and drops anything unloadable, so
+   * `images` below is only ever things that can actually render.
+   *
+   * The COUNT for the publish gate comes from the checklist above, which uses
+   * the raw list — a photo that exists but cannot be previewed here still
+   * satisfies the server's gate, and saying otherwise would send an operator
+   * to fix a problem that is not theirs.
+   */
+  const storedImages = product.imageUrls?.length
     ? product.imageUrls
     : product.imageUrl
       ? [product.imageUrl]
       : [];
+
+  const images = storedImages.map(mediaDisplayUrl).filter((url): url is string => Boolean(url));
   const variations = product.variations ?? [];
   const margin = product.sellingPrice - product.basePrice;
 
@@ -426,7 +440,14 @@ export function ProductDetailPage() {
 
         <ProductActionRail
           state={state}
-          imageCount={images.length}
+          /*
+            The STORED count, not the displayable one.
+            The server's publish gate counts rows in products.product_media; a
+            photo that exists but cannot be previewed in this browser still
+            satisfies it. Passing `images.length` would disable Publish with
+            "needs at least one image" over a product that has five.
+          */
+          imageCount={storedImages.length}
           context={state ? PRODUCT_STATE_MEANING[state] : undefined}
           busy={busy}
           onEdit={handleEdit}

@@ -15,6 +15,7 @@ import { ChevronRight, ChevronDown, ImageOff, Layers } from 'lucide-react';
 import { Money, Text, formatAge } from '@/src/components/data';
 import { StatusBadge } from '@/src/components/data/StatusBadge';
 import { cn } from '@/src/design-system/utils/cn';
+import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { PRODUCT_STATE_LABEL, isProductState } from '../types/adminProduct';
 import type { AdminProductRow } from '../types/adminProduct';
 import type { Column } from '@/src/components/data/DataTable';
@@ -47,21 +48,28 @@ export function buildColumns({
       render: (row) => {
         const isOpen = expandedIds.has(row.id);
         const category = categoryNames[row.categoryId] ?? '';
+        /*
+         * The API stores `gs://bucket/path`, which no browser can load and
+         * which the CSP rejects outright. This is the rewrite to the public
+         * bucket host — see `mediaDisplayUrl`.
+         */
+        const thumbnail = mediaDisplayUrl(row.thumbnailUrl);
 
         return (
           <div className="flex gap-3 min-w-0">
-            {row.thumbnailUrl ? (
+            {thumbnail ? (
               <img
-                src={row.thumbnailUrl}
+                src={thumbnail}
                 alt=""
+                loading="lazy"
                 className="h-10 w-10 shrink-0 rounded-sm border border-rule object-cover"
               />
-            ) : (
+            ) : row.imageCount === 0 ? (
               /*
-                A missing image is not a missing thumbnail, it is the publish
-                gate — a product cannot go PUBLIC without one. Saying so in the
-                row means an operator sees the blocker while scanning rather
-                than after opening the product and clicking Publish.
+                NO IMAGE ON FILE — the publish gate, not merely a missing
+                thumbnail. Saying so in the row means an operator sees the
+                blocker while scanning rather than after opening the product
+                and pressing Publish.
               */
               <span
                 className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border border-dashed border-warn-border bg-warn-wash text-warn"
@@ -69,6 +77,21 @@ export function buildColumns({
               >
                 <ImageOff className="h-4 w-4" aria-hidden="true" />
                 <span className="sr-only">No image on file</span>
+              </span>
+            ) : (
+              /*
+                A DIFFERENT THING: the product has images, but this reference
+                is not one a browser can load — a `mock-gcs://` from the local
+                emulator, or an empty thumbnail on a row that does have media.
+                Rendering the publish warning here would be a lie, and it is
+                the lie an operator would act on.
+              */
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border border-rule bg-sheet-2 text-ink-4"
+                title={`${row.imageCount} image${row.imageCount === 1 ? '' : 's'} on file, no preview available`}
+              >
+                <ImageOff className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only">Preview unavailable</span>
               </span>
             )}
 

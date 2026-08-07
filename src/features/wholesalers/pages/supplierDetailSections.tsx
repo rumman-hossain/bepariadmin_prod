@@ -1,5 +1,6 @@
 import { Building, MapPin, Package, Smartphone, UserCheck, Image as ImageIcon } from 'lucide-react';
 import { Text } from '@/src/components/data';
+import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import type { Wholesaler } from '@/src/types/domain';
 
 /**
@@ -14,13 +15,17 @@ import type { Wholesaler } from '@/src/types/domain';
  * business, and how a row is drawn is `EntityDetailsCard`'s.
  */
 
-function logoDisplayUrl(logoUrl?: string): string | null {
-  if (!logoUrl || logoUrl.startsWith('data:') || logoUrl.startsWith('mock-gcs://')) return null;
-  if (logoUrl.startsWith('gs://')) {
-    return `https://storage.googleapis.com/${logoUrl.replace('gs://', '')}`;
-  }
-  return logoUrl;
-}
+/*
+ * The gs:// rewrite used to live here as a private helper. It moved to
+ * `utils/mediaUrl` when the product screens needed the same rule and shipped
+ * without it — every product thumbnail was a raw `gs://` in an `<img src>`,
+ * which no browser loads and which the CSP rejects outright.
+ *
+ * One difference on the way: that version returned null for `data:` URIs, which
+ * is wrong — a data URI is directly renderable and is what a local preview
+ * produces. Only `mock-gcs://`, the fake-GCS emulator's scheme, is genuinely
+ * unloadable.
+ */
 
 /** Nothing recorded — said in words, never as an empty cell. */
 function None({ children = 'Not added' }: { children?: string }) {
@@ -28,7 +33,7 @@ function None({ children = 'Not added' }: { children?: string }) {
 }
 
 export function businessProfileSections(w: Wholesaler) {
-  const logo = logoDisplayUrl(w.logoUrl);
+  const logo = mediaDisplayUrl(w.logoUrl);
 
   return [
     {

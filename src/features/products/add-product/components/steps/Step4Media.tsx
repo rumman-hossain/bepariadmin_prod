@@ -5,6 +5,7 @@ import { resolveHasVariant } from '../../utils/resolveHasVariant';
 import { useUpload } from '@/src/services/upload/useUpload';
 import type { MediaSlot } from '../../../types/registration';
 import { Text } from '@/src/components/data';
+import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 
 interface SlotProps {
   label: string;
@@ -33,6 +34,8 @@ function MediaSlotInput({ label, slot, purpose, position, accept, mediaType }: S
     });
   };
 
+  const previewUrl = mediaDisplayUrl(slot.localUri);
+
   return (
     <div className="space-y-2">
       <Text as="p" variant="label">{label}</Text>
@@ -41,11 +44,18 @@ function MediaSlotInput({ label, slot, purpose, position, accept, mediaType }: S
         onClick={() => inputRef.current?.click()}
         className="relative w-full aspect-square rounded-xl border-2 border-dashed border-rule flex flex-col items-center justify-center gap-2 hover:bg-sheet-2 overflow-hidden"
       >
-        {slot.localUri ? (
+        {/*
+          `localUri` is a blob: URL for something just picked, but on an EDIT it
+          is whatever the product had stored — a `gs://` reference, which is not
+          loadable and which the CSP blocks. `mediaDisplayUrl` passes blob: and
+          data: through untouched and rewrites gs:// to the public bucket, so
+          both cases render from one branch.
+        */}
+        {previewUrl ? (
           mediaType === 'video' ? (
-            <video src={slot.localUri} className="absolute inset-0 w-full h-full object-cover" />
+            <video src={previewUrl} className="absolute inset-0 w-full h-full object-cover" />
           ) : (
-            <img src={slot.localUri} alt={label} className="absolute inset-0 w-full h-full object-cover" />
+            <img src={previewUrl} alt={label} className="absolute inset-0 w-full h-full object-cover" />
           )
         ) : (
           <>
