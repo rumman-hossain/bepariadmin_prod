@@ -9,17 +9,83 @@ import { z } from 'zod';
 
 // ─── Shared sub-schemas ────────────────────────────────────────
 
+/** One size's figures on a variation, as `GET /products/:id` returns them. */
+export const variationInventorySchema = z.object({
+  id: z.string().optional().nullable(),
+  productId: z.string().optional().nullable(),
+  variationId: z.string().optional().nullable(),
+  size: z.string(),
+  stock: z.number().optional().nullable(),
+  moq: z.number().optional().nullable(),
+  lowStockAlert: z.number().optional().nullable(),
+});
+
+/** One image or video belonging to a variation. */
+export const variationMediaSchema = z.object({
+  id: z.string().optional().nullable(),
+  url: z.string(),
+  mediaType: z.string().optional().nullable(),
+  position: z.number().optional().nullable(),
+  variationId: z.string().optional().nullable(),
+});
+
+/**
+ * A product variation, as the SERVER sends it.
+ *
+ * THIS SCHEMA WAS THROWING AWAY MOST OF THE PAYLOAD.
+ *
+ * Zod strips unknown keys, so every field the server sent and this object did
+ * not declare was discarded before any component could render it — variant
+ * prices, variant images and per-size inventory among them. The screens were
+ * blamed for not showing data that never reached them.
+ *
+ * Measured on dev: 26 of 26 variations carry their own price, and 60 rows in
+ * `products.product_media` are scoped to a variation. All of it was arriving
+ * and being dropped here.
+ *
+ * The names below are the SERVER's (`internal/product/repository.go:85-115`),
+ * not ones invented to look tidy. `sellingPrice` is the big one: the server has
+ * always called a variation's price that, while this declared `price`, so the
+ * field was silently absent on every variation.
+ */
 export const productVariationSchema = z.object({
   id: z.string().optional(),
-  color: z.string().optional().or(z.literal('')),
-  design: z.string().optional().or(z.literal('')),
-  subName: z.string().min(1, 'Variation name is required'),
-  subSku: z.string().optional().or(z.literal('')),
-  photoUrl: z.string().optional().or(z.literal('')),
-  videoUrl: z.string().optional().or(z.literal('')),
-  price: z.number().min(0).optional(),
-  stock: z.number().min(0).optional(),
-});
+  color: z.string().optional().nullable().or(z.literal('')),
+  design: z.string().optional().nullable().or(z.literal('')),
+  // Relaxed from `.min(1)`. This schema validates RESPONSES, and a variation
+  // saved without a sub-name would have failed the whole product parse —
+  // blanking a detail page over a cosmetic field.
+  subName: z.string().optional().nullable().or(z.literal('')),
+  subSku: z.string().optional().nullable().or(z.literal('')),
+  displayLabel: z.string().optional().nullable(),
+  seq: z.number().optional().nullable(),
+
+  photoUrl: z.string().optional().nullable().or(z.literal('')),
+  videoUrl: z.string().optional().nullable().or(z.literal('')),
+
+  /** The variation's own price. Absent means it sells at the product's price. */
+  sellingPrice: z.number().optional().nullable(),
+  /**
+   * Kept as an alias so existing callers keep working; filled from
+   * `sellingPrice` by the transform below when the server does not send it.
+   */
+  price: z.number().optional().nullable(),
+
+  stock: z.number().optional().nullable(),
+  moq: z.number().optional().nullable(),
+  lowStockAlert: z.number().optional().nullable(),
+
+  inventory: z.array(variationInventorySchema).optional().nullable(),
+  media: z.array(variationMediaSchema).optional().nullable(),
+})
+  .transform((v) => ({
+    ...v,
+    // One name for the price whichever the server used, so a component never
+    // has to know which. `?? undefined` rather than `|| ` so a deliberate 0
+    // survives — a free gift variant is priced at zero, not unpriced.
+    price: v.price ?? v.sellingPrice ?? undefined,
+    sellingPrice: v.sellingPrice ?? v.price ?? undefined,
+  }));
 
 export const bundleDetailsSchema = z.object({
   isBundle: z.boolean().default(false),

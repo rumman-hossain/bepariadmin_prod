@@ -185,8 +185,6 @@ export function buildProductPayload(
   options: { videoUrl?: string } = {},
 ): CreateProductInput {
   const basePrice = parseFloatOr(state.basePrice, 0);
-  const margin = parseFloatOr(state.margin, 0);
-  const sellingPrice = applyMargin(basePrice, margin);
 
   return {
     wholesalerId: state.wholesalerId,
@@ -205,9 +203,22 @@ export function buildProductPayload(
     volume: parseFloatOr(state.volume, 0),
     availableSizes: state.selectedSizes,
     basePrice,
-    margin,
-    sellingPrice,
-    platformPrice: sellingPrice,
+    /*
+     * NO margin, sellingPrice OR platformPrice.
+     *
+     * They used to be sent, and sending them was the bug. `margin` defaulted to
+     * 0 whenever the operator did not type one — which was always, because the
+     * form only ever DISPLAYED a fallback — so `sellingPrice` came out as
+     * `base × (1 + 0/100)`, exactly the base price. Measured on dev: 24 of 24
+     * live products stored margin 0 with selling equal to base, which is what
+     * the console then reported as a platform margin of ৳0.00.
+     *
+     * The margin belongs to the SUPPLIER: an admin sets it on the supplier
+     * record and it governs everything that supplier sells. The server derives
+     * the selling price from it at read time, so there is nothing here for a
+     * client to compute, and a client that computed it could only get it wrong
+     * or lie about it.
+     */
     moq: parseIntOr(state.moq, 1),
     moqSet: state.moqSet,
     dispatchTime: state.dispatchTime,

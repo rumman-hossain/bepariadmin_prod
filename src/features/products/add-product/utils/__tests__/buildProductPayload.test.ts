@@ -269,10 +269,35 @@ describe('buildProductPayload', () => {
     stock: '30',
   });
 
-  it('derives selling and platform price from base price and margin', () => {
-    const payload = buildProductPayload(base);
-    expect(payload.sellingPrice).toBe(500);
-    expect(payload.platformPrice).toBe(500);
+  /*
+   * THIS TEST USED TO ASSERT THE BUG.
+   *
+   * It required the payload to carry a selling price computed from
+   * `state.margin` — and `state.margin` is empty whenever the operator does not
+   * type one, which is always, because the form only ever DISPLAYED a fallback.
+   * So the "derived" price was `base × (1 + 0/100)`: the base price, sent as
+   * though it were the selling price, with a margin of 0 beside it. Measured on
+   * dev: 24 of 24 live products stored exactly that, which the console then
+   * reported as a platform margin of ৳0.00.
+   *
+   * The margin belongs to the supplier and the server derives the price from
+   * it. A client cannot compute this correctly, so it must not send it at all.
+   */
+  it('sends no price except the base price', () => {
+    const payload = buildProductPayload(base) as unknown as Record<string, unknown>;
+
+    expect(payload.basePrice).toBe(400);
+    expect('sellingPrice' in payload).toBe(false);
+    expect('platformPrice' in payload).toBe(false);
+    expect('margin' in payload).toBe(false);
+  });
+
+  it('still sends no price fields when the operator typed a margin', () => {
+    // A margin typed into the form is not authority to set one. The supplier's
+    // margin governs, and the server applies it.
+    const payload = buildProductPayload(wizard({ margin: '25' })) as unknown as Record<string, unknown>;
+    expect('margin' in payload).toBe(false);
+    expect('sellingPrice' in payload).toBe(false);
   });
 
   it('coerces unparseable numeric fields to zero rather than NaN', () => {
@@ -280,9 +305,7 @@ describe('buildProductPayload', () => {
     // price — worth an explicit test.
     const payload = buildProductPayload(wizard({ basePrice: '', margin: 'abc', weight: '' }));
     expect(payload.basePrice).toBe(0);
-    expect(payload.margin).toBe(0);
     expect(payload.weight).toBe(0);
-    expect(payload.sellingPrice).toBe(0);
   });
 
   it('sends hasVariant as a boolean even though the store models it as null', () => {
