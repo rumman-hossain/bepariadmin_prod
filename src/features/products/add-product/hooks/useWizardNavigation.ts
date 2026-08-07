@@ -59,6 +59,30 @@ export function useWizardNavigation({
 
   const closePrompt = useCallback(() => setPrompt('none'), []);
 
+  /*
+   * DISMISSING A QUESTION IS NOT AN ANSWER TO IT.
+   *
+   * The variant prompt was mounted with `onClose={() => chooseVariant(false)}`
+   * and the pricing-reuse prompt with `onClose={() => choosePricingReuse(true)}`.
+   * Dialog calls onClose on Escape and on a backdrop click, so either gesture
+   * silently answered "this product has no variants" — or "keep the pricing" —
+   * and ran setCurrentStep(3).
+   *
+   * That is how an operator ended up on step 3 with `hasVariant === false` and
+   * four variations still in the store: resolveHasVariant short-circuits on an
+   * explicit false, so the wizard ran the NON-variant branch and demanded
+   * "MOQ/Alert required for all active sizes" for a product it had just been
+   * told, without being asked, had no variants.
+   *
+   * Cancelling clears the pending choice too. chooseVariant records the answer
+   * before opening the pricing-reuse prompt, so leaving it set would let a
+   * later confirmation apply a decision the operator backed out of.
+   */
+  const cancelPrompt = useCallback(() => {
+    setPendingVariantChoice(null);
+    setPrompt('none');
+  }, []);
+
   /** Whether there is pricing work the operator would lose. */
   const hasExistingPricingData = useMemo(() => {
     const filled = (value: string | undefined) => Boolean(value && value !== '0');
@@ -183,6 +207,7 @@ export function useWizardNavigation({
     prompt,
     setPrompt,
     closePrompt,
+    cancelPrompt,
     hasExistingPricingData,
     chooseVariant,
     choosePricingReuse,

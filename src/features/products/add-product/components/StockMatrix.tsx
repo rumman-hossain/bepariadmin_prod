@@ -32,6 +32,9 @@ import { resolveHasVariant } from '../utils/resolveHasVariant';
 
 type Measure = 'stock' | 'moq' | 'lowStockAlert';
 
+/** Every measure the validator requires, so the chip cannot check fewer. */
+const MEASURES: Measure[] = ['stock', 'moq', 'lowStockAlert'];
+
 const MEASURE_LABEL: Record<Measure, string> = {
   stock: 'Stock',
   moq: 'MOQ',
@@ -182,7 +185,14 @@ export function StockMatrix() {
           sizes.filter(
             (s) =>
               !stockedOutSizes.includes(s) &&
-              (!isFilled(r.id, s, 'stock') || readCell(r.id, s, 'stock') === 0),
+              // ALL THREE MEASURES, not stock alone.
+              //
+              // This counted stock only, so a size with stock filled and MOQ or
+              // the alert left blank showed "Every size stocked" in green while
+              // the validator rejected the step. The operator was told the grid
+              // was complete by the one control that could have told them which
+              // cell was not. Green here now means step 3 will accept it.
+              MEASURES.some((m) => !isFilled(r.id, s, m) || readCell(r.id, s, m) === 0),
           ).length,
         0,
       ),
@@ -276,9 +286,12 @@ export function StockMatrix() {
               : 'border-bad-border bg-bad-wash text-bad',
           )}
         >
+          {/* "Complete", not "stocked": the count covers stock, MOQ and the
+              alert, and saying "stocked" while checking three measures is how
+              this label came to promise something it had not verified. */}
           {emptyCells === 0
-            ? 'Every size stocked'
-            : `${emptyCells} empty cell${emptyCells === 1 ? '' : 's'}`}
+            ? 'Every size complete'
+            : `${emptyCells} cell${emptyCells === 1 ? '' : 's'} to fill`}
         </span>
       </div>
 

@@ -124,7 +124,31 @@ function isVariationPriced(variation: ProductVariation, basePrice: number): bool
   return price > 0 && price >= basePrice;
 }
 
-function isVariationStocked(variation: ProductVariation, selectedSizes: string[]): boolean {
+/*
+ * ONE stocked-out list, not two.
+ *
+ * This read `variation.stockedOutSizes` — a field NOTHING in the application
+ * ever wrote. The only control is the In/Out toggle in the stock grid, and it
+ * writes the PRODUCT-level `stockedOutSizes` (StockMatrix.tsx:193), which also
+ * disables that size's cell in every variation row (:211, :221).
+ *
+ * So marking a size Out greyed out its inputs while this function went on
+ * demanding stock, MOQ and an alert for it — "N variation(s) have invalid
+ * stock/moq/alert logic", permanently, with no control on screen able to
+ * clear it. The only escape was toggling the size back to In, which is not
+ * what the button says it does. That was the deadlock.
+ *
+ * The product-level list wins because it is the one with a control, a writer,
+ * and a validator that already honours it — `validateSizedInventory` reads it
+ * at the top, which is why the non-variant path never had this bug. A
+ * per-variation exemption would need its own control before it could mean
+ * anything.
+ */
+function isVariationStocked(
+  variation: ProductVariation,
+  selectedSizes: string[],
+  stockedOutSizes: string[],
+): boolean {
   if (selectedSizes.length === 0) {
     const { moqTooHigh, alertTooHigh } = checkStockTriple(
       variation.stock || 0,
@@ -141,7 +165,7 @@ function isVariationStocked(variation: ProductVariation, selectedSizes: string[]
   }
 
   return selectedSizes.every((size) => {
-    if (variation.stockedOutSizes?.includes(size)) return true;
+    if (stockedOutSizes.includes(size)) return true;
 
     const raw = [
       variation.sizeStock?.[size],
@@ -177,7 +201,8 @@ export function validateStep3(state: WizardState): ValidationResult {
     } else {
       const incomplete = state.variations.filter(
         (v) =>
-          !isVariationPriced(v, basePrice) || !isVariationStocked(v, state.selectedSizes),
+          !isVariationPriced(v, basePrice) ||
+          !isVariationStocked(v, state.selectedSizes, state.stockedOutSizes),
       );
       if (incomplete.length > 0) {
         errors.variations = `${incomplete.length} variation(s) have invalid stock/moq/alert logic`;

@@ -37,10 +37,12 @@ export function AddProductFlow({ onBack }: Props) {
     showResetPrompt,
     setShowResetPrompt,
     handleResetForm,
+    routeProductId,
     showVariantPrompt,
     handleVariantChoice,
     showPricingReusePrompt,
     handlePricingReuseChoice,
+    cancelPrompt,
     showDiscardPricingPrompt,
     handleDiscardPricingConfirm,
     setShowDiscardPricingPrompt,
@@ -87,6 +89,31 @@ export function AddProductFlow({ onBack }: Props) {
    * attempt: getting step 1 wrong should not paint step 2 red on arrival.
    */
   const [attemptedSteps, setAttemptedSteps] = useState<Record<number, boolean>>({});
+
+  /*
+   * ATTEMPTS BELONG TO ONE PASS THROUGH THE FORM, NOT TO THE COMPONENT.
+   *
+   * This map only ever gained entries. Nothing cleared it: `confirmReset`
+   * resets the STORE and the step, not this local state, and navigating from
+   * one product's edit URL to another reuses this component rather than
+   * remounting it — the route effect in useAddProductLogic just sets the step
+   * back to 1.
+   *
+   * So after pressing Reset, or on opening a second product, step 1 appeared
+   * with all eight fields already red and the banner already showing — the
+   * exact "form is red before anyone has typed" condition this feature was
+   * built to avoid. Clearing on a change of product, and on reset below.
+   */
+  const [attemptedFor, setAttemptedFor] = useState(routeProductId);
+  if (attemptedFor !== routeProductId) {
+    // Adjusted during render, not in an effect. React documents this pattern
+    // for exactly this case, and it avoids the cascading extra commit an
+    // effect would cause — the attempts are stale the moment the id changes,
+    // so painting them once more and then clearing would flash the old
+    // product's errors over the new one.
+    setAttemptedFor(routeProductId);
+    setAttemptedSteps({});
+  }
   const showErrors = Boolean(attemptedSteps[currentStep]);
   const visibleErrors = showErrors ? validation.errors : {};
 
@@ -313,7 +340,14 @@ export function AddProductFlow({ onBack }: Props) {
             Everything entered so far is cleared, including uploaded media.
           </Text>
           <div className="flex gap-3">
-            <Button variant="danger" onClick={handleResetForm}>
+            <Button
+              variant="danger"
+              onClick={() => {
+                // The store reset alone leaves the form red — see attemptedSteps.
+                setAttemptedSteps({});
+                handleResetForm();
+              }}
+            >
               Reset
             </Button>
             <Button variant="outline" onClick={() => setShowResetPrompt(false)}>
@@ -342,7 +376,7 @@ export function AddProductFlow({ onBack }: Props) {
         />
       )}
 
-      <Dialog open={showVariantPrompt} onClose={() => handleVariantChoice(false)} size="sm">
+      <Dialog open={showVariantPrompt} onClose={cancelPrompt} size="sm">
         <div className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Does this product have variants?</h3>
           <Text as="p" variant="secondary">
@@ -374,7 +408,7 @@ export function AddProductFlow({ onBack }: Props) {
         </div>
       </Dialog>
 
-      <Dialog open={showPricingReusePrompt} onClose={() => handlePricingReuseChoice(true)} size="sm">
+      <Dialog open={showPricingReusePrompt} onClose={cancelPrompt} size="sm">
         <div className="p-6 space-y-4">
           <h3 className="text-lg font-semibold">Reuse existing pricing?</h3>
           <Text as="p" variant="secondary">

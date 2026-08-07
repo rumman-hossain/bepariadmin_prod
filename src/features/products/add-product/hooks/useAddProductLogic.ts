@@ -227,10 +227,21 @@ export function useAddProductLogic() {
     handleVariantChoice: nav.chooseVariant,
     showPricingReusePrompt: nav.prompt === 'pricing-reuse',
     handlePricingReuseChoice: nav.choosePricingReuse,
+    /** Dismissal for both prompts above — see cancelPrompt. */
+    cancelPrompt: nav.cancelPrompt,
     showDiscardPricingPrompt: nav.prompt === 'discard-pricing',
     setShowDiscardPricingPrompt: (open: boolean) =>
       nav.setPrompt(open ? 'discard-pricing' : 'none'),
     handleDiscardPricingConfirm: nav.confirmDiscardPricing,
+    /*
+     * Which product this wizard is currently showing.
+     *
+     * Exposed so AddProductFlow can drop per-instance UI state when it changes.
+     * The component is REUSED across products — the effect above sends it back
+     * to step 1 rather than remounting — so anything held in useState survives
+     * a navigation that the operator experiences as opening a different form.
+     */
+    routeProductId,
     showResetPrompt: nav.prompt === 'reset',
     setShowResetPrompt: (open: boolean) => nav.setPrompt(open ? 'reset' : 'none'),
     handleResetForm: nav.confirmReset,

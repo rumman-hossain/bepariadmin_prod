@@ -84,7 +84,15 @@ export interface ProductVariation {
   sizeStock?: Record<string, string>;
   sizeMoq?: Record<string, string>;
   sizeAlert?: Record<string, string>;
-  stockedOutSizes?: string[];
+  /*
+   * REMOVED — the per-variation stocked-out list.
+   *
+   * Nothing ever wrote it. The only control, the In/Out toggle in the stock
+   * grid, writes the PRODUCT-level `stockedOutSizes`, and `isVariationStocked`
+   * used to read this one — so marking a size Out disabled its cells while the
+   * validator kept demanding values for them. There is one list now, on
+   * WizardState. Re-adding this field means adding a control for it first.
+   */
 }
 
 export interface SizeConfig {

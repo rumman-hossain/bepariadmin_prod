@@ -23,6 +23,16 @@ import { useAddProductStore } from '../../store/useAddProductStore';
 
 const handleStepChange = vi.fn();
 
+/*
+ * Per-test overrides on the stubbed hook.
+ *
+ * The stub returns a fixed object, which is right for the pre-scolding tests
+ * below but cannot open a prompt or change which product is loaded. Tests
+ * assign to this before rendering; `beforeEach` clears it, so nothing leaks
+ * between them.
+ */
+let overrides: Record<string, unknown> = {};
+
 vi.mock('../../hooks/useAddProductLogic', () => ({
   useAddProductLogic: () => {
     /*
@@ -73,6 +83,9 @@ vi.mock('../../hooks/useAddProductLogic', () => ({
       registrationError: null,
       isHydrating: false,
       isEditMode: false,
+      cancelPrompt: vi.fn(),
+      routeProductId: undefined as string | undefined,
+      ...overrides,
     };
   },
 }));
@@ -87,6 +100,7 @@ const continueButton = () => screen.getByRole('button', { name: /continue/i });
 beforeEach(() => {
   store().reset();
   handleStepChange.mockClear();
+  overrides = {};
 });
 afterEach(cleanup);
 
@@ -152,5 +166,100 @@ describe('step 1 errors wait for an attempt to advance', () => {
 
     fireEvent.click(continueButton());
     expect(handleStepChange).toHaveBeenCalledWith(2);
+  });
+});
+
+/**
+ * DISMISSING A QUESTION IS NOT AN ANSWER TO IT.
+ *
+ * The variant prompt was mounted with `onClose={() => handleVariantChoice(false)}`
+ * and the pricing-reuse prompt with `onClose={() => handlePricingReuseChoice(true)}`.
+ * Dialog calls onClose on Escape and on a backdrop click, so either gesture
+ * silently answered the question and advanced the wizard.
+ *
+ * That is how step 3 ended up running its NON-variant branch on a product with
+ * four variations in the store — `resolveHasVariant` short-circuits on an
+ * explicit `false` — and demanding "MOQ/Alert required for all active sizes"
+ * for a product nobody had said was plain.
+ */
+describe('a dismissed prompt makes no decision', () => {
+  it('cancels the variant question on Escape instead of answering "no"', () => {
+    const cancelPrompt = vi.fn();
+    const handleVariantChoice = vi.fn();
+    overrides = { showVariantPrompt: true, cancelPrompt, handleVariantChoice };
+    render(<AddProductFlow onBack={() => {}} />);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(cancelPrompt).toHaveBeenCalled();
+    expect(handleVariantChoice).not.toHaveBeenCalled();
+  });
+
+  it('cancels the pricing-reuse question instead of answering "keep"', () => {
+    const cancelPrompt = vi.fn();
+    const handlePricingReuseChoice = vi.fn();
+    overrides = { showPricingReusePrompt: true, cancelPrompt, handlePricingReuseChoice };
+    render(<AddProductFlow onBack={() => {}} />);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(cancelPrompt).toHaveBeenCalled();
+    expect(handlePricingReuseChoice).not.toHaveBeenCalled();
+  });
+
+  it('still answers when a button is actually pressed', () => {
+    const handleVariantChoice = vi.fn();
+    overrides = { showVariantPrompt: true, handleVariantChoice };
+    render(<AddProductFlow onBack={() => {}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /yes, has variants/i }));
+    expect(handleVariantChoice).toHaveBeenCalledWith(true);
+  });
+});
+
+/**
+ * Attempts belong to one pass through the form, not to the component.
+ *
+ * `attemptedSteps` only ever gained entries. `confirmReset` resets the store
+ * and the step but not this local state, and navigating between two products'
+ * edit URLs reuses the component rather than remounting it. So after a Reset,
+ * or on opening a second product, step 1 appeared with every field already red
+ * — the condition the feature exists to prevent.
+ */
+describe('errors do not survive a reset or a change of product', () => {
+  it('clears the red when the wizard switches to another product', () => {
+    overrides = { routeProductId: 'p1' };
+    const { rerender } = render(<AddProductFlow onBack={() => {}} />);
+
+    fireEvent.click(continueButton());
+    // Twice: inline on the field and again in the summary banner.
+    expect(screen.getAllByText(/product name is required/i).length).toBeGreaterThan(0);
+
+    // The same component, now showing a different product.
+    overrides = { routeProductId: 'p2' };
+    rerender(<AddProductFlow onBack={() => {}} />);
+
+    expect(screen.queryAllByText(/product name is required/i)).toHaveLength(0);
+  });
+
+  it('clears the red when the form is reset', () => {
+    const handleResetForm = vi.fn();
+    // The prompt is already open: the toolbar's Reset only opens it, and the
+    // confirm inside is what clears the form.
+    overrides = { showResetPrompt: true, handleResetForm };
+    render(<AddProductFlow onBack={() => {}} />);
+
+    fireEvent.click(continueButton());
+    expect(screen.getAllByText(/product name is required/i).length).toBeGreaterThan(0);
+
+    // Two buttons read "Reset" — the toolbar's and the prompt's confirm. The
+    // confirm is the danger-styled one inside the dialog.
+    const confirm = screen
+      .getAllByRole('button', { name: /^reset$/i })
+      .find((b) => b.closest('[role="dialog"]'));
+    fireEvent.click(confirm!);
+
+    expect(handleResetForm).toHaveBeenCalled();
+    expect(screen.queryAllByText(/product name is required/i)).toHaveLength(0);
   });
 });

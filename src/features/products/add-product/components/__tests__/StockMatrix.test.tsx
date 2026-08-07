@@ -133,13 +133,19 @@ describe('stocked out is not the same as zero', () => {
     useAddProductStore.setState({
       hasVariant: false,
       selectedSizes: ['S', 'M'],
+      // MOQ and the alert are filled for BOTH sizes, so the only thing these
+      // two tests vary is the stock figure. The chip counts all three measures
+      // now, and leaving the other two blank would make every size incomplete
+      // for a reason that has nothing to do with what is being asserted here.
       sizeStockSet: { S: '4', M: '0' },
+      moqSet: { S: '2', M: '2' },
+      sizeLowStockAlertSet: { S: '1', M: '1' },
     });
   });
 
-  it('counts a zero as an empty cell needing attention', () => {
+  it('counts a zero as a cell needing attention', () => {
     render(<StockMatrix />);
-    expect(screen.getByText(/1 empty cell/i)).toBeTruthy();
+    expect(screen.getByText(/1 cell to fill/i)).toBeTruthy();
   });
 
   it('stops counting it once the size is deliberately marked out', () => {
@@ -150,7 +156,7 @@ describe('stocked out is not the same as zero', () => {
 
     expect(store().stockedOutSizes).toContain('M');
     // A deliberate stock-out is not an oversight, so the warning clears.
-    expect(screen.getByText(/every size stocked/i)).toBeTruthy();
+    expect(screen.getByText(/every size complete/i)).toBeTruthy();
   });
 
   it('disables the cell for a stocked-out size', () => {
@@ -280,5 +286,44 @@ describe('with no sizes chosen', () => {
     render(<StockMatrix />);
     expect(screen.getByText(/choose the sizes/i)).toBeTruthy();
     expect(screen.queryByRole('table')).toBeNull();
+  });
+});
+
+/**
+ * The completeness chip must not promise more than it checked.
+ *
+ * It counted STOCK only, so a size with stock filled and MOQ or the low-stock
+ * alert left blank read "Every size stocked" in green — while `validateStep3`
+ * rejected the step for exactly those blanks. The one control that could have
+ * told the operator which cell was wrong told them everything was right.
+ */
+describe('the completeness chip agrees with the validator', () => {
+  beforeEach(() => {
+    useAddProductStore.setState({
+      hasVariant: false,
+      basePrice: '100',
+      selectedSizes: ['S'],
+      sizeStockSet: { S: '40' },
+      moqSet: {},
+      sizeLowStockAlertSet: {},
+    });
+  });
+
+  it('does not read green while MOQ and the alert are blank', () => {
+    render(<StockMatrix />);
+    // The step is not passable, so the chip must not say it is.
+    expect(validateWizardStep(3, store()).isValid).toBe(false);
+    expect(screen.queryByText(/every size complete/i)).toBeNull();
+    expect(screen.getByText(/cells? to fill/i)).toBeTruthy();
+  });
+
+  it('reads green exactly when the step will accept it', () => {
+    useAddProductStore.setState({
+      moqSet: { S: '5' },
+      sizeLowStockAlertSet: { S: '3' },
+    });
+    render(<StockMatrix />);
+    expect(validateWizardStep(3, store()).isValid).toBe(true);
+    expect(screen.getByText(/every size complete/i)).toBeTruthy();
   });
 });

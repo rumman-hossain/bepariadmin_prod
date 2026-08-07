@@ -280,9 +280,39 @@ describe('validateStep3 — product with variants', () => {
       expect(validateStep3(state(sizedVariation({ sizeStock: {} }))).isValid).toBe(false);
     });
 
-    it('skips a size the variation marks out of stock', () => {
-      const v = sizedVariation({ sizeStock: {}, sizeMoq: {}, sizeAlert: {}, stockedOutSizes: ['M'] });
-      expect(validateStep3(state(v)).isValid).toBe(true);
+    /*
+     * THE DEADLOCK, PINNED.
+     *
+     * This asserted a per-variation `stockedOutSizes` — a field nothing in the
+     * app ever wrote. The only control is the In/Out toggle in the stock grid,
+     * which writes the PRODUCT-level list AND disables that size's cell in
+     * every variation row. So marking a size Out greyed out its inputs while
+     * this validator went on demanding stock, MOQ and an alert for it: "N
+     * variation(s) have invalid stock/moq/alert logic", permanently, with
+     * nothing on screen able to clear it.
+     *
+     * The test passed the whole time, because it set a field by hand that no
+     * operator could. That is the shape to watch for — a fixture supplying
+     * something the UI cannot.
+     */
+    it('skips a size the PRODUCT marks out of stock — the list the toggle writes', () => {
+      const v = sizedVariation({ sizeStock: {}, sizeMoq: {}, sizeAlert: {} });
+      const blocked = base({ selectedSizes: ['M'], variations: [v] });
+      expect(validateStep3(blocked).isValid).toBe(false);
+
+      const out = base({ selectedSizes: ['M'], variations: [v], stockedOutSizes: ['M'] });
+      expect(validateStep3(out).isValid).toBe(true);
+    });
+
+    it('still demands the sizes that are NOT marked out', () => {
+      // Marking one size out must not wave the rest through.
+      const v = sizedVariation({ sizeStock: {}, sizeMoq: {}, sizeAlert: {} });
+      const partial = base({
+        selectedSizes: ['M', 'L'],
+        variations: [v],
+        stockedOutSizes: ['L'],
+      });
+      expect(validateStep3(partial).isValid).toBe(false);
     });
 
     it('rejects an MOQ equal to stock, matching the no-variant rule', () => {
