@@ -316,7 +316,13 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
         <DataRow label="Material" value={s.material} />
         <DataRow label="Weight" value={s.weight ? `${s.weight} gm` : ''} />
         <DataRow label="Volume" value={s.volume ? `${s.volume} c.ft` : ''} />
-        <DataRow label="Colors" value={s.colors} />
+        {/*
+          Only where it is kept. `colors` is the variant-generation axis — it
+          seeds variationColors, which buildProductPayload sends only for a
+          variant product — so listing it under Product Details for a plain one
+          promised storage that never happened. See Step2Details.
+        */}
+        {s.hasVariant === true && <DataRow label="Variant colours" value={s.colors} />}
         <DataRow
           label="Available Sizes"
           value={s.selectedSizes.length > 0 ? s.selectedSizes.join(', ') : ''}

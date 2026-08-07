@@ -16,19 +16,34 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
   const store = useAddProductStore();
   const { setField, stock, moq, lowStockAlert, moqSet, sizeStockSet, sizeLowStockAlertSet, stockedOutSizes, generalStockedOut } = store;
 
+  /*
+   * MARKING A SIZE OUT DESTROYED ITS FIGURES, AND RESTOCKING DID NOT BRING
+   * THEM BACK.
+   *
+   * Going out wrote '0' into all three maps; coming back in only removed the
+   * size from `stockedOutSizes`, leaving 0/0/0 behind. isVariationStocked then
+   * refuses a zero stock, so the operator was blocked on a size they had just
+   * restocked and had to retype three numbers they never chose to clear —
+   * every time, for every size, with no undo.
+   *
+   * Nothing needed to be written in the first place. `stockedOutSizes` already
+   * says the size is unavailable, and the validator and the payload both
+   * consult it: `validateSizedInventory` skips a stocked-out size entirely.
+   * Zeroing the maps was a second, lossy way of recording the same fact — and
+   * the destructive one, because a flag can be flipped back and a number that
+   * has been overwritten is gone.
+   *
+   * So the toggle now only toggles. The figures are untouched in both
+   * directions, which is also what the sizeless switch above does and what the
+   * grid on step 3 has always done.
+   */
   const toggleSizeStockOut = (size: string) => {
-    const isOut = stockedOutSizes.includes(size);
-    if (isOut) {
-      setField(
-        'stockedOutSizes',
-        stockedOutSizes.filter((s) => s !== size),
-      );
-    } else {
-      setField('sizeStockSet', { ...sizeStockSet, [size]: '0' });
-      setField('moqSet', { ...moqSet, [size]: '0' });
-      setField('sizeLowStockAlertSet', { ...sizeLowStockAlertSet, [size]: '0' });
-      setField('stockedOutSizes', [...stockedOutSizes, size]);
-    }
+    setField(
+      'stockedOutSizes',
+      stockedOutSizes.includes(size)
+        ? stockedOutSizes.filter((s) => s !== size)
+        : [...stockedOutSizes, size],
+    );
   };
 
   if (selectedSizes.length > 0) {
@@ -100,6 +115,10 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
                         <button
                           type="button"
                           onClick={() => toggleSizeStockOut(size)}
+                          // Every row's button reads "Stock Out" otherwise, so
+                          // a screen-reader user hears the same label N times
+                          // with nothing saying which size it acts on.
+                          aria-label={`${isOut ? 'Restock' : 'Stock out'} size ${size}`}
                           className="text-xs font-semibold text-brass hover:underline"
                         >
                           {isOut ? 'Restock' : 'Stock Out'}
@@ -118,7 +137,38 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <div className="space-y-3">
+      {/*
+        THE STOCK-OUT SWITCH, WHICH NOTHING COULD FLIP.
+
+        `generalStockedOut` disables the three inputs below and makes
+        validateStep3 skip them entirely — "a product deliberately marked out of
+        stock has no figures to check". No control in the console set it, so a
+        sizeless product that is genuinely out of stock could not be recorded as
+        one: the operator had to invent a stock number or be blocked.
+
+        The sized path has had its counterpart all along — the per-size In/Out
+        toggle in the stock grid. This is that control for the product that has
+        no sizes, in the same words, because the distinction is the same one.
+      */}
+      <label className="flex items-start gap-2.5 rounded-xl border border-rule bg-sheet-2 p-3">
+        <input
+          type="checkbox"
+          checked={generalStockedOut}
+          onChange={(e) => setField('generalStockedOut', e.target.checked)}
+          className="mt-0.5 h-4 w-4 accent-brass"
+        />
+        <span className="min-w-0">
+          <Text as="p" variant="strong">Out of stock</Text>
+          <Text as="p" variant="caption">
+            <b className="font-semibold text-ink">Not the same as zero.</b> A stock-out is a
+            decision that this is unavailable; a zero is stock that ran down and will be
+            reordered. Marking it out leaves the figures below alone.
+          </Text>
+        </span>
+      </label>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
       <Input
         label="Stock"
         type="number"
@@ -140,6 +190,7 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
         disabled={generalStockedOut}
         onChange={(e) => setField('lowStockAlert', e.target.value)}
       />
+      </div>
     </div>
   );
 }

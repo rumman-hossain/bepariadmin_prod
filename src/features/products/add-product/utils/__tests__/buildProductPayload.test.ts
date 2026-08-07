@@ -420,3 +420,4 @@ describe('buildProductPayload', () => {
     expect(JSON.parse(JSON.stringify(state))).toEqual(snapshot);
   });
 });
+

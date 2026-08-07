@@ -20,6 +20,7 @@ export function Step2Details({ sizeConfig, errors = {} }: Props) {
     weight,
     volume,
     colors,
+    hasVariant,
     selectedSizes,
     sizeMode,
     fwScale,
@@ -74,13 +75,34 @@ export function Step2Details({ sizeConfig, errors = {} }: Props) {
       />
       <Input label="Weight (gm)" value={weight} onChange={(e) => setField('weight', e.target.value)} />
       <Input label="Volume (c.ft)" value={volume} onChange={(e) => setField('volume', e.target.value)} />
-      <Input
-        label="Available Colors"
-        value={colors}
-        onChange={(e) => setField('colors', e.target.value)}
-        placeholder="e.g. Red, Blue (comma separated)"
-        className="sm:col-span-2"
-      />
+      {/*
+        THIS IS THE VARIANT AXIS, AND IT SAID IT WAS A PRODUCT ATTRIBUTE.
+
+        "Available Colors" sat between Material and Weight, reading as another
+        description field, and Step 6 echoed it back under "Colors". It is
+        neither: `applyVariantColors` splits it into `variationColors`, which
+        SEEDS the colour × design grid on step 3, and buildProductPayload sends
+        that array only when the product has variants — deliberately, and
+        rightly, because a colour axis on a product with no variations is a
+        stale generation input, not a fact about the product. There is no
+        product-level colour column in the schema at all.
+
+        So for a plain product the operator typed colours, saw them on the
+        summary, and lost them on save with nothing saying why. The honest fix
+        is not to start storing a variant axis on a non-variant product — it is
+        to stop presenting it as something that will be kept. The label and hint
+        now say what it does, and it appears only where it does it.
+      */}
+      {hasVariant !== false && (
+        <Input
+          label="Variant colours"
+          value={colors}
+          onChange={(e) => setField('colors', e.target.value)}
+          placeholder="e.g. Red, Blue (comma separated)"
+          hint="Seeds the colour × design grid on the next step. Kept only if this product has variants."
+          className="sm:col-span-2"
+        />
+      )}
 
       {isFootwear && sizeConfig?.scales && sizeConfig.scales.length > 0 && (
         <div className="sm:col-span-2 space-y-2">
