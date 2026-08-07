@@ -18,6 +18,7 @@ import { cn } from '@/src/design-system/utils/cn';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { PRODUCT_STATE_LABEL, isProductState } from '../types/adminProduct';
 import type { AdminProductRow } from '../types/adminProduct';
+import { MARGIN_FLOOR_PERCENT } from '../constants';
 import type { Column } from '@/src/components/data/DataTable';
 
 /** The tone each state carries. Kept here because it is presentation, not domain. */
@@ -168,20 +169,34 @@ export function buildColumns({
       key: 'price',
       header: 'Price',
       align: 'right',
-      render: (row) => {
-        const margin = row.sellingPrice - row.basePrice;
-        return (
-          <div>
-            <Money amount={row.sellingPrice} />
-            {/* The margin is what an approver is judging, so it travels with
-                the price rather than living in a column nobody widens to. */}
-            <p className={cn('text-2xs', margin > 0 ? 'text-ok' : 'text-bad')}>
-              {margin >= 0 ? '+' : '−'}
-              <Money amount={Math.abs(margin)} />
-            </p>
-          </div>
-        );
-      },
+      render: (row) => (
+        <div>
+          <Money amount={row.sellingPrice} />
+          {/*
+            The margin is what an approver is judging, so it travels with the
+            price rather than living in a column nobody widens to.
+
+            The server's PERCENT, not `sellingPrice - basePrice`. The delta was
+            money computed in a component — the exact thing G12 exists to
+            forbid — and it answered the wrong question: a taka figure does not
+            tell an operator whether this supplier is on the platform default or
+            on something set for them, which is what they are checking. The
+            cost is shown underneath, so the delta is still readable without
+            anything deriving it.
+          */}
+          <p
+            className={cn(
+              'text-2xs',
+              row.marginPercent >= MARGIN_FLOOR_PERCENT ? 'text-ok' : 'text-bad',
+            )}
+          >
+            {row.marginPercent}% margin
+          </p>
+          <p className="text-2xs text-ink-3">
+            cost <Money amount={row.basePrice} />
+          </p>
+        </div>
+      ),
     },
     {
       key: 'stock',

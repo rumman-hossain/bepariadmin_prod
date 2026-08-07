@@ -64,7 +64,20 @@ export interface ProductVariation {
   stock?: number;
   moq?: number;
   lowStockAlert?: number;
+  /**
+   * What the SUPPLIER costed this colour at, and the only price the wizard
+   * edits. `basePrice` is the same fact under the name the server uses;
+   * productVariationSchema keeps them in step.
+   */
   price?: number;
+  basePrice?: number;
+  /**
+   * Cost plus the supplier's platform margin, derived by the server. READ-ONLY
+   * — nothing in the wizard may write it, and it must never be folded back into
+   * `price`, which is what made an edit reload the margined figure as the cost
+   * and compound the margin on every save.
+   */
+  sellingPrice?: number;
   inventory?: ProductInventoryItem[];
   media?: VariationMediaState | ProductMediaItem[];
   videoUrl?: string;

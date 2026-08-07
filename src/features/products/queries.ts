@@ -61,11 +61,27 @@ export function useCategoryNamesQuery() {
  * catalogue route answers correctly for staff on any state.
  */
 
-export function useProductQuery(id: string | undefined, categoryNames: Record<string, string>) {
+/*
+ * One product, by id.
+ *
+ * It took a `categoryNames` map and passed it into the fetch while keying ONLY
+ * on the id — a query function closing over another query's data without
+ * keying on it. On first render `useCategoryNamesQuery` has not resolved, so
+ * the fetch ran with `{}` and cached; when the categories landed the key was
+ * unchanged, so the product kept whatever labels it had resolved without them,
+ * for as long as the entry lived.
+ *
+ * The map is dropped rather than added to the key. It was only ever a fallback:
+ * `resolveProductCatalogLabels` fetches the categories itself, and merging a
+ * second copy of the same fact behind it bought nothing while creating the
+ * staleness. No `categoryNames`, no stale closure, and the key is honest about
+ * what the result depends on.
+ */
+export function useProductQuery(id: string | undefined) {
   return useQuery({
     queryKey: queryKeys.products.detail(id ?? ''),
     queryFn: async (): Promise<Product> => {
-      const res = await getProductById(id!, { categoryNames, resolveCatalog: true });
+      const res = await getProductById(id!, { resolveCatalog: true });
       if (!res.ok || !res.data?.data) {
         throw Object.assign(new Error(`Failed to load product (${res.status})`), {
           status: res.status,

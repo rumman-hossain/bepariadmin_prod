@@ -241,16 +241,41 @@ export function ProductListPage() {
             options: wholesalerOptions,
             onChange: (value) => setFilter('wholesalerId', value),
           },
+          /*
+           * Images and stock, both SERVER-SIDE and both previously invisible.
+           *
+           * `hasImage` and `lowStock` are wired the whole way — the store holds
+           * them, useProductList sends them, buildListQuery serialises them and
+           * the backend filters on them — and nothing on screen could set
+           * either. In their place sat a "Variants" control with one option and
+           * an empty onChange: a filter that looked available and did nothing,
+           * which is worse than an absent one because it invites the operator
+           * to believe they have narrowed the list.
+           *
+           * "Missing images" is the publish gate: a product cannot go PUBLIC
+           * without one, so this is the queue an approver clears.
+           */
           {
-            key: 'variants',
-            label: 'Variants',
-            // Client-only for now: the server has no `hasVariant` filter, and a
-            // control that quietly narrows one page while the pager counts the
-            // whole set is the defect this screen just removed. Left out rather
-            // than faked.
-            value: 'All',
-            options: [{ label: 'Variants: any', value: 'All' }],
-            onChange: () => {},
+            key: 'hasImage',
+            label: 'Images',
+            value: filters.hasImage === undefined ? 'All' : filters.hasImage ? 'yes' : 'no',
+            options: [
+              { label: 'Images: any', value: 'All' },
+              { label: 'Missing images', value: 'no' },
+              { label: 'Has images', value: 'yes' },
+            ],
+            onChange: (value) =>
+              setFilter('hasImage', value === 'All' ? undefined : value === 'yes'),
+          },
+          {
+            key: 'lowStock',
+            label: 'Stock',
+            value: filters.lowStock ? 'low' : 'All',
+            options: [
+              { label: 'Stock: any', value: 'All' },
+              { label: 'Low stock only', value: 'low' },
+            ],
+            onChange: (value) => setFilter('lowStock', value === 'low'),
           },
         ]}
         onClearAll={clearFilters}
@@ -318,7 +343,11 @@ export function ProductListPage() {
           <EmptyState
             title="Nothing in this view"
             message={
-              filters.search || filters.category !== 'All' || filters.wholesalerId !== 'All'
+              filters.search ||
+              filters.category !== 'All' ||
+              filters.wholesalerId !== 'All' ||
+              filters.hasImage !== undefined ||
+              filters.lowStock
                 ? 'No product matches these filters. Try clearing them.'
                 : stateMeaning
             }

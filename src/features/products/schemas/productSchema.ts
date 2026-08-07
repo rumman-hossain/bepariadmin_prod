@@ -63,12 +63,25 @@ export const productVariationSchema = z.object({
   photoUrl: z.string().optional().nullable().or(z.literal('')),
   videoUrl: z.string().optional().nullable().or(z.literal('')),
 
-  /** The variation's own price. Absent means it sells at the product's price. */
-  sellingPrice: z.number().optional().nullable(),
-  /**
-   * Kept as an alias so existing callers keep working; filled from
-   * `sellingPrice` by the transform below when the server does not send it.
+  /*
+   * TWO PRICES, AND THEY ARE NOT INTERCHANGEABLE.
+   *
+   * `basePrice` is what the SUPPLIER costed this colour at — the value stored
+   * in product_variations.price, and the one the wizard edits and writes back.
+   * `sellingPrice` is that plus the supplier's platform margin, derived by the
+   * server, and is read-only here.
+   *
+   * `basePrice` was missing entirely, so Zod stripped the field the server
+   * sends and the transform below filled `price` from `sellingPrice`. Every
+   * wizard site treats `price` as a base — `calcRetail(v.price)`, the "Base:"
+   * line on step 6, `price: parseFloatOr(variation.price, 0)` in the payload —
+   * so editing a variant product loaded the MARGINED figure as the base, showed
+   * it as the base, and saved it as the base. The margin compounded on every
+   * edit: 100 became 109.50, then 119.90, then 131.29.
    */
+  basePrice: z.number().optional().nullable(),
+  sellingPrice: z.number().optional().nullable(),
+  /** Alias for `basePrice`, kept so existing wizard callers keep working. */
   price: z.number().optional().nullable(),
 
   stock: z.number().optional().nullable(),
@@ -80,11 +93,14 @@ export const productVariationSchema = z.object({
 })
   .transform((v) => ({
     ...v,
-    // One name for the price whichever the server used, so a component never
-    // has to know which. `?? undefined` rather than `|| ` so a deliberate 0
-    // survives — a free gift variant is priced at zero, not unpriced.
-    price: v.price ?? v.sellingPrice ?? undefined,
-    sellingPrice: v.sellingPrice ?? v.price ?? undefined,
+    // `price` and `basePrice` are one fact under two names — whichever the
+    // server used, both end up holding the COST. `sellingPrice` is never
+    // folded in: that is what made an edit reload the margined figure as the
+    // base. `?? undefined` rather than `||` so a deliberate 0 survives — a free
+    // gift variant is priced at zero, not unpriced.
+    price: v.price ?? v.basePrice ?? undefined,
+    basePrice: v.basePrice ?? v.price ?? undefined,
+    sellingPrice: v.sellingPrice ?? undefined,
   }));
 
 export const bundleDetailsSchema = z.object({

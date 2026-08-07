@@ -164,13 +164,38 @@ export function normalizeBackendProduct(
   const basePrice = Number(raw.basePrice) || 0;
   const platformPrice = Number(raw.platformPrice ?? raw.basePrice) || basePrice;
   const categoryId = raw.categoryId ?? '';
-  const imageUrl =
-    raw.imageUrl ??
-    (Array.isArray(raw.media)
-      ? ((raw.media as Array<{ url?: string; position?: number }>).find((m) => m.position === 0)?.url ??
-        (raw.media as Array<{ url?: string }>)[0]?.url ??
-        '')
-      : '');
+  /*
+   * EVERY image, in catalogue order — not just the poster.
+   *
+   * `imageUrls` used to be `raw.imageUrls ?? []`, and the backend does not send
+   * an `imageUrls` field at all: `GET /products/:id` returns `media`, an array
+   * of {url, mediaType, position}. So `imageUrls` was ALWAYS `[]`, with two
+   * visible consequences on the detail page:
+   *
+   *   - the checklist read `imageUrls?.length ?? (imageUrl ? 1 : 0)`, and `0`
+   *     is not nullish, so the fallback never ran. "Images on file" reported 0
+   *     for every product ever, and told the operator "at least one is required
+   *     before this can be published" about products carrying five;
+   *   - the gallery fell back to `[imageUrl]`, so a product with five
+   *     photographs showed one.
+   *
+   * Derived here rather than patched at either call site, because both symptoms
+   * are the same missing mapping and a fix at one would have left the other.
+   */
+  const mediaItems = Array.isArray(raw.media) ? raw.media : [];
+  const imageUrls =
+    raw.imageUrls?.length
+      ? raw.imageUrls
+      : mediaItems
+          // A video carries a URL too, and counting it toward the image gate
+          // would let a product publish on a clip alone. Absent mediaType is
+          // treated as an image, which is what the column defaults to.
+          .filter((m) => (m.mediaType ?? 'image') === 'image' && Boolean(m.url))
+          .slice()
+          .sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+          .map((m) => m.url as string);
+
+  const imageUrl = raw.imageUrl ?? imageUrls[0] ?? '';
 
   return {
     id,
@@ -194,7 +219,7 @@ export function normalizeBackendProduct(
     wholesalerId: raw.wholesalerId ?? '',
     status: mapStatus(raw.status),
     imageUrl,
-    imageUrls: raw.imageUrls ?? [],
+    imageUrls,
     rejectionReason: '',
     createdAt: formatTimestamp(raw.createdAt),
     updatedAt: formatTimestamp(raw.updatedAt),

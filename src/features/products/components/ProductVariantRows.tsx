@@ -30,7 +30,7 @@ interface Props {
 }
 
 export function ProductVariantRows({ productId, expectedCount }: Props) {
-  const { data: product, isPending, error } = useProductQuery(productId, {});
+  const { data: product, isPending, error } = useProductQuery(productId);
 
   if (isPending) {
     return (
@@ -118,10 +118,24 @@ export function ProductVariantRows({ productId, expectedCount }: Props) {
               </span>
             </span>
 
+            {/*
+              BOTH prices, labelled. This said "Price" and showed one number,
+              which is the ambiguity that let a margined figure be read as a
+              cost for so long. An admin needs the supplier's cost AND what the
+              retailer pays; showing one and naming it neither is how they got
+              conflated.
+            */}
             <span className="flex items-baseline gap-1.5">
-              <Text variant="label">Price</Text>
-              <span className="text-xs text-ink">
-                {v.price ? <Money amount={v.price} /> : <span className="text-ink-3">—</span>}
+              <Text variant="label">Cost</Text>
+              <span className="text-xs text-ink-2">
+                {v.basePrice ? <Money amount={v.basePrice} /> : <span className="text-ink-3">—</span>}
+              </span>
+            </span>
+
+            <span className="flex items-baseline gap-1.5">
+              <Text variant="label">Sells at</Text>
+              <span className="text-xs font-semibold text-ink">
+                {v.sellingPrice ? <Money amount={v.sellingPrice} /> : <span className="text-ink-3">—</span>}
               </span>
             </span>
           </li>

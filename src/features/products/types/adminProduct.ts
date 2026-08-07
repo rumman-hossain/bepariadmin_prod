@@ -104,7 +104,19 @@ export interface AdminProductRow {
   variantCount: number;
 
   basePrice: number;
+  /** Derived server-side from `basePrice` and `marginPercent`. Never recomputed here. */
   sellingPrice: number;
+  /*
+   * The supplier's margin, as the admin set it.
+   *
+   * The server sends this and has done since the pricing fix — with a comment
+   * explaining that it travels with sellingPrice "so the console can say WHERE
+   * the number came from". It was simply absent from this interface, so nothing
+   * could read it, and the list column recomputed `sellingPrice - basePrice`
+   * instead: a currency delta in a component, which is the one thing G12 exists
+   * to forbid, standing in for a percentage the operator actually chose.
+   */
+  marginPercent: number;
   stock: number;
   /** Zero is the publish gate: a product cannot go PUBLIC without an image. */
   imageCount: number;

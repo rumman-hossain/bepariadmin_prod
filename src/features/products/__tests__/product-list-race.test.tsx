@@ -58,6 +58,7 @@ function page(names: string[], total = names.length) {
         variantCount: 0,
         basePrice: 100,
         sellingPrice: 120,
+        marginPercent: 20,
         stock: 5,
         imageCount: 1,
         thumbnailUrl: '',

@@ -1,4 +1,4 @@
-import { useCategoryNamesQuery, useProductQuery } from '../queries';
+import { useProductQuery } from '../queries';
 import type { Product } from '../types';
 
 /**
@@ -20,8 +20,7 @@ export function useProductDetail(productId: string | null): {
   error: string | null;
   refetch: () => void;
 } {
-  const { data: categoryNames = {} } = useCategoryNamesQuery();
-  const { data, isPending, error, refetch } = useProductQuery(productId ?? undefined, categoryNames);
+  const { data, isPending, error, refetch } = useProductQuery(productId ?? undefined);
 
   return {
     product: productId ? (data ?? null) : null,

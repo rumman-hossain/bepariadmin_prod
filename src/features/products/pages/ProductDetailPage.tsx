@@ -29,6 +29,7 @@ import { Text, Money, formatAge } from '@/src/components/data';
 import { Panel } from '@/src/components/layout/primitives';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { useProductDetail } from '../hooks/useProductDetail';
+import { MARGIN_FLOOR_PERCENT } from '../constants';
 import {
   useApproveProduct,
   useRejectProduct,
@@ -49,7 +50,6 @@ import {
 } from '../types/adminProduct';
 
 /** The platform's minimum margin. Mirrors `COALESCE(margin, 9.50)` on the supplier row. */
-const MARGIN_FLOOR_PERCENT = 9.5;
 
 const STATE_TONE = {
   DRAFT: 'neutral',
@@ -388,10 +388,17 @@ export function ProductDetailPage() {
                             {stock}
                           </span>
                         </span>
+                        {/* Cost and selling price, named. See ProductVariantRows. */}
                         <span className="flex items-baseline gap-1.5">
-                          <Text variant="label">Price</Text>
-                          <span className="text-sm text-ink">
-                            {v.price ? <Money amount={v.price} /> : '—'}
+                          <Text variant="label">Cost</Text>
+                          <span className="text-sm text-ink-2">
+                            {v.basePrice ? <Money amount={v.basePrice} /> : '—'}
+                          </span>
+                        </span>
+                        <span className="flex items-baseline gap-1.5">
+                          <Text variant="label">Sells at</Text>
+                          <span className="text-sm font-semibold text-ink">
+                            {v.sellingPrice ? <Money amount={v.sellingPrice} /> : '—'}
                           </span>
                         </span>
                       </li>
