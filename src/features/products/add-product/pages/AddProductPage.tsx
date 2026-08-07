@@ -1,123 +1,44 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, RotateCcw } from 'lucide-react';
-import { Button } from '@/src/components/controls';
-import { Dialog } from '@/src/components/feedback';
-import { useAddProductStore } from '../store/useAddProductStore';
+/**
+ * Add / Edit Product — the six-step wizard, for both.
+ *
+ * ONE FLOW, NOT TWO. Edit briefly had a sectioned single page here on the
+ * argument that correcting one field should not cost six steps. In use that was
+ * wrong: operators know this wizard from the supplier app, and two shapes for
+ * one job is worse than a longer path through a familiar one. Add and edit
+ * differ in exactly two things — the title, and the label on the final button.
+ *
+ * THE PAGE OWNS ITS SCROLLING. The route carries `handle: { fullBleed: true }`,
+ * so the shell's `<main>` supplies neither padding nor scroll. This page fills
+ * that region and hands the whole height to the wizard, which lays out as a
+ * fixed header, a fixed step bar, one scrolling middle and a fixed footer —
+ * structurally what `AddProductFlow.tsx` does in the wholesale app.
+ *
+ * What this replaced fought the shell instead: `-m-6 md:-m-8` to cancel padding
+ * it missed by 8px, `min-h-full` inside an auto-height scroller, and a
+ * `sticky top-0` header that stuck below `<main>`'s padding so content scrolled
+ * up into the strip above it. Hence "header has gap", "cannot see the top
+ * header", "scroll is broken" — three symptoms, one cause.
+ *
+ * NO APPROVE BUTTON. It used to sit in this header. Approving is a judgement
+ * about a product, not a change to one, and it belongs on the detail page
+ * beside the review checklist and the reason dialogs — where the rest of the
+ * lifecycle already lives.
+ */
+import { useNavigate } from 'react-router-dom';
 import { AddProductFlow } from '../components/AddProductFlow';
-import { EditProductSections } from '../components/EditProductSections';
-import { useProductFormLifecycle } from '../hooks/useProductFormLifecycle';
-import { useApproveProduct } from '../../queries';
 import { PRODUCT_ROUTES } from '../../routes';
-import { Text } from '@/src/components/data';
 
 export function AddProductPage() {
   const navigate = useNavigate();
-  const { productId } = useParams<{ productId?: string }>();
-  const reset = useAddProductStore((s) => s.reset);
-  // Mutation rather than a store action: it carries its own pending state and
-  // invalidates the product caches on success, so the list reflects the
-  // approval without a manual refetch.
-  const approve = useApproveProduct();
-  const { productStatus, refetch } = useProductFormLifecycle();
-  const [showResetPrompt, setShowResetPrompt] = useState(false);
-
-  const isEditMode = Boolean(productId);
-  const title = isEditMode ? 'Edit Product' : 'Add Product';
-  const canApprove = isEditMode && productStatus === 'Pending Approval' && productId;
-
-  const handleBack = () => navigate(PRODUCT_ROUTES.LIST);
-  const handleReset = () => setShowResetPrompt(true);
-  const confirmReset = () => {
-    reset();
-    setShowResetPrompt(false);
-  };
-
-  const handleApprove = async () => {
-    if (!productId) return;
-    await approve.mutateAsync({ id: productId });
-    await refetch();
-  };
-
   return (
-    <div className="-m-6 md:-m-8 flex flex-col min-h-full">
-      <header className="sticky top-0 z-10 shrink-0 bg-paper border-b border-rule px-6 py-4 md:px-8">
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3 min-w-0">
-            <Button variant="ghost" size="sm" iconLeft={ArrowLeft} onClick={handleBack}>
-              Products
-            </Button>
-            <div className="min-w-0">
-              <h1 className="text-xl font-bold text-ink truncate">{title}</h1>
-              <p className="text-sm text-ink-3">
-                {isEditMode
-                  ? 'Jump to any section — changes save together'
-                  : 'Step wizard — mobile parity'}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <Button variant="outline" size="sm" iconLeft={RotateCcw} onClick={handleReset}>
-              Reset
-            </Button>
-            {canApprove && (
-              <Button
-                variant="primary"
-                size="sm"
-                iconLeft={CheckCircle}
-                loading={approve.isPending}
-                onClick={() => void handleApprove()}
-              >
-                Approve
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <div className="flex-1 flex flex-col min-h-0 px-6 md:px-8 pb-4">
-        {/*
-          CREATE keeps the wizard; EDIT is one sectioned page.
-
-          Not a preference. Creating a product has a genuine order to it — the
-          SKU is generated from the classification cascade, and the variant
-          question has to be settled before pricing can be laid out. Editing has
-          none: the product exists, and the operator has come to change one
-          field. Making them walk six steps to correct a price is the complaint
-          this splits apart.
-
-          Both render the SAME step components, so there is one definition of
-          every input and the two cannot drift.
-        */}
-        <div
-          className={
-            isEditMode
-              ? 'mx-auto w-full max-w-6xl flex-1'
-              : 'max-w-4xl mx-auto w-full flex-1 flex flex-col min-h-0'
-          }
-        >
-          {isEditMode ? (
-            <EditProductSections onCancel={handleBack} />
-          ) : (
-            <AddProductFlow onBack={handleBack} />
-          )}
-        </div>
-      </div>
-
-      <Dialog open={showResetPrompt} onClose={() => setShowResetPrompt(false)} size="sm">
-        <div className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold">Reset form?</h3>
-          <Text as="p" variant="secondary">All entered data will be cleared.</Text>
-          <div className="flex gap-3">
-            <Button variant="danger" onClick={confirmReset}>
-              Reset
-            </Button>
-            <Button variant="outline" onClick={() => setShowResetPrompt(false)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+    // h-full, not min-h-full: `<main>` is a bounded, non-scrolling region under
+    // fullBleed, so the wizard can size its own scroller against a real height.
+    // `min-h-full` would let this grow past the region and take the scroll with
+    // it, which is the bug this replaces.
+    <div className="h-full min-h-0">
+      {/* `isEditMode` is derived inside the flow from the route param, so the
+          mode is not passed down twice. */}
+      <AddProductFlow onBack={() => navigate(PRODUCT_ROUTES.LIST)} />
     </div>
   );
 }

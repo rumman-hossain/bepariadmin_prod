@@ -420,9 +420,29 @@ export const router = createBrowserRouter([
         path: 'products',
         children: [
           { index: true, element: <LazyPage><LazyProductList /></LazyPage> },
-          { path: 'new', element: <RequireRole roles={ADMIN_WRITE}><LazyPage><LazyAddProduct /></LazyPage></RequireRole> },
+          /*
+           * `fullBleed` — the product wizard owns its own scrolling.
+           *
+           * It is a fixed header, a fixed step bar, ONE scrolling middle and a
+           * fixed footer, mirroring the wholesale app. That cannot be built
+           * inside the shell's own scroller: the second `overflow-y-auto` has
+           * no bounded height to work in, so the footer floats and the sticky
+           * header sticks below `<main>`'s padding with content sliding up
+           * into the strip above it.
+           *
+           * Both add and edit take it, because they are the same wizard.
+           */
+          {
+            path: 'new',
+            handle: { fullBleed: true },
+            element: <RequireRole roles={ADMIN_WRITE}><LazyPage><LazyAddProduct /></LazyPage></RequireRole>,
+          },
           { path: ':productId', element: <LazyPage><LazyProductDetail /></LazyPage> },
-          { path: ':productId/edit', element: <RequireRole roles={ADMIN_WRITE}><LazyPage><LazyAddProduct /></LazyPage></RequireRole> },
+          {
+            path: ':productId/edit',
+            handle: { fullBleed: true },
+            element: <RequireRole roles={ADMIN_WRITE}><LazyPage><LazyAddProduct /></LazyPage></RequireRole>,
+          },
         ],
       },
 

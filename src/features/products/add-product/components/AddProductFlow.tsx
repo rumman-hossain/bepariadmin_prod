@@ -1,4 +1,4 @@
-import { Check, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@/src/components/controls';
 import { Dialog } from '@/src/components/feedback';
 import { useAddProductLogic, type WizardStep } from '../hooks/useAddProductLogic';
@@ -11,6 +11,7 @@ import { Step4Media } from './steps/Step4Media';
 import { Step5Policies } from './steps/Step5Policies';
 import { Step6Summary } from './steps/Step6Summary';
 import { Text } from '@/src/components/data';
+import { cn } from '@/src/design-system/utils/cn';
 
 const STEPS: { num: WizardStep; label: string }[] = [
   { num: 1, label: 'Basic Info' },
@@ -32,6 +33,9 @@ export function AddProductFlow({ onBack }: Props) {
   const {
     currentStep,
     handleStepChange,
+    showResetPrompt,
+    setShowResetPrompt,
+    handleResetForm,
     showVariantPrompt,
     handleVariantChoice,
     showPricingReusePrompt,
@@ -126,68 +130,169 @@ export function AddProductFlow({ onBack }: Props) {
     );
   }
 
+  const stepLabel = STEPS[currentStep - 1]?.label ?? '';
+  const errorList = Object.values(validation.errors);
+
+  /*
+   * FOUR REGIONS, ONE SCROLLER — the wholesale app's shape, in a browser.
+   *
+   *   header    back │ title + "Step N of 6" │ Reset      shrink-0
+   *   step bar  ①─②─③─④─⑤─⑥                              shrink-0
+   *   content   flex-1 min-h-0 overflow-y-auto            ← the ONLY scroller
+   *   footer    [Back]                 [Continue →]       shrink-0
+   *
+   * `h-full min-h-0` because the route is fullBleed: `<main>` gives a bounded,
+   * non-scrolling region, and the middle can only be its own scroll area if
+   * everything above it has a real height to divide.
+   */
   return (
-    <div className="flex flex-col flex-1 min-h-0">
-      <div className="shrink-0 flex items-center gap-2 overflow-x-auto py-3 border-b border-rule-subtle">
-        {STEPS.map(({ num, label }) => {
+    <div className="flex h-full min-h-0 flex-col bg-paper">
+      {/* ── Header ─────────────────────────────────────────────── */}
+      <div className="flex shrink-0 items-center gap-3 border-b border-rule px-4 py-3 md:px-6">
+        <Button
+          variant="ghost"
+          size="sm"
+          iconLeft={ChevronLeft}
+          onClick={onBack}
+          aria-label="Back to products"
+        >
+          {''}
+        </Button>
+
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-lg font-semibold tracking-tight text-ink">
+            {isEditMode ? 'Edit Product' : 'Add Product'}
+            <span className="text-ink-3"> · {stepLabel}</span>
+          </h1>
+          <Text as="p" variant="caption">
+            Step {currentStep} of {STEPS.length}
+          </Text>
+        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          iconLeft={RotateCcw}
+          className="shrink-0 border-bad-border text-bad hover:bg-bad-wash"
+          onClick={() => setShowResetPrompt(true)}
+        >
+          Reset
+        </Button>
+      </div>
+
+      {/* ── Step bar ───────────────────────────────────────────── */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-rule-subtle px-4 py-2.5 md:px-6">
+        {STEPS.map(({ num, label }, i) => {
           const done = num < currentStep;
           const active = num === currentStep;
           return (
-            <div key={num} className="flex items-center gap-2 shrink-0">
-              <div
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ${
-                  active
-                    ? 'bg-brass text-white'
-                    : done
-                      ? 'bg-ok-wash text-ok'
-                      : 'bg-sheet-2 text-ink-3'
-                }`}
+            <div key={num} className="flex items-center gap-1.5">
+              {/*
+                A button, not a div: every completed step is reachable in one
+                press. Walking back four steps to change the category was the
+                other half of "editing costs six steps".
+              */}
+              <button
+                type="button"
+                disabled={!done && !active}
+                onClick={() => done && handleStepChange(num)}
+                aria-current={active ? 'step' : undefined}
+                className={cn(
+                  'flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium',
+                  active && 'bg-brass text-brass-content',
+                  done && 'bg-ok-wash text-ok hover:bg-ok-border',
+                  !done && !active && 'bg-sheet-2 text-ink-3',
+                )}
               >
-                <span className="w-5 h-5 rounded-full flex items-center justify-center bg-white/20">
-                  {done ? <Check className="w-3 h-3" /> : num}
+                <span
+                  className={cn(
+                    'flex h-4 w-4 items-center justify-center rounded-full text-2xs',
+                    active ? 'bg-sheet-inverse text-ink-inverse' : 'bg-sheet',
+                  )}
+                >
+                  {done ? <Check className="h-2.5 w-2.5" /> : num}
                 </span>
                 {label}
-              </div>
-              {num < 6 && <ChevronRight className="w-4 h-4 text-ink-3" />}
+              </button>
+              {/* Wraps rather than scrolling sideways — a step bar you have to
+                  drag is a step bar nobody reads. */}
+              {i < STEPS.length - 1 && (
+                <ChevronRight className="h-3 w-3 shrink-0 text-ink-4" aria-hidden="true" />
+              )}
             </div>
           );
         })}
       </div>
 
-      {!validation.isValid && Object.keys(validation.errors).length > 0 && (
-        <div className="shrink-0 mt-4 p-3 rounded-xl bg-bad-wash border border-bad-border text-sm text-bad">
-          {Object.values(validation.errors).join(' · ')}
+      {/* ── Content — THE ONE SCROLLER ─────────────────────────────
+          Steps must not introduce another. A nested scroller inside this has
+          no bounded height to work in: it collapses to its content, and the
+          footer below stops being pinned. The wholesale app carries the same
+          warning for the same reason. */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
+        <div className="mx-auto w-full max-w-4xl space-y-4">
+          {errorList.length > 0 && (
+            <div
+              role="alert"
+              className="rounded-lg border border-bad-border bg-bad-wash p-3 text-sm text-bad"
+            >
+              {/* A list, not a joined string. `errors.join(' · ')` ran every
+                  problem into one line that named no field. */}
+              <ul className="list-inside list-disc space-y-0.5">
+                {errorList.map((message) => (
+                  <li key={message}>{message}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {registrationError && (
+            <div className="rounded-lg border border-warn-border bg-warn-wash p-3 text-sm text-warn">
+              {registrationError}
+            </div>
+          )}
+
+          {renderStep()}
         </div>
-      )}
-
-      {registrationError && (
-        <div className="shrink-0 mt-4 p-3 rounded-xl bg-warn-wash border border-warn-border text-sm text-warn">
-          {registrationError}
-        </div>
-      )}
-
-      <div className="flex-1 overflow-y-auto min-h-0 py-4 pb-6">{renderStep()}</div>
-
-      <div className="shrink-0 flex items-center gap-2 border-t border-rule bg-sheet py-3">
-        <Button
-          variant="outline"
-          iconLeft={ChevronLeft}
-          onClick={goPrev}
-          className="shrink-0 min-w-[88px]"
-        >
-          {currentStep === 1 ? 'Cancel' : 'Back'}
-        </Button>
-        <Button
-          variant="primary"
-          className="flex-1"
-          iconRight={isLastStep ? undefined : ChevronRight}
-          onClick={goNext}
-          disabled={!validation.isValid || isSaving}
-          loading={isSaving}
-        >
-          {isLastStep ? (isEditMode ? 'Update Product' : 'Register Product') : 'Continue'}
-        </Button>
       </div>
+
+      {/* ── Footer ─────────────────────────────────────────────── */}
+      <div className="shrink-0 border-t border-rule bg-sheet px-4 py-3 md:px-6">
+        <div className="mx-auto flex w-full max-w-4xl items-center gap-3">
+          <Button variant="outline" iconLeft={ChevronLeft} onClick={goPrev}>
+            {currentStep === 1 ? 'Cancel' : 'Back'}
+          </Button>
+          {/* Primary on the RIGHT, at its natural width. It used to be
+              `flex-1`, stretching edge to edge across the footer. */}
+          <Button
+            variant="primary"
+            className="ml-auto"
+            iconRight={isLastStep ? undefined : ChevronRight}
+            onClick={goNext}
+            disabled={!validation.isValid || isSaving}
+            loading={isSaving}
+          >
+            {isLastStep ? (isEditMode ? 'Update Listing' : 'Submit Listing') : 'Continue'}
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={showResetPrompt} onClose={() => setShowResetPrompt(false)} size="sm">
+        <div className="space-y-4 p-6">
+          <h3 className="text-lg font-semibold">Reset form?</h3>
+          <Text as="p" variant="secondary">
+            Everything entered so far is cleared, including uploaded media.
+          </Text>
+          <div className="flex gap-3">
+            <Button variant="danger" onClick={handleResetForm}>
+              Reset
+            </Button>
+            <Button variant="outline" onClick={() => setShowResetPrompt(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      </Dialog>
 
       {selectionType !== 'none' && (
         <SelectionModal

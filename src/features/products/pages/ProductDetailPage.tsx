@@ -40,6 +40,7 @@ import { formatDispatchDisplay } from '@/src/features/products/utils/dispatchTim
 import { ProductActionRail } from '../components/ProductActionRail';
 import { ProductReviewChecklist, type ChecklistItem } from '../components/ProductReviewChecklist';
 import { ProductAuditTab } from '../components/ProductAuditTab';
+import { VariantThumb } from '../components/VariantThumb';
 import {
   deriveProductState,
   PRODUCT_STATE_LABEL,
@@ -359,8 +360,12 @@ export function ProductDetailPage() {
                     return (
                       <li
                         key={v.id ?? v.subSku ?? i}
-                        className="flex flex-wrap items-baseline gap-x-4 gap-y-1 py-2"
+                        className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2"
                       >
+                        {/* The variant's own photograph, or the product's
+                            marked as borrowed — see VariantThumb. */}
+                        <VariantThumb variant={v} fallback={storedImages[0]} size="md" />
+
                         <span className="min-w-0 flex-1 basis-48">
                           <span className="block truncate text-sm text-ink">
                             {[v.color, v.design].filter(Boolean).join(' · ') || v.subName || '—'}
