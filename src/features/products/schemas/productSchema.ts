@@ -208,6 +208,42 @@ export const productResponseSchema = z.object({
   updatedAt: z.string().optional().nullable(),
   variations: z.array(productVariationSchema).optional().nullable(),
 
+  /*
+   * The per-size rows for a product with NO variants.
+   *
+   * `GET /products/:id` has always returned these — the rows of
+   * products.product_inventory whose variation_id IS NULL — and Zod strips what
+   * it does not declare, so they were discarded before any screen could read
+   * them. That is why the detail page could only ever show one stock total: a
+   * product can total 200 units and hold zero in M and L, the sizes people
+   * actually buy, and nothing on the page could say so. The LIST has a
+   * `lowStock` filter for exactly this question; the detail page could not
+   * answer it.
+   */
+  inventory: z.array(variationInventorySchema).optional().nullable(),
+
+  /*
+   * The sixth state, which is not in the status column.
+   *
+   * `deriveProductState(status, visibility, deleted)` has taken a third
+   * argument since the state model was written and the detail page has never
+   * been able to pass one, because the payload carried no such field. A
+   * taken-down product therefore rendered as APPROVED or PUBLIC, with an action
+   * rail offering verbs the server would refuse.
+   */
+  deleted: z.boolean().optional().default(false),
+
+  /*
+   * The supplier's margin as the admin set it, not a percentage re-derived here.
+   *
+   * The detail page computed ((sellingPrice - basePrice) / basePrice) * 100 in
+   * the component — money derived in the browser, which scripts/guard.sh G12
+   * exists to forbid, and which rounds differently from the server the moment a
+   * base price is not a round number. The admin list has had the server's
+   * figure all along.
+   */
+  marginPercent: z.number().optional().default(0),
+
   description: z.string().optional().nullable(),
   brandName: z.string().optional().nullable(),
   unitType: z.string().optional().nullable(),

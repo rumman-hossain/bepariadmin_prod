@@ -207,9 +207,19 @@ function describeUploadState(slots: MediaSlot[]): string | null {
   const failed = pending.filter((s) => s.uploadStatus === 'error').length;
   if (failed > 0) return `${failed} upload(s) failed. Please retry.`;
 
-  const queued = pending.filter(
-    (s) => s.uploadStatus === 'uploading' || s.uploadStatus === 'idle',
-  ).length;
+  // EXHAUSTIVE BY SUBTRACTION, not by enumerating the statuses.
+  //
+  // This counted `=== 'uploading' || === 'idle'`. `pending` is everything not
+  // 'done', so any status added to UploadStatus later would fall through BOTH
+  // buckets and this would return null — "no upload problem" — for a slot that
+  // has not finished uploading. Step 4 would pass with an incomplete image.
+  //
+  // It is latent rather than live only because the union happens to have
+  // exactly four members today. Investigating whether to add a 'paused' status
+  // is what surfaced it: the status turned out to be unreachable and was not
+  // added, but the trap it would have sprung is real and cheap to close.
+  // Anything pending that is not a failure is something to wait for.
+  const queued = pending.length - failed;
   return queued > 0 ? `${queued} image(s) in queue. Please wait.` : null;
 }
 
@@ -279,11 +289,11 @@ export function validateStep4(state: WizardState): ValidationResult {
       const slots = [media.front, media.back, ...(media.more ?? []), media.video].filter(
         slotActive,
       );
+      // Same subtraction as describeUploadState, for the same reason.
       const pending = slots.filter((s) => s.uploadStatus !== 'done');
-      queued += pending.filter(
-        (s) => s.uploadStatus === 'uploading' || s.uploadStatus === 'idle',
-      ).length;
-      failed += pending.filter((s) => s.uploadStatus === 'error').length;
+      const pendingFailed = pending.filter((s) => s.uploadStatus === 'error').length;
+      failed += pendingFailed;
+      queued += pending.length - pendingFailed;
     });
 
     if (variationsMissingMedia > 0) {

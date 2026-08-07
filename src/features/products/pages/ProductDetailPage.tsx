@@ -30,6 +30,7 @@ import { Panel } from '@/src/components/layout/primitives';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { useProductDetail } from '../hooks/useProductDetail';
 import { MARGIN_FLOOR_PERCENT } from '../constants';
+import { cn } from '@/src/design-system/utils/cn';
 import {
   useApproveProduct,
   useRejectProduct,
@@ -104,19 +105,39 @@ export function ProductDetailPage() {
     [toast, refetch],
   );
 
+  /*
+   * `deleted` is the third argument, and it was never passed.
+   *
+   * deriveProductState returns REMOVED for a taken-down product, and the detail
+   * page could not reach that branch because the payload carried no such field
+   * — so a product that had been taken down rendered as APPROVED or PUBLIC,
+   * with an action rail offering verbs the server would refuse. VERBS_BY_STATE
+   * has said `REMOVED: []` all along, waiting for a state nothing could produce.
+   */
   const state = useMemo(
-    () => deriveProductState(product?.status, product?.visibility),
-    [product?.status, product?.visibility],
+    () => deriveProductState(product?.status, product?.visibility, product?.deleted),
+    [product?.status, product?.visibility, product?.deleted],
   );
 
   const checklist = useMemo<ChecklistItem[]>(() => {
     if (!product) return [];
 
-    const images = product.imageUrls?.length ?? (product.imageUrl ? 1 : 0);
-    const marginPct =
-      product.basePrice > 0
-        ? ((product.sellingPrice - product.basePrice) / product.basePrice) * 100
-        : 0;
+    // `imageUrls` is now derived from `media` in the mapper and is always an
+    // array, so `?? ` never fired and this reported 0 for every product ever —
+    // telling operators to add a photograph to products carrying five. The
+    // fallback stays for a payload that sends only a poster.
+    const images = product.imageUrls?.length || (product.imageUrl ? 1 : 0);
+    /*
+     * The SERVER's margin, not a percentage re-derived from two prices.
+     *
+     * This computed ((sellingPrice - basePrice) / basePrice) * 100 in the
+     * component — money derived in the browser, which scripts/guard.sh G12
+     * exists to forbid, and which disagrees with the server by a rounding step
+     * the moment a base price is not a round number. `marginPercent` comes from
+     * the same COALESCE(w.margin, 9.50) that produced the selling price, so the
+     * two cannot contradict each other.
+     */
+    const marginPct = product.marginPercent;
     const stock = product.availableStock ?? product.stock;
     const variations = product.variations ?? [];
     const emptyVariants = variations.filter((v) => (v.stock ?? 0) === 0).length;
@@ -230,6 +251,12 @@ export function ProductDetailPage() {
       : [];
 
   const images = storedImages.map(mediaDisplayUrl).filter((url): url is string => Boolean(url));
+  // Through mediaDisplayUrl for the same reason the images are: a stored value
+  // is a `gs://` reference, which no browser can load and the CSP blocks.
+  const videoUrl = mediaDisplayUrl(product.videoUrl);
+  // Product-level rows only — those are the ones with no variation. A variant
+  // product's sizes belong to its variations and are shown in that tab.
+  const sizeRows = (product.inventory ?? []).filter((row) => !row.variationId);
   const variations = product.variations ?? [];
   const margin = product.sellingPrice - product.basePrice;
 
@@ -324,6 +351,24 @@ export function ProductDetailPage() {
                     ))}
                   </div>
                 )}
+
+                {/*
+                  THE VIDEO, WHICH NOBODY COULD WATCH BEFORE APPROVING IT.
+
+                  Step 4 of the wizard has a video slot, the server stores the
+                  URL and sends it as `videoUrl`, and this page rendered images
+                  only. So a clip went out to retailers having passed a review
+                  in which it was never played. `controls` and no autoplay: an
+                  approver decides when to watch it.
+                */}
+                {videoUrl && (
+                  <video
+                    src={videoUrl}
+                    controls
+                    preload="metadata"
+                    className="mt-2 w-full rounded-md border border-rule"
+                  />
+                )}
               </div>
 
               <ProductReviewChecklist items={checklist} />
@@ -408,6 +453,85 @@ export function ProductDetailPage() {
               ))}
 
             {tab === 'spec' && (
+              <div className="space-y-5">
+              {/*
+                THE DESCRIPTION — the thing a retailer actually reads.
+
+                Step 1 collects it and ClassificationTemplates auto-fills it
+                from the catalogue leaf, so operators have been writing these
+                since the wizard shipped. It is rendered here for the first
+                time. If it is empty, say so plainly rather than omitting the
+                row: on a review screen, "no description" is itself a finding.
+              */}
+              <div>
+                <Text as="p" variant="label">Description</Text>
+                {product.description ? (
+                  <p className="mt-1 whitespace-pre-wrap text-sm text-ink">{product.description}</p>
+                ) : (
+                  <p className="mt-1 text-sm text-ink-3">
+                    No description. Retailers see nothing about this product beyond its name.
+                  </p>
+                )}
+              </div>
+
+              {/*
+                PER-SIZE STOCK for a product with no variants.
+
+                The rows below the totals. A product can hold 200 units and be
+                empty in M and L — the sizes people buy — and every figure on
+                this page other than these would still read healthy. The list
+                has a `lowStock` filter for exactly this question; until now the
+                detail page could not answer it.
+
+                Variant products get this from the Variants tab, which already
+                breaks down by variation.
+              */}
+              {sizeRows.length > 0 && (
+                <div>
+                  <Text as="p" variant="label">Stock by size</Text>
+                  {/* responsive-table-reviewed: four short numeric columns —
+                      a size label and three counts — which fit inside 375px
+                      without scrolling. Card-stacking would turn a five-size
+                      product into twenty labelled lines to answer a question
+                      ("which size is empty") that the eye answers instantly
+                      down a column. It scrolls if a size label is unusually
+                      long. */}
+                  <div className="mt-1 overflow-x-auto rounded-md border border-rule">
+                    <table className="w-full border-collapse text-sm">
+                      <thead>
+                        <tr className="bg-sheet-2">
+                          <th className="px-3 py-1.5 text-left"><Text variant="label">Size</Text></th>
+                          <th className="px-3 py-1.5 text-right"><Text variant="label">Stock</Text></th>
+                          <th className="px-3 py-1.5 text-right"><Text variant="label">MOQ</Text></th>
+                          <th className="px-3 py-1.5 text-right"><Text variant="label">Alert at</Text></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sizeRows.map((row) => {
+                          const qty = row.stock ?? 0;
+                          const alert = row.lowStockAlert ?? 0;
+                          return (
+                            <tr key={row.size} className="border-t border-rule-subtle">
+                              <td className="px-3 py-1.5 text-ink">{row.size}</td>
+                              <td
+                                className={cn(
+                                  'px-3 py-1.5 text-right font-semibold tabular-nums',
+                                  qty === 0 ? 'text-bad' : alert > 0 && qty <= alert ? 'text-warn' : 'text-ink',
+                                )}
+                              >
+                                {qty}
+                              </td>
+                              <td className="px-3 py-1.5 text-right tabular-nums text-ink-2">{row.moq ?? 1}</td>
+                              <td className="px-3 py-1.5 text-right tabular-nums text-ink-2">{alert}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
               <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-6 gap-y-2.5">
                 <dt className="text-xs text-ink-3">Original SKU</dt>
                 <dd className="m-0 font-mono text-sm text-ink">{product.sku}</dd>
@@ -443,7 +567,53 @@ export function ProductDetailPage() {
                 <dd className="m-0 text-sm text-ink">
                   {product.updatedAt ? `${formatAge(product.updatedAt)} ago` : '—'}
                 </dd>
+
+                {/*
+                  THE SPECIFICATION, IN A TAB CALLED SPECIFICATION.
+
+                  Everything below arrives from the server, is validated by the
+                  response schema, is produced by the mapper — and was rendered
+                  nowhere. The page showed 21 of the 39 fields it holds, and the
+                  omissions were the ones an approver judges on: what the thing
+                  is made of, what sizes it comes in, what it weighs, and the
+                  bottom two levels of the catalogue placement.
+
+                  This is the approval gate. Approving publishes to retailers,
+                  so an approver who cannot see the material is certifying a
+                  claim they have not read.
+                */}
+                <dt className="text-xs text-ink-3">Material</dt>
+                <dd className="m-0 text-sm text-ink">{product.material || '—'}</dd>
+                <dt className="text-xs text-ink-3">Sizes</dt>
+                <dd className="m-0 text-sm text-ink">
+                  {product.availableSizes?.length ? product.availableSizes.join(', ') : '—'}
+                </dd>
+                <dt className="text-xs text-ink-3">Weight</dt>
+                <dd className="m-0 text-sm text-ink">
+                  {product.weight ? `${product.weight} gm` : '—'}
+                </dd>
+                <dt className="text-xs text-ink-3">Volume</dt>
+                <dd className="m-0 text-sm text-ink">
+                  {product.volume ? `${product.volume} c.ft` : '—'}
+                </dd>
+
+                {/* Levels 4 and 5 of the hierarchy. Levels 1-3 are in the
+                    header; without these the placement cannot be checked. */}
+                <dt className="text-xs text-ink-3">Classification</dt>
+                <dd className="m-0 text-sm text-ink">{product.classification || '—'}</dd>
+                <dt className="text-xs text-ink-3">Product detail</dt>
+                <dd className="m-0 text-sm text-ink">{product.productDetail || '—'}</dd>
+
+                <dt className="text-xs text-ink-3">Tags</dt>
+                <dd className="m-0 text-sm text-ink">
+                  {product.trendTags?.length ? product.trendTags.join(', ') : '—'}
+                </dd>
+                <dt className="text-xs text-ink-3">Created</dt>
+                <dd className="m-0 text-sm text-ink">
+                  {product.createdAt ? `${formatAge(product.createdAt)} ago` : '—'}
+                </dd>
               </dl>
+              </div>
             )}
 
             {tab === 'audit' && productId && <ProductAuditTab productId={productId} />}

@@ -48,6 +48,8 @@ export interface BackendProduct {
   description?: string;
   media?: Array<{ url?: string; position?: number; mediaType?: string }>;
   inventory?: Array<{ size: string; stock: number; moq: number; lowStockAlert: number }>;
+  deleted?: boolean;
+  marginPercent?: number;
   hasVariant?: boolean;
   sizeType?: string;
   [key: string]: unknown;
@@ -220,6 +222,20 @@ export function normalizeBackendProduct(
     status: mapStatus(raw.status),
     imageUrl,
     imageUrls,
+    /*
+     * Three facts the server sends and this mapper dropped on the floor.
+     *
+     * `inventory` is the per-size breakdown for a product with no variants —
+     * the rows the detail page needs to answer "which SIZES are empty", which
+     * a single stock total cannot. `deleted` is the sixth lifecycle state, and
+     * `deriveProductState` has taken it as an argument since the state model
+     * was written with nothing able to supply one. `marginPercent` is the
+     * supplier's margin as the admin set it, so the detail page stops deriving
+     * a percentage from two prices in a React component.
+     */
+    inventory: Array.isArray(raw.inventory) ? raw.inventory : [],
+    deleted: Boolean(raw.deleted),
+    marginPercent: Number(raw.marginPercent) || 0,
     rejectionReason: '',
     createdAt: formatTimestamp(raw.createdAt),
     updatedAt: formatTimestamp(raw.updatedAt),

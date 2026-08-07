@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@/src/components/controls';
 import { Dialog } from '@/src/components/feedback';
@@ -73,7 +74,26 @@ export function AddProductFlow({ onBack }: Props) {
   const isLastStep = currentStep === 6;
   const isSaving = registrationState === 'saving';
 
+  /*
+   * WHICH STEPS THE OPERATOR HAS TRIED TO LEAVE.
+   *
+   * Validation runs on every render, so the errors for step 1 exist before the
+   * form has been touched — eight of them, on a blank form. Showing those is
+   * worse than showing nothing: the operator is told they are wrong about
+   * fields they have not reached yet, and by the time the real mistake appears
+   * the red has stopped meaning anything.
+   *
+   * Keyed by step rather than a single boolean because each step is its own
+   * attempt: getting step 1 wrong should not paint step 2 red on arrival.
+   */
+  const [attemptedSteps, setAttemptedSteps] = useState<Record<number, boolean>>({});
+  const showErrors = Boolean(attemptedSteps[currentStep]);
+  const visibleErrors = showErrors ? validation.errors : {};
+
   const goNext = () => {
+    // Mark first, unconditionally — the attempt is what makes the errors
+    // visible, and a failed attempt is the only one that needs to.
+    setAttemptedSteps((prev) => ({ ...prev, [currentStep]: true }));
     if (!validation.isValid) return;
     if (isLastStep) {
       setShowSubmitPrompt(true);
@@ -98,23 +118,24 @@ export function AddProductFlow({ onBack }: Props) {
             onSelect={setSelectionType}
             generatedSku={activeSku}
             isGeneratingSku={isGeneratingSku}
+            errors={visibleErrors}
           />
         );
       case 2:
-        return <Step2Details sizeConfig={sizeConfig} errors={validation.errors} />;
+        return <Step2Details sizeConfig={sizeConfig} errors={visibleErrors} />;
       case 3:
         return (
           <Step3Pricing
             sellPrice={pricing.sell}
             platformMargin={platformMargin}
             onGenerateVariations={handleGenerateVariations}
-            errors={validation.errors}
+            errors={visibleErrors}
           />
         );
       case 4:
         return <Step4Media />;
       case 5:
-        return <Step5Policies errors={validation.errors} />;
+        return <Step5Policies errors={visibleErrors} />;
       case 6:
         return <Step6Summary sellPrice={pricing.sell} platformMargin={platformMargin} />;
       default:
@@ -131,7 +152,7 @@ export function AddProductFlow({ onBack }: Props) {
   }
 
   const stepLabel = STEPS[currentStep - 1]?.label ?? '';
-  const errorList = Object.values(validation.errors);
+  const errorList = Object.values(visibleErrors);
 
   /*
    * FOUR REGIONS, ONE SCROLLER — the wholesale app's shape, in a browser.
@@ -263,13 +284,21 @@ export function AddProductFlow({ onBack }: Props) {
             {currentStep === 1 ? 'Cancel' : 'Back'}
           </Button>
           {/* Primary on the RIGHT, at its natural width. It used to be
-              `flex-1`, stretching edge to edge across the footer. */}
+              `flex-1`, stretching edge to edge across the footer.
+
+              ENABLED WHILE THE STEP IS INVALID, which is the whole mechanism
+              above. `disabled={!validation.isValid}` meant a click never
+              happened, so "attempted to advance" was not an event this
+              component could observe — and a dead button is also the least
+              informative way to refuse: it states that something is wrong and
+              nothing about what. `goNext` still refuses to move; it now
+              reveals why first. */}
           <Button
             variant="primary"
             className="ml-auto"
             iconRight={isLastStep ? undefined : ChevronRight}
             onClick={goNext}
-            disabled={!validation.isValid || isSaving}
+            disabled={isSaving}
             loading={isSaving}
           >
             {isLastStep ? (isEditMode ? 'Update Listing' : 'Submit Listing') : 'Continue'}
