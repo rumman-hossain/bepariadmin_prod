@@ -26,7 +26,7 @@ interface ProductUiStore {
   filters: ProductFilters;
   pagination: Pick<ProductPagination, 'page' | 'limit'>;
 
-  setFilter: (key: keyof ProductFilters, value: string | boolean) => void;
+  setFilter: <K extends keyof ProductFilters>(key: K, value: ProductFilters[K]) => void;
   clearFilters: () => void;
   setPage: (page: number) => void;
   setLimit: (limit: number) => void;

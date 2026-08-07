@@ -7,6 +7,19 @@ export interface MediaSlot {
   uploadedUrl: string;
   uploadStatus: UploadStatus;
   uploadError?: string;
+  /**
+   * A stable identity for a "more"-gallery slot, so background upload progress
+   * lands on the right one.
+   *
+   * The named slots — poster, front, back, left, right, video — are addressed
+   * by key and need none. The gallery is an ARRAY, and an index is not an
+   * identity: remove slot 1 while slot 2 is still uploading and the in-flight
+   * progress for the old index 2 arrives at what is now a different image.
+   *
+   * Never reused, including after a delete. Ported from the mobile app, where
+   * this is `galleryKey` on the same type.
+   */
+  galleryKey?: string;
 }
 
 export interface ProductMediaState {
@@ -180,4 +193,23 @@ export interface WizardState {
   /** Admin: selected wholesaler */
   wholesalerId: string;
   wholesalerCode: string;
+
+  /**
+   * True once the user has ADDED or DELETED media this session.
+   *
+   * Ported from the mobile app, which added it because a per-slot delete never
+   * touches `draftId`: `hasNewMedia` alone cannot detect one, so an edit that
+   * removed a required image and submitted would silently save an incomplete
+   * product. The admin console had no equivalent and the same defect.
+   *
+   * Set ONLY by genuine user add/delete. Background progress-sync — an upload
+   * advancing its status or url — must never set it, or every product becomes
+   * dirty just by watching its own uploads finish. The discriminator is
+   * `'localUri' in slot`: user actions always carry one (a path on pick, `''`
+   * on clear), progress updates never do.
+   *
+   * Reset by `reset()` and `hydrate()`: a freshly loaded product starts clean
+   * regardless of what the previous one did.
+   */
+  mediaDirty: boolean;
 }

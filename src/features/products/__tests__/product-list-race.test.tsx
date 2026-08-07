@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { queryKeys } from '@/src/app/queryClient';
-import { useProductsQuery, type ProductListParams } from '../queries';
+import { useAdminProductsQuery } from '../queries';
+import type { AdminProductListParams } from '../types/adminProduct';
 
 /**
  * The product-list race, and why it is now structurally impossible.
@@ -17,18 +18,24 @@ import { useProductsQuery, type ProductListParams } from '../queries';
  *
  * Keying the cache by params removes the class of bug rather than the instance:
  * two searches are two cache entries, so there is no shared slot to race over.
- * These tests assert that property directly, because it is the thing that
- * replaced the guard.
+ *
+ * THIS FILE NOW TARGETS `useAdminProductsQuery`, because that is the hook the
+ * list actually uses. It used to target `useProductsQuery`, which reads the
+ * catalogue route — and when the list moved to `/admin/products`, these tests
+ * kept passing against a hook with no remaining caller. A test that cannot fail
+ * for the screen it names is worse than no test, so it moved with the screen.
  */
 
-const getProducts = vi.fn();
+const listAdminProducts = vi.fn();
 
-vi.mock('@/src/api/products', () => ({
-  getProducts: (...args: unknown[]) => getProducts(...args),
-  getProductById: vi.fn(),
-  getCategories: vi.fn(),
-  updateProductStatus: vi.fn(),
-  deleteProduct: vi.fn(),
+vi.mock('@/src/api/adminProducts', () => ({
+  listAdminProducts: (...args: unknown[]) => listAdminProducts(...args),
+  approveProduct: vi.fn(),
+  rejectProduct: vi.fn(),
+  publishProduct: vi.fn(),
+  takeDownProduct: vi.fn(),
+  submitProduct: vi.fn(),
+  getProductAudit: vi.fn(),
 }));
 
 function page(names: string[], total = names.length) {
@@ -39,17 +46,31 @@ function page(names: string[], total = names.length) {
       products: names.map((name, i) => ({
         id: `p-${name}`,
         name,
-        sku: `SKU-${i}`,
-        category: 'Rice',
+        sku: `WHL-00001-CAT-SUB-GRP-00${i}`,
+        status: 'pending_review',
+        visibility: 'private',
+        state: 'PENDING',
+        categoryId: 'cat-1',
+        supplierId: 'ws-1',
+        supplierName: 'Karim Textiles',
+        supplierCode: 'WHL-00001',
+        hasVariant: false,
+        variantCount: 0,
         basePrice: 100,
+        sellingPrice: 120,
         stock: 5,
-        visibility: 'Public',
-        wholesalerId: 'ws-1',
-        status: 'Approved',
+        imageCount: 1,
+        thumbnailUrl: '',
+        createdBy: '',
+        createdAt: '2026-08-01T00:00:00Z',
+        updatedAt: '2026-08-01T00:00:00Z',
+        deletedAt: null,
+        deletionRequestedAt: null,
       })),
       page: 1,
-      limit: 20,
+      limit: 25,
       total,
+      counts: { draft: 0, pending: total, approved: 0, public: 0, rejected: 0, removed: 0 },
     },
   };
 }
@@ -62,7 +83,7 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-const BASE: ProductListParams = { page: 1, limit: 20 };
+const BASE: AdminProductListParams = { page: 1, limit: 25 };
 
 let client: QueryClient;
 
@@ -72,12 +93,12 @@ function wrapper({ children }: { children: React.ReactNode }) {
 
 /** Renders the query for a given search term and reports what it holds. */
 function Probe({ search }: { search?: string }) {
-  const { data } = useProductsQuery({ ...BASE, search }, {});
+  const { data } = useAdminProductsQuery({ ...BASE, search });
   return <div data-testid="names">{(data?.products ?? []).map((p) => p.name).join(',')}</div>;
 }
 
 beforeEach(() => {
-  getProducts.mockReset();
+  listAdminProducts.mockReset();
   client = new QueryClient({
     defaultOptions: { queries: { retry: false, gcTime: Infinity } },
   });
@@ -90,15 +111,30 @@ afterEach(() => {
 
 describe('product list query keys', () => {
   it('gives each search term its own cache entry', () => {
-    const a = queryKeys.products.list({ ...BASE, search: 'shi' });
-    const b = queryKeys.products.list({ ...BASE, search: 'shirt' });
+    const a = queryKeys.products.adminList({ ...BASE, search: 'shi' });
+    const b = queryKeys.products.adminList({ ...BASE, search: 'shirt' });
     expect(a).not.toEqual(b);
+  });
+
+  /*
+   * The admin list and the catalogue list must NOT share a key.
+   *
+   * They answer different questions over different populations — one is
+   * narrowed to approved+public — so a catalogue response sitting in the
+   * admin screen's slot would show an operator a filtered catalogue and call
+   * it every state. This is the same shape as the two category hooks that
+   * shared a key and returned different types, which blanked the console.
+   */
+  it('does not collide with the catalogue list key', () => {
+    const admin = queryKeys.products.adminList({ ...BASE });
+    const catalogue = queryKeys.products.list({ ...BASE });
+    expect(admin).not.toEqual(catalogue);
   });
 
   it('a slow response for an earlier search cannot overwrite a newer one', async () => {
     const slowOld = deferred<ReturnType<typeof page>>();
     const fastNew = deferred<ReturnType<typeof page>>();
-    getProducts.mockReturnValueOnce(slowOld.promise).mockReturnValueOnce(fastNew.promise);
+    listAdminProducts.mockReturnValueOnce(slowOld.promise).mockReturnValueOnce(fastNew.promise);
 
     // "shi" is requested first, then superseded by "shirt".
     const view = render(<Probe search="shi" />, { wrapper });
@@ -115,37 +151,38 @@ describe('product list query keys', () => {
   });
 
   it('reuses the cache when the same search is requested again', async () => {
-    getProducts.mockResolvedValue(page(['lentil']));
+    listAdminProducts.mockResolvedValue(page(['lentil']));
 
     const view = render(<Probe search="lentil" />, { wrapper });
     await waitFor(() => expect(view.getByTestId('names').textContent).toBe('lentil'));
-    const callsAfterFirst = getProducts.mock.calls.length;
+    const callsAfterFirst = listAdminProducts.mock.calls.length;
 
     view.rerender(<Probe search="lentil" />);
     await new Promise((r) => setTimeout(r, 0));
 
     // No second request: the params, and therefore the key, are unchanged.
-    expect(getProducts.mock.calls.length).toBe(callsAfterFirst);
+    expect(listAdminProducts.mock.calls.length).toBe(callsAfterFirst);
   });
 
-  it('sends the wholesaler filter to the API', async () => {
-    getProducts.mockResolvedValue(page([]));
-    function WithWholesaler() {
-      useProductsQuery({ ...BASE, wholesalerId: 'ws-42' }, {});
+  it('sends the supplier filter to the API', async () => {
+    listAdminProducts.mockResolvedValue(page([]));
+    function WithSupplier() {
+      useAdminProductsQuery({ ...BASE, supplierId: 'ws-42' });
       return null;
     }
-    render(<WithWholesaler />, { wrapper });
-    await waitFor(() => expect(getProducts).toHaveBeenCalled());
-    expect((getProducts.mock.calls[0][0] as ProductListParams).wholesalerId).toBe('ws-42');
+    render(<WithSupplier />, { wrapper });
+    await waitFor(() => expect(listAdminProducts).toHaveBeenCalled());
+    expect((listAdminProducts.mock.calls[0][0] as AdminProductListParams).supplierId).toBe('ws-42');
   });
 
-  it('surfaces a non-ok response as an error rather than empty data', async () => {
-    getProducts.mockResolvedValue({ ok: false, status: 500 });
-    function Failing() {
-      const { error } = useProductsQuery({ ...BASE, search: 'boom' }, {});
-      return <div data-testid="err">{error ? error.message : ''}</div>;
+  it('sends the state filter, so a tab change refetches', async () => {
+    listAdminProducts.mockResolvedValue(page([]));
+    function WithState() {
+      useAdminProductsQuery({ ...BASE, state: 'APPROVED' });
+      return null;
     }
-    const view = render(<Failing />, { wrapper });
-    await waitFor(() => expect(view.getByTestId('err').textContent).toMatch(/500/));
+    render(<WithState />, { wrapper });
+    await waitFor(() => expect(listAdminProducts).toHaveBeenCalled());
+    expect((listAdminProducts.mock.calls[0][0] as AdminProductListParams).state).toBe('APPROVED');
   });
 });

@@ -1,4 +1,4 @@
-import React, { useId, useMemo, useState } from 'react';
+import React, { Fragment, useId, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowDown, ArrowUp, ChevronsUpDown } from 'lucide-react';
 import { cn } from '@/src/design-system/utils/cn';
@@ -80,6 +80,22 @@ export interface DataTableProps<T> {
   caption?: string;
   /** Rendered in place of the body when `data` is empty. */
   empty?: React.ReactNode;
+
+  /**
+   * Detail rendered in a full-width row directly beneath its parent.
+   *
+   * For content that BELONGS TO the row and is read in its context — a
+   * product's variant sub-SKUs under the product that owns them. Not for
+   * anything a reader would want beside a different row, which is a column.
+   *
+   * Expansion is controlled: the caller owns `expandedKeys` and decides what
+   * opens it, so a row can expand from a badge in one screen and a chevron in
+   * another. Return `null` for rows with nothing to show and no row is
+   * emitted — a table where every row expands to an empty panel teaches the
+   * reader to stop trying.
+   */
+  renderExpanded?: (row: T) => React.ReactNode;
+  expandedKeys?: ReadonlySet<string>;
 }
 
 /**
@@ -134,6 +150,8 @@ export function DataTable<T>({
   className,
   caption,
   empty,
+  renderExpanded,
+  expandedKeys,
 }: DataTableProps<T>) {
   const [localSort, setLocalSort] = useState<SortState | null>(null);
   const selectAllId = useId();
@@ -328,8 +346,16 @@ export function DataTable<T>({
             const key = rowKey(row);
             const href = rowHref?.(row);
             const isSelected = selected.has(key);
+            /*
+             * Rendered eagerly rather than behind the `expandedKeys` check, so
+             * a row that has NOTHING to expand emits no expansion row at all —
+             * `renderExpanded` returning null is the signal, and asking it is
+             * the only way to know.
+             */
+            const expanded =
+              renderExpanded && expandedKeys?.has(key) ? renderExpanded(row) : null;
 
-            return (
+            const tr = (
               <tr
                 key={key}
                 role="row"
@@ -430,6 +456,25 @@ export function DataTable<T>({
                   </td>
                 ))}
               </tr>
+            );
+
+            // No expansion: the row alone, and no wrapper element, so the
+            // markup is byte-identical to what every existing caller renders.
+            if (!expanded) return <Fragment key={key}>{tr}</Fragment>;
+
+            return (
+              <Fragment key={key}>
+                {tr}
+                <tr className="bg-sheet-2">
+                  {/*
+                    +1 for the selection column when it exists, or the panel
+                    stops one cell short and the table develops a ragged edge.
+                  */}
+                  <td colSpan={columns.length + (selectable ? 1 : 0)} className="p-0">
+                    {expanded}
+                  </td>
+                </tr>
+              </Fragment>
             );
           })}
         </tbody>

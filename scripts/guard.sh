@@ -257,6 +257,24 @@ for f in $tables; do
 done
 report "responsive-table" "use .table-cards, or add a responsive-table-reviewed note saying why it fits" "$undeclared"
 
+# ─────────────────────────────────────────────────────────────────────
+# G18 — the size vocabulary is changed through one door.
+#
+# Stock, MOQ and the low-stock threshold are held per size in three parallel
+# maps keyed by the size STRING. `setSelectedSizes` prunes all three to the new
+# selection; `setField('selectedSizes', …)` does not.
+#
+# The difference is not cosmetic. Entering stock against UK 6/7/8, switching the
+# footwear scale, and re-picking US 8/9/10 leaves the maps carrying both
+# vocabularies — with "8" meaning UK 8 in one entry and US 8 in another. Both
+# are submitted, and nothing on screen says so. That is the shape the bug took
+# here, and it is still live in wholesaleapp-client.
+sizes=$(grep -rnE --include='*.tsx' --include='*.ts' \
+  "setField\([\"']selectedSizes[\"']" "$SRC" \
+  | grep -vE '__tests__' \
+  | grep -vE ':[0-9]+:[[:space:]]*([*]|//)' || true)
+report "size-vocabulary" "use setSelectedSizes() — setField leaves the per-size stock maps orphaned" "$sizes"
+
 # G12 — no financial figure is computed in a component.
 #
 # This is the most important rule in the system, and it exists because of a

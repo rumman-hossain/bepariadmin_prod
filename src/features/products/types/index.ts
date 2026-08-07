@@ -87,23 +87,45 @@ export type ProductStatusAction =
 
 // ─── Filter State ──────────────────────────────────────────────
 
+/**
+ * The operator's filter selections.
+ *
+ * `status` and `visibility` are GONE, replaced by one `state`.
+ *
+ * They were modelled as independent because the catalogue route accepts them
+ * that way, but the back office does not think in those terms: APPROVED and
+ * PUBLIC are the same `status` column and differ only in visibility, so an
+ * operator wanting "cleared but not yet live" had to know that and compose it
+ * by hand. Worse, neither could be counted — a tab strip needs one axis.
+ *
+ * `state` is `'' | ProductState`, where empty means every state. It is not
+ * `'All'`: the server refuses an unrecognised state with a 400, so the sentinel
+ * has to be something the query builder can omit rather than send.
+ */
 export interface ProductFilters {
   search: string;
   category: string;
-  status: string;
+  state: string;
   wholesalerId: string;
-  visibility: string;
   lowStock: boolean;
+  /** Undefined = either; false = only products with no image (the publish blocker). */
+  hasImage?: boolean;
 }
 
 export const INITIAL_FILTERS: ProductFilters = {
   search: '',
   category: 'All',
-  /** Default to pending queue — wholesaler new products are pending_review, not approved */
-  status: 'Pending Approval',
+  /*
+   * Opens on the review queue, because that is the job.
+   *
+   * This used to say `'Pending Approval'` against a route that only ever
+   * returned approved products, so the default view was reliably empty and the
+   * screen carried a banner explaining why.
+   */
+  state: 'PENDING',
   wholesalerId: 'All',
-  visibility: 'All',
   lowStock: false,
+  hasImage: undefined,
 };
 
 // ─── Pagination ────────────────────────────────────────────────

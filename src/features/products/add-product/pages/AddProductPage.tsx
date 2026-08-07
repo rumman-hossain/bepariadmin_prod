@@ -5,8 +5,9 @@ import { Button } from '@/src/components/controls';
 import { Dialog } from '@/src/components/feedback';
 import { useAddProductStore } from '../store/useAddProductStore';
 import { AddProductFlow } from '../components/AddProductFlow';
+import { EditProductSections } from '../components/EditProductSections';
 import { useProductFormLifecycle } from '../hooks/useProductFormLifecycle';
-import { useUpdateProductStatus } from '../../queries';
+import { useApproveProduct } from '../../queries';
 import { PRODUCT_ROUTES } from '../../routes';
 import { Text } from '@/src/components/data';
 
@@ -17,7 +18,7 @@ export function AddProductPage() {
   // Mutation rather than a store action: it carries its own pending state and
   // invalidates the product caches on success, so the list reflects the
   // approval without a manual refetch.
-  const updateStatus = useUpdateProductStatus();
+  const approve = useApproveProduct();
   const { productStatus, refetch } = useProductFormLifecycle();
   const [showResetPrompt, setShowResetPrompt] = useState(false);
 
@@ -34,7 +35,7 @@ export function AddProductPage() {
 
   const handleApprove = async () => {
     if (!productId) return;
-    await updateStatus.mutateAsync({ id: productId, status: 'Approved' });
+    await approve.mutateAsync({ id: productId });
     await refetch();
   };
 
@@ -48,7 +49,11 @@ export function AddProductPage() {
             </Button>
             <div className="min-w-0">
               <h1 className="text-xl font-bold text-ink truncate">{title}</h1>
-              <p className="text-sm text-ink-3">Step wizard — mobile parity</p>
+              <p className="text-sm text-ink-3">
+                {isEditMode
+                  ? 'Jump to any section — changes save together'
+                  : 'Step wizard — mobile parity'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
@@ -60,7 +65,7 @@ export function AddProductPage() {
                 variant="primary"
                 size="sm"
                 iconLeft={CheckCircle}
-                loading={updateStatus.isPending}
+                loading={approve.isPending}
                 onClick={() => void handleApprove()}
               >
                 Approve
@@ -71,8 +76,31 @@ export function AddProductPage() {
       </header>
 
       <div className="flex-1 flex flex-col min-h-0 px-6 md:px-8 pb-4">
-        <div className="max-w-4xl mx-auto w-full flex-1 flex flex-col min-h-0">
-          <AddProductFlow onBack={handleBack} />
+        {/*
+          CREATE keeps the wizard; EDIT is one sectioned page.
+
+          Not a preference. Creating a product has a genuine order to it — the
+          SKU is generated from the classification cascade, and the variant
+          question has to be settled before pricing can be laid out. Editing has
+          none: the product exists, and the operator has come to change one
+          field. Making them walk six steps to correct a price is the complaint
+          this splits apart.
+
+          Both render the SAME step components, so there is one definition of
+          every input and the two cannot drift.
+        */}
+        <div
+          className={
+            isEditMode
+              ? 'mx-auto w-full max-w-6xl flex-1'
+              : 'max-w-4xl mx-auto w-full flex-1 flex flex-col min-h-0'
+          }
+        >
+          {isEditMode ? (
+            <EditProductSections onCancel={handleBack} />
+          ) : (
+            <AddProductFlow onBack={handleBack} />
+          )}
         </div>
       </div>
 

@@ -1,126 +1,132 @@
 /**
- * Product List Page — main product management view.
+ * Product List — the review queue.
  *
- * Architecture:
- * - Reads from useProductStore via useProductList hook
- * - Zero props — fully self-contained
- * - Uses DataTable, SearchFilterBar, StatusBadge UI components
- * - Handles: loading, empty, error, success states
+ * WHAT CHANGED, AND WHY IT WAS NOT COSMETIC
+ *
+ * This screen used to call the CATALOGUE route, which is shared with retailers
+ * and defaults to approved+public. So its "All Statuses" filter meant "approved
+ * only", the Pending tab it defaulted to was reliably empty, and the page
+ * carried a banner explaining that — and telling operators to approve products
+ * via `PATCH /products/:id/status`, a route that answers 410 Gone.
+ *
+ * The banner is gone because the defect is. Six state tabs replace the Status
+ * and Visibility dropdowns, which could not express a model where APPROVED and
+ * PUBLIC share a status column.
  */
 import { useCallback, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, RefreshCw, AlertTriangle, Info } from 'lucide-react';
+import { Plus, RefreshCw, AlertTriangle, Check, X } from 'lucide-react';
 import { Button } from '@/src/components/controls';
 import { DataTable, Text } from '@/src/components/data';
 import { Pagination } from '@/src/components/data/Pagination';
 import { SearchFilterBar } from '@/src/components/data/SearchFilterBar';
-import { EmptyState, SkeletonPage, ErrorState } from '@/src/components/feedback';
-import { Dialog } from '@/src/components/feedback';
+import { EmptyState, SkeletonPage, ErrorState, ReasonDialog, useToast } from '@/src/components/feedback';
 import { useProductList } from '../hooks/useProductList';
+import { useApproveProduct, useRejectProduct, useCategoryNamesQuery } from '../queries';
 import { PRODUCT_ROUTES } from '../routes';
-import { PRODUCT_STATUSES } from '../constants';
-import { buildColumns, type ProductRow } from './productColumns';
+import { buildColumns } from './productColumns';
+import { ProductStateTabs } from '../components/ProductStateTabs';
+import { ProductVariantRows } from '../components/ProductVariantRows';
+import { PRODUCT_STATE_MEANING, isProductState } from '../types/adminProduct';
+import type { AdminProductRow } from '../types/adminProduct';
 
 export function ProductListPage() {
   const navigate = useNavigate();
-  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+  const toast = useToast();
 
   const {
-    filteredProducts,
     products,
+    counts,
     filters,
     pagination,
     categoryOptions,
-    categoryNames,
     wholesalerOptions,
     isLoading,
+    isFetching,
     error,
     refetch,
     setFilter,
     clearFilters,
     setPage,
-    removeProduct,
-    showsApiDefaultFilters,
   } = useProductList();
 
-  const statusOptions = useMemo(
-    () => [
-      { label: 'All Statuses', value: 'All' },
-      ...PRODUCT_STATUSES.map((status) => ({ label: status, value: status })),
-    ],
-    [],
-  );
+  const { data: categoryNames = {} } = useCategoryNamesQuery();
 
-  const visibilityOptions = useMemo(
-    () => [
-      { label: 'All', value: 'All' },
-      { label: 'Public', value: 'Public' },
-      { label: 'Private', value: 'Private' },
-    ],
-    [],
-  );
+  const [expandedIds, setExpandedIds] = useState<ReadonlySet<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [rejectOpen, setRejectOpen] = useState(false);
+  const [bulkBusy, setBulkBusy] = useState(false);
 
+  const approve = useApproveProduct();
+  const reject = useRejectProduct();
 
-  const rows = useMemo<ProductRow[]>(
-    () =>
-      filteredProducts.map((p) => ({
-        id: p.id,
-        name: p.name,
-        sku: p.sku,
-        /*
-         * Resolved HERE, from the live map — not from `p.category`, which
-         * `mapProduct` baked in when the row was fetched. Products and
-         * categories are two independent requests, and products almost always
-         * win, so the baked label was the empty-map fallback (`2a7be0ef…`) and
-         * nothing ever re-mapped it.
-         */
-        category: (p.categoryId ? categoryNames[p.categoryId] : '') || p.category,
-        basePrice: p.basePrice,
-        sellingPrice: p.sellingPrice,
-        stock: p.availableStock ?? p.stock,
-        status: p.status,
-        visibility: p.visibility,
-        product: p,
-      })),
-    [filteredProducts, categoryNames],
-  );
-
-  const handleEdit = useCallback(
-    (id: string) => {
-      navigate(PRODUCT_ROUTES.EDIT.replace(':productId', id));
-    },
-    [navigate],
-  );
-
-  const handleDeleteRequest = useCallback((id: string) => {
-    setDeleteTargetId(id);
+  const toggleVariants = useCallback((id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }, []);
 
   const columns = useMemo(
-    () => buildColumns(handleEdit, handleDeleteRequest),
-    [handleEdit, handleDeleteRequest],
+    () => buildColumns({ categoryNames, expandedIds, onToggleVariants: toggleVariants }),
+    [categoryNames, expandedIds, toggleVariants],
   );
 
-  const handleRowClick = useCallback(
-    (row: ProductRow) => {
-      navigate(PRODUCT_ROUTES.DETAIL.replace(':productId', row.id));
+  const selectedRows = useMemo(
+    () => products.filter((p) => selectedIds.has(p.id)),
+    [products, selectedIds],
+  );
+
+  /*
+   * Bulk actions fan out.
+   *
+   * The verbs are per-product on the server — there is no bulk endpoint, and
+   * inventing one in the client by ignoring failures would be worse than not
+   * offering the action. So every result is collected and reported: a partial
+   * success says which products did not move and why, because "34 approved"
+   * over a set of 37 is the kind of summary that loses three products quietly.
+   */
+  const runBulk = useCallback(
+    async (
+      verb: 'approve' | 'reject',
+      rows: AdminProductRow[],
+      reason?: string,
+    ) => {
+      setBulkBusy(true);
+      const results = await Promise.allSettled(
+        rows.map((row) =>
+          verb === 'approve'
+            ? approve.mutateAsync({ id: row.id })
+            : reject.mutateAsync({ id: row.id, reason: reason ?? '' }),
+        ),
+      );
+      setBulkBusy(false);
+
+      const failed = results
+        .map((r, i) => ({ r, row: rows[i] }))
+        .filter(({ r }) => r.status === 'rejected');
+      const done = results.length - failed.length;
+
+      if (failed.length === 0) {
+        toast.success(`${done} product${done === 1 ? '' : 's'} ${verb === 'approve' ? 'approved' : 'rejected'}.`);
+      } else {
+        toast.error(
+          `${done} ${verb === 'approve' ? 'approved' : 'rejected'}, ${failed.length} could not be: ` +
+            failed
+              .slice(0, 3)
+              .map(({ row }) => row.sku)
+              .join(', ') +
+            (failed.length > 3 ? `, and ${failed.length - 3} more` : ''),
+        );
+      }
+
+      setSelectedIds(new Set());
+      void refetch();
     },
-    [navigate],
+    [approve, reject, toast, refetch],
   );
-
-  const handleConfirmDelete = useCallback(async () => {
-    if (!deleteTargetId) return;
-    setIsDeleting(true);
-    await removeProduct(deleteTargetId);
-    setIsDeleting(false);
-    setDeleteTargetId(null);
-    void refetch();
-  }, [deleteTargetId, removeProduct, refetch]);
-
-  const handleAddProduct = useCallback(() => {
-    navigate(PRODUCT_ROUTES.CREATE);
-  }, [navigate]);
 
   if (isLoading && products.length === 0) {
     return <SkeletonPage shape="list" />;
@@ -130,14 +136,25 @@ export function ProductListPage() {
     return <ErrorState title="Products could not be loaded" message={error} onRetry={refetch} />;
   }
 
+  const stateMeaning = isProductState(filters.state)
+    ? PRODUCT_STATE_MEANING[filters.state]
+    : 'Every product, in any state.';
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+    <div className="space-y-5 animate-fade-in">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-ink tracking-tight">Products</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-ink">Products</h1>
           <Text as="p" variant="secondary" className="mt-1">
-            {filteredProducts.length} shown · {pagination.total} total
+            {pagination.total.toLocaleString('en-IN')} in this view
+            {counts && counts.pending > 0 && (
+              <>
+                {' · '}
+                <span className="font-semibold text-warn">
+                  {counts.pending} awaiting your review
+                </span>
+              </>
+            )}
           </Text>
         </div>
         <div className="flex items-center gap-2">
@@ -145,37 +162,56 @@ export function ProductListPage() {
             variant="secondary"
             size="sm"
             iconLeft={RefreshCw}
+            loading={isFetching}
             onClick={() => void refetch()}
-            aria-label="Refresh products"
           >
             Refresh
           </Button>
-          <Button variant="primary" size="sm" iconLeft={Plus} onClick={handleAddProduct}>
-            Add Product
+          <Button
+            variant="primary"
+            size="sm"
+            iconLeft={Plus}
+            onClick={() => navigate(PRODUCT_ROUTES.CREATE)}
+          >
+            Add product
           </Button>
         </div>
       </div>
 
-      {showsApiDefaultFilters && (
-        <div
-          role="status"
-          className="flex items-start gap-2 p-3 rounded-lg bg-sheet-2 text-sm text-ink-2"
-        >
-          <Info className="w-4 h-4 flex-shrink-0 mt-0.5" aria-hidden="true" />
-          <span>
-            Wholesaler-submitted products start as <strong>Pending Approval</strong> — use that filter to
-            review them. &quot;All Statuses&quot; only returns <strong>approved</strong> products (API default).
-            Switch to Approved after you approve a product via PATCH /products/:id/status.
-          </span>
-        </div>
-      )}
+      <div>
+        <ProductStateTabs
+          value={filters.state}
+          onChange={(state) => setFilter('state', state)}
+          counts={counts}
+          /*
+           * The All tab is the SUM of the six, not `pagination.total`.
+           *
+           * `total` is the count under the CURRENT filters, state included, so
+           * with Pending selected it is the pending count — and using it here
+           * would make All read 37 while Pending also read 37. The counts are
+           * computed with the state filter removed but every other filter
+           * applied, so their sum is exactly "all states, same search and
+           * supplier", which is what the All tab selects.
+           */
+          total={
+            counts
+              ? counts.draft +
+                counts.pending +
+                counts.approved +
+                counts.public +
+                counts.rejected +
+                counts.removed
+              : pagination.total
+          }
+        />
+        <Text as="p" variant="caption" className="mt-2">
+          {stateMeaning}
+        </Text>
+      </div>
 
       {error && (
-        <div
-          role="alert"
-          className="flex items-center gap-2 p-3 rounded-lg bg-bad-wash text-sm text-bad"
-        >
-          <AlertTriangle className="w-4 h-4 flex-shrink-0" aria-hidden="true" />
+        <div role="alert" className="flex items-center gap-2 rounded-lg bg-bad-wash p-3 text-sm text-bad">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
           <span>{error}</span>
           <button
             onClick={() => void refetch()}
@@ -189,7 +225,7 @@ export function ProductListPage() {
       <SearchFilterBar
         searchTerm={filters.search}
         onSearchChange={(value) => setFilter('search', value)}
-        searchPlaceholder="Search products..."
+        searchPlaceholder="Search name, original SKU or sub-SKU…"
         filters={[
           {
             key: 'category',
@@ -199,13 +235,6 @@ export function ProductListPage() {
             onChange: (value) => setFilter('category', value),
           },
           {
-            key: 'status',
-            label: 'Status',
-            value: filters.status,
-            options: statusOptions,
-            onChange: (value) => setFilter('status', value),
-          },
-          {
             key: 'wholesalerId',
             label: 'Supplier',
             value: filters.wholesalerId,
@@ -213,37 +242,88 @@ export function ProductListPage() {
             onChange: (value) => setFilter('wholesalerId', value),
           },
           {
-            key: 'visibility',
-            label: 'Visibility',
-            value: filters.visibility,
-            options: visibilityOptions,
-            onChange: (value) => setFilter('visibility', value),
+            key: 'variants',
+            label: 'Variants',
+            // Client-only for now: the server has no `hasVariant` filter, and a
+            // control that quietly narrows one page while the pager counts the
+            // whole set is the defect this screen just removed. Left out rather
+            // than faked.
+            value: 'All',
+            options: [{ label: 'Variants: any', value: 'All' }],
+            onChange: () => {},
           },
         ]}
         onClearAll={clearFilters}
       />
 
-      {/* The casts these props used to need are gone: DataTable is generic over
-          T now, instead of forcing every caller through Record<string, unknown>. */}
+      {selectedIds.size > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-brass bg-brass-wash p-2.5">
+          <span className="text-sm font-semibold text-brass">
+            {selectedIds.size} selected
+          </span>
+          <Button
+            size="sm"
+            variant="primary"
+            iconLeft={Check}
+            loading={bulkBusy}
+            onClick={() => void runBulk('approve', selectedRows)}
+          >
+            Approve {selectedIds.size}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            iconLeft={X}
+            disabled={bulkBusy}
+            onClick={() => setRejectOpen(true)}
+          >
+            Reject…
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear
+          </Button>
+        </div>
+      )}
+
       <DataTable
         columns={columns}
-        data={rows}
+        data={products}
         rowKey={(row) => row.id}
-        onRowClick={handleRowClick}
-        empty={
-          products.length === 0 ? (
-            <EmptyState
-              title="No products yet"
-              message="Products appear here once a supplier lists one."
-            />
-          ) : (
-            <EmptyState
-              title="No matches"
-              message="No product matches these filters. Try clearing them."
-            />
-          )
+        rowLabel={(row) => row.name}
+        /*
+         * `onRowClick`, not `rowHref`.
+         *
+         * `rowHref` is the better primitive — a real link, so middle-click and
+         * open-in-new-tab work — but it stretches that link across the whole
+         * row, and this table has a control inside a cell: the variant
+         * expander. The table's own note records that neither list using
+         * `rowHref` puts anything interactive in a cell, and this one has to.
+         */
+        onRowClick={(row) => navigate(PRODUCT_ROUTES.DETAIL.replace(':productId', row.id))}
+        selectedKeys={selectedIds}
+        onSelectionChange={setSelectedIds}
+        expandedKeys={expandedIds}
+        renderExpanded={(row) =>
+          row.variantCount > 0 ? (
+            <ProductVariantRows productId={row.id} expectedCount={row.variantCount} />
+          ) : null
         }
         caption="Products"
+        empty={
+          <EmptyState
+            title="Nothing in this view"
+            message={
+              filters.search || filters.category !== 'All' || filters.wholesalerId !== 'All'
+                ? 'No product matches these filters. Try clearing them.'
+                : stateMeaning
+            }
+          />
+        }
       />
 
       {pagination.total > pagination.limit && (
@@ -251,27 +331,23 @@ export function ProductListPage() {
           page={pagination.page}
           pageSize={pagination.limit}
           total={pagination.total}
-          disabled={isLoading}
+          disabled={isFetching}
           onPageChange={setPage}
         />
       )}
 
-      <Dialog open={deleteTargetId != null} onClose={() => setDeleteTargetId(null)} size="sm">
-        <div className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold text-ink">Delete product?</h3>
-          <Text as="p" variant="secondary">
-            This action cannot be undone. The product will be removed permanently.
-          </Text>
-          <div className="flex gap-3">
-            <Button variant="danger" loading={isDeleting} onClick={() => void handleConfirmDelete()}>
-              Delete
-            </Button>
-            <Button variant="outline" onClick={() => setDeleteTargetId(null)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+      <ReasonDialog
+        open={rejectOpen}
+        onClose={() => setRejectOpen(false)}
+        title={`Reject ${selectedIds.size} product${selectedIds.size === 1 ? '' : 's'}?`}
+        message="The supplier sees this reason and can correct the product and resubmit. It is recorded in the audit trail against your name."
+        confirmLabel="Reject"
+        loading={bulkBusy}
+        onConfirm={async (reason) => {
+          setRejectOpen(false);
+          await runBulk('reject', selectedRows, reason);
+        }}
+      />
     </div>
   );
 }

@@ -6,7 +6,14 @@
  * several rival implementations — see the individual docstrings for what and
  * how many.
  */
-export { formatMoney, formatDate, formatDateTime, formatTime, type FormatMoneyOptions } from './format';
+export {
+  formatMoney,
+  formatDate,
+  formatDateTime,
+  formatTime,
+  formatAge,
+  type FormatMoneyOptions,
+} from './format';
 export { Text, type TextProps, type TextVariant } from './Text';
 export { Money, type MoneyProps } from './Money';
 export {

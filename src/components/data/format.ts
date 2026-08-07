@@ -83,6 +83,43 @@ export function formatTime(value: string | number | Date | null | undefined): st
   return new Intl.DateTimeFormat(DATE_LOCALE, { hour: '2-digit', minute: '2-digit' }).format(date);
 }
 
+/**
+ * "5h", "2d", "3w" — how long ago, in the coarsest unit that still says
+ * something.
+ *
+ * For a QUEUE, where the question is "how long has this been waiting?" and the
+ * answer only has to be good enough to sort by eye. An exact timestamp answers
+ * a different question and takes four times the width to do it, which is why
+ * this exists rather than reusing `formatDateTime` in a narrow column.
+ *
+ * Deliberately not `Intl.RelativeTimeFormat`: that produces "2 days ago", which
+ * is prose, and prose does not line up down a column.
+ */
+export function formatAge(
+  value: string | number | Date | null | undefined,
+  now: Date = new Date(),
+): string {
+  const date = toDate(value);
+  if (!date) return '—';
+
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+  // A clock skew between the browser and the server can put a just-created row
+  // slightly in the future. "now" is truthful and "-3s" is not.
+  if (seconds < 60) return 'now';
+
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d`;
+  const weeks = Math.floor(days / 7);
+  if (weeks < 5) return `${weeks}w`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months}mo`;
+  return `${Math.floor(days / 365)}y`;
+}
+
 function toDate(value: string | number | Date | null | undefined): Date | null {
   if (value === null || value === undefined || value === '') return null;
   const date = value instanceof Date ? value : new Date(value);

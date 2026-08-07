@@ -81,6 +81,20 @@ export const queryKeys = {
     list: (params: Record<string, unknown>) =>
       [...queryKeys.products.all, 'list', params] as const,
     detail: (id: string) => [...queryKeys.products.all, 'detail', id] as const,
+    /*
+     * The BACK-OFFICE list, keyed separately from `list`.
+     *
+     * Both nest under `products.all`, so one invalidation after a lifecycle
+     * change refreshes whichever is mounted. They are not the same query
+     * though: `list` hits the catalogue route and sees approved+public only,
+     * while this one hits /admin/products and sees every state. Sharing a key
+     * would let a catalogue response answer an admin screen — the same class
+     * of bug as the two category hooks that shared a key and returned
+     * different shapes.
+     */
+    adminList: (params: Record<string, unknown>) =>
+      [...queryKeys.products.all, 'admin-list', params] as const,
+    audit: (id: string) => [...queryKeys.products.all, 'audit', id] as const,
   },
   catalog: {
     all: ['catalog'] as const,

@@ -23,7 +23,6 @@ import {
   resolveProductCatalogLabels,
   EMPTY_CATALOG_LABELS,
 } from '@/src/features/products/utils/resolveCatalogLabels';
-import { DISPLAY_STATUS_TO_BACKEND } from '@/src/features/products/constants';
 
 interface GetProductsOptions {
   categoryNames?: Record<string, string>;
@@ -122,18 +121,20 @@ export async function deleteProduct(id: string): Promise<ApiResponse<{ data: str
   return request<{ data: string }>('DELETE', `/api/v1/products/${id}`, { auth: true });
 }
 
-export async function updateProductStatus(
-  id: string,
-  status: string,
-  reason?: string,
-): Promise<ApiResponse<Product>> {
-  const backendStatus =
-    DISPLAY_STATUS_TO_BACKEND[status] ?? status.toLowerCase().replace(/\s+/g, '_');
-  return request<Product>('PATCH', `/api/v1/products/${id}/status`, {
-    auth: true,
-    body: { status: backendStatus, rejectionReason: reason } as unknown as Record<string, unknown>,
-  });
-}
+/*
+ * `updateProductStatus` USED TO LIVE HERE, and it is gone.
+ *
+ * It posted to `PATCH /api/v1/products/:id/status`, which the backend now
+ * answers with 410 Gone. The route was retired in favour of verbs — approve,
+ * reject, publish, take-down, submit — because a caller that simply names the
+ * state it wants cannot carry what the transitions require: a reason for
+ * reject and take-down, an image for publish, and a different actor from the
+ * one who registered the product for approve.
+ *
+ * The replacements are in `src/api/adminProducts.ts`. Nothing should reintroduce
+ * a status-setting call here; the product list page's old banner telling
+ * operators to "approve via PATCH /products/:id/status" is gone with it.
+ */
 
 // ─── Catalog ─────────────────────────────────────────────────────
 

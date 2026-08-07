@@ -1,137 +1,238 @@
 /**
  * The product table's columns.
  *
- * Lifted out of `ProductListPage`, where `buildColumns` was 112 lines of
- * formatting, status mapping and row actions sitting above the component that
- * used it — so reading the page meant scrolling past the table definition to
- * find the page. Columns are data; they belong in their own module.
+ * The first cell is an IDENTITY STACK rather than a name: name, then the
+ * original SKU, then who owns it and whether it has variants. That ordering is
+ * the answer to how operators actually work — they are handed a SKU over the
+ * phone and asked what state it is in, and they group a supplier's rows by eye.
+ *
+ * The supplier code is pulled out as its own chip even though it IS the first
+ * two segments of the SKU (`WHL-00042-SAR-JAM-HND-001`). Twenty-five
+ * characters of mono is not something you match a supplier against at a glance;
+ * six is.
  */
-import { Pencil, Trash2 } from 'lucide-react';
-import { Button } from '@/src/components/controls';
-import { Text, Money } from '@/src/components/data';
+import { ChevronRight, ChevronDown, ImageOff, Layers } from 'lucide-react';
+import { Money, Text, formatAge } from '@/src/components/data';
 import { StatusBadge } from '@/src/components/data/StatusBadge';
-import type { Product } from '../types';
+import { cn } from '@/src/design-system/utils/cn';
+import { PRODUCT_STATE_LABEL, isProductState } from '../types/adminProduct';
+import type { AdminProductRow } from '../types/adminProduct';
+import type { Column } from '@/src/components/data/DataTable';
 
-export type ProductRow = Record<string, unknown> & {
-  id: string;
-  name: string;
-  sku: string;
-  category: string;
-  basePrice: number;
-  sellingPrice: number | undefined;
-  stock: number;
-  status: string;
-  visibility: string;
-  product: Product;
-};
+/** The tone each state carries. Kept here because it is presentation, not domain. */
+const STATE_TONE = {
+  DRAFT: 'neutral',
+  PENDING: 'warning',
+  APPROVED: 'info',
+  PUBLIC: 'success',
+  REJECTED: 'danger',
+  REMOVED: 'neutral',
+} as const;
 
-export function buildColumns(
-  onEdit: (id: string) => void,
-  onDelete: (id: string) => void,
-) {
+interface ColumnDeps {
+  categoryNames: Record<string, string>;
+  expandedIds: ReadonlySet<string>;
+  onToggleVariants: (id: string) => void;
+}
+
+export function buildColumns({
+  categoryNames,
+  expandedIds,
+  onToggleVariants,
+}: ColumnDeps): Column<AdminProductRow>[] {
   return [
     {
-      key: 'name',
-      header: 'Name',
-      className: '',
-      render: (row: ProductRow) => (
-        <div className="min-w-0">
-          <p className="font-medium text-ink truncate" title={row.name}>
-            {row.name}
-          </p>
-          <Text as="p" variant="caption">{row.sku}</Text>
-        </div>
-      ),
-    },
-    {
-      key: 'category',
-      header: 'Category',
-      className: '',
-      render: (row: ProductRow) => (
-        <Text variant="secondary">{row.category}</Text>
-      ),
-    },
-    {
-      key: 'basePrice',
-      header: 'Base Price',
-      className: 'text-right',
-      render: (row: ProductRow) => <Money amount={row.basePrice} />,
-    },
-    {
-      key: 'sellingPrice',
-      header: 'Selling',
-      className: 'text-right',
-      render: (row: ProductRow) => <Money amount={row.sellingPrice ?? 0} />,
-    },
-    {
-      key: 'stock',
-      header: 'Stock',
-      className: 'text-center',
-      render: (row: ProductRow) => {
-        const available = row.stock;
+      key: 'product',
+      header: 'Product · SKU · supplier',
+      render: (row) => {
+        const isOpen = expandedIds.has(row.id);
+        const category = categoryNames[row.categoryId] ?? '';
+
         return (
-          <span
-            className={`text-sm font-medium tabular-nums ${
-              available <= 5
-                ? 'text-bad'
-                : available <= 20
-                  ? 'text-warn'
-                  : 'text-ink'
-            }`}
-          >
-            {available}
-          </span>
+          <div className="flex gap-3 min-w-0">
+            {row.thumbnailUrl ? (
+              <img
+                src={row.thumbnailUrl}
+                alt=""
+                className="h-10 w-10 shrink-0 rounded-sm border border-rule object-cover"
+              />
+            ) : (
+              /*
+                A missing image is not a missing thumbnail, it is the publish
+                gate — a product cannot go PUBLIC without one. Saying so in the
+                row means an operator sees the blocker while scanning rather
+                than after opening the product and clicking Publish.
+              */
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-sm border border-dashed border-warn-border bg-warn-wash text-warn"
+                title="No image on file — required before this can be published"
+              >
+                <ImageOff className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only">No image on file</span>
+              </span>
+            )}
+
+            <div className="min-w-0">
+              <p className="truncate font-medium text-ink" title={row.name}>
+                {row.name}
+              </p>
+
+              {/* The original SKU, directly under the name and in mono. */}
+              <p className="truncate font-mono text-2xs text-ink-2" title={row.sku}>
+                {row.sku}
+              </p>
+
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                <span
+                  className="rounded-xs border border-note-border bg-note-wash px-1.5 font-mono text-2xs font-semibold text-note"
+                  title={`Supplier ${row.supplierCode || 'code unknown'}`}
+                >
+                  {row.supplierCode || '—'}
+                </span>
+
+                {row.variantCount > 0 ? (
+                  <button
+                    type="button"
+                    // stopPropagation because the row itself navigates. The
+                    // table's `rowHref` mode stretches a link across every
+                    // cell, which is why this list uses `onRowClick` instead —
+                    // see ProductListPage.
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleVariants(row.id);
+                    }}
+                    aria-expanded={isOpen}
+                    aria-label={`${isOpen ? 'Hide' : 'Show'} the ${row.variantCount} variants of ${row.name}`}
+                    className="inline-flex items-center gap-1 rounded-full border border-brass bg-brass-wash px-1.5 text-2xs font-semibold text-brass hover:bg-sheet-selected"
+                  >
+                    {isOpen ? (
+                      <ChevronDown className="h-3 w-3" aria-hidden="true" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" aria-hidden="true" />
+                    )}
+                    {row.variantCount} variant{row.variantCount === 1 ? '' : 's'}
+                  </button>
+                ) : (
+                  /*
+                    Stated, not omitted. A blank here would be
+                    indistinguishable from data that failed to load, and "does
+                    this product have variants?" is a question the operator
+                    came to answer.
+                  */
+                  <span className="rounded-full border border-mute-border bg-mute-wash px-1.5 text-2xs font-semibold text-mute">
+                    No variants
+                  </span>
+                )}
+
+                {category && <span className="truncate text-2xs text-ink-3">{category}</span>}
+              </div>
+            </div>
+          </div>
         );
       },
     },
     {
-      key: 'status',
-      header: 'Status',
-      className: 'text-center',
-      render: (row: ProductRow) => <StatusBadge status={row.status} />,
-    },
-    {
-      key: 'visibility',
-      header: 'Visibility',
-      className: 'text-center',
-      render: (row: ProductRow) => (
-        <span
-          className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            row.visibility === 'Public'
-              ? 'bg-ok-wash text-ok'
-              : 'bg-mute-wash text-mute'
-          }`}
-        >
-          {row.visibility}
-        </span>
+      key: 'supplierName',
+      header: 'Supplier',
+      hideOnMobile: true,
+      render: (row) => (
+        <Text variant="secondary" className="line-clamp-2">
+          {row.supplierName || '—'}
+        </Text>
       ),
     },
     {
-      key: 'actions',
-      header: '',
-      className: 'text-center w-[80px]',
-      render: (row: ProductRow) => (
-        <div className="flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button
-            variant="ghost"
-            size="sm"
-            iconLeft={Pencil}
-            aria-label="Edit product"
-            onClick={() => onEdit(row.id)}
+      key: 'price',
+      header: 'Price',
+      align: 'right',
+      render: (row) => {
+        const margin = row.sellingPrice - row.basePrice;
+        return (
+          <div>
+            <Money amount={row.sellingPrice} />
+            {/* The margin is what an approver is judging, so it travels with
+                the price rather than living in a column nobody widens to. */}
+            <p className={cn('text-2xs', margin > 0 ? 'text-ok' : 'text-bad')}>
+              {margin >= 0 ? '+' : '−'}
+              <Money amount={Math.abs(margin)} />
+            </p>
+          </div>
+        );
+      },
+    },
+    {
+      key: 'stock',
+      header: 'Stock',
+      align: 'right',
+      render: (row) => (
+        <div>
+          <span
+            className={cn(
+              'text-sm font-medium',
+              row.stock === 0 ? 'text-bad' : row.stock <= 10 ? 'text-warn' : 'text-ink',
+            )}
           >
-            {''}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            iconLeft={Trash2}
-            aria-label="Delete product"
-            className="text-bad hover:bg-bad-wash"
-            onClick={() => onDelete(row.id)}
-          >
-            {''}
-          </Button>
+            {row.stock}
+          </span>
+          {/*
+            "across 3" because one number over a multi-variant product hides
+            the thing that matters: 40 in stock can be 40 of one colour and
+            none of the other two.
+          */}
+          {row.variantCount > 0 && (
+            <p className="text-2xs text-ink-3">across {row.variantCount}</p>
+          )}
         </div>
+      ),
+    },
+    {
+      key: 'state',
+      header: 'State',
+      render: (row) => (
+        <div className="flex flex-col items-start gap-1">
+          {isProductState(row.state) ? (
+            <StatusBadge
+              status={row.state}
+              tone={STATE_TONE[row.state]}
+              label={PRODUCT_STATE_LABEL[row.state]}
+              size="sm"
+            />
+          ) : (
+            /* The server returns "" for a status it does not recognise rather
+               than guessing. Rendering that as "Unknown" keeps it visible
+               instead of silently looking like a Draft. */
+            <StatusBadge status="unknown" tone="neutral" label="Unknown" size="sm" />
+          )}
+          <span className="text-2xs text-ink-3">
+            {row.deletionRequestedAt ? (
+              <span className="font-semibold text-bad">Removal requested</span>
+            ) : (
+              /* Age in state, not created-at: this is a queue and the question
+                 is how long somebody has been waiting. */
+              formatAge(row.updatedAt)
+            )}
+          </span>
+        </div>
+      ),
+    },
+    {
+      key: 'images',
+      header: 'Images',
+      align: 'center',
+      hideOnMobile: true,
+      render: (row) => (
+        <span className={cn('text-sm', row.imageCount === 0 ? 'font-semibold text-warn' : 'text-ink-2')}>
+          {row.imageCount === 0 ? (
+            <span className="inline-flex items-center gap-1">
+              <ImageOff className="h-3.5 w-3.5" aria-hidden="true" />0
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1">
+              <Layers className="h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
+              {row.imageCount}
+            </span>
+          )}
+        </span>
       ),
     },
   ];

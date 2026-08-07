@@ -1,18 +1,34 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useDebouncedValue } from '@/src/hooks/useDebouncedValue';
 import { useProductStore } from '../store';
-import { useCategoryNamesQuery, useDeleteProduct, useProductsQuery } from '../queries';
+import { useCategoryNamesQuery, useAdminProductsQuery } from '../queries';
 import { listSuppliersForPicker } from '@/src/features/wholesalers/api/wholesalerApi';
-import { STOCK_LOW_THRESHOLD } from '../constants';
-import type { ProductFilters, ProductPagination } from '../types';
+import { isProductState, type AdminProductListParams } from '../types/adminProduct';
+import type { ProductFilters } from '../types';
 
 export interface FilterOption {
   label: string;
   value: string;
 }
 
+/**
+ * The product list's data.
+ *
+ * Reads `GET /api/v1/admin/products`, NOT the catalogue route this used to
+ * call. That route is shared with retailers and narrowed to approved+public, so
+ * every filter here was applied to a population that had already excluded the
+ * products an operator came to find.
+ *
+ * Three things left with it:
+ *
+ *   - the client-side `lowStock` pass, which filtered one already-truncated
+ *     page, so the visible count and the pager's total disagreed and nothing
+ *     past the current page was considered. The server filters it now;
+ *   - `isFilteringWithinPage`, the warning that existed to apologise for that;
+ *   - `showsApiDefaultFilters`, which drove the banner explaining that
+ *     "All Statuses" meant "approved only".
+ */
 export function useProductList() {
-  // Client state — filter selections and the current page.
   const filters = useProductStore((s) => s.filters);
   const pagination = useProductStore((s) => s.pagination);
   const setFilter = useProductStore((s) => s.setFilter);
@@ -25,42 +41,44 @@ export function useProductList() {
 
   const { data: categoryNames = {} } = useCategoryNamesQuery();
 
-  const params = useMemo(
+  const params = useMemo<AdminProductListParams>(
     () => ({
       page: pagination.page,
       limit: pagination.limit,
       search: debouncedSearch || undefined,
-      category: filters.category !== 'All' ? filters.category : undefined,
-      status: filters.status !== 'All' ? filters.status : undefined,
-      visibility: filters.visibility !== 'All' ? filters.visibility : undefined,
-      wholesalerId: filters.wholesalerId !== 'All' ? filters.wholesalerId : undefined,
+      /*
+       * An unrecognised state is dropped rather than sent.
+       *
+       * The server answers 400 for a state it does not know, which is the right
+       * call — a filter that is silently ignored is the worst kind, because the
+       * answer looks right. But that means a stale value in the store (say, a
+       * persisted `'Pending Approval'` from the old vocabulary) would turn the
+       * whole screen into an error rather than showing everything. Guarding
+       * here keeps a bad value harmless instead of fatal.
+       */
+      state: isProductState(filters.state) ? filters.state : undefined,
+      supplierId: filters.wholesalerId !== 'All' ? filters.wholesalerId : undefined,
+      categoryId: filters.category !== 'All' ? filters.category : undefined,
+      hasImage: filters.hasImage,
+      lowStock: filters.lowStock || undefined,
     }),
     [
       pagination.page,
       pagination.limit,
       debouncedSearch,
-      filters.category,
-      filters.status,
-      filters.visibility,
+      filters.state,
       filters.wholesalerId,
+      filters.category,
+      filters.hasImage,
+      filters.lowStock,
     ],
   );
 
-  const { data, isPending, isFetching, error, refetch } = useProductsQuery(params, categoryNames);
-  const deleteProduct = useDeleteProduct();
+  const { data, isPending, isFetching, error, refetch } = useAdminProductsQuery(params);
 
   const products = useMemo(() => data?.products ?? [], [data]);
 
-  const resolvedPagination: ProductPagination = useMemo(
-    () => ({
-      page: data?.page ?? pagination.page,
-      limit: data?.limit ?? pagination.limit,
-      total: data?.total ?? 0,
-    }),
-    [data, pagination.page, pagination.limit],
-  );
-
-  // Wholesaler names for the filter dropdown. Still a whole-table fetch — it is
+  // Supplier names for the filter dropdown. Still a whole-table fetch — it is
   // the endpoint that needs pagination, not this call site.
   const [wholesalerOptions, setWholesalerOptions] = useState<FilterOption[]>([
     { label: 'All suppliers', value: 'All' },
@@ -73,12 +91,15 @@ export function useProductList() {
         if (cancelled) return;
         setWholesalerOptions([
           { label: 'All suppliers', value: 'All' },
-          ...items.map((w) => ({ label: w.companyName || w.id, value: w.id })),
+          ...items.map((w) => ({
+            // The code first, because it is what the SKU carries and what an
+            // operator matches a row against.
+            label: w.code ? `${w.code} · ${w.companyName || w.id}` : w.companyName || w.id,
+            value: w.id,
+          })),
         ]);
       })
       .catch(() => {
-        // Falls back to "All" rather than becoming an unhandled rejection with
-        // no visible effect, which is what it used to be.
         if (!cancelled) setWholesalerOptions([{ label: 'All suppliers', value: 'All' }]);
       });
     return () => {
@@ -88,69 +109,30 @@ export function useProductList() {
 
   const categoryOptions: FilterOption[] = useMemo(
     () => [
-      { label: 'All Categories', value: 'All' },
+      { label: 'All categories', value: 'All' },
       ...Object.entries(categoryNames).map(([value, label]) => ({ label, value })),
     ],
     [categoryNames],
   );
 
-  /*
-   * Only LOW STOCK is filtered here now.
-   *
-   * The supplier filter used to be applied twice — sent to the server AND
-   * re-applied over the returned page — because the server accepted
-   * `wholesaler_id` and dropped it on the floor. That is fixed
-   * (`internal/product/handler.go` now reads it), so filtering again in the
-   * browser narrows an already-narrowed page and, worse, made `meta.total`
-   * disagree with the rows: the server counted the whole catalogue while the
-   * table showed one supplier's slice of one page.
-   *
-   * Low stock has no server-side equivalent, so it stays and keeps its warning.
-   */
-  const filteredProducts = useMemo(() => {
-    if (!filters.lowStock) return products;
-    return products.filter((p) => (p.availableStock ?? p.stock) <= STOCK_LOW_THRESHOLD);
-  }, [products, filters.lowStock]);
-
-  /**
-   * True when a filter is being applied in the browser to a page the server has
-   * already truncated — so the visible count is "matches on this page", not
-   * "matches overall".
-   *
-   * Supplier is no longer one of them: the server filters it, so its total is
-   * the real total and warning about it would be false.
-   */
-  const isFilteringWithinPage =
-    filters.lowStock && resolvedPagination.total > products.length;
-
   return {
     products,
-    filteredProducts,
-    /*
-     * The LIVE name map, so a row can resolve its category when it renders.
-     *
-     * `mapProduct` bakes the label in at FETCH time, and the products query key
-     * does not include these names — so when products resolve before categories
-     * (the normal order, they are two independent requests) every row is mapped
-     * against an empty map and never re-mapped. MEASURED: the Category column
-     * showed `2a7be0ef…` on every row, permanently.
-     */
-    categoryNames,
+    counts: data?.counts,
     filters: filters as ProductFilters,
-    pagination: resolvedPagination,
+    pagination: {
+      page: data?.page ?? pagination.page,
+      limit: data?.limit ?? pagination.limit,
+      total: data?.total ?? 0,
+    },
     categoryOptions,
     wholesalerOptions,
     /** Only the FIRST load — a background refetch keeps rows on screen. */
     isLoading: isPending,
     isFetching,
-    error: error ? error.message : null,
+    error: error ? (error as Error).message : null,
     refetch,
     setFilter,
     clearFilters,
     setPage,
-    removeProduct: (id: string) => deleteProduct.mutateAsync(id).then(() => undefined),
-    isDeleting: deleteProduct.isPending,
-    showsApiDefaultFilters: filters.status === 'All' && filters.visibility === 'All',
-    isFilteringWithinPage,
   };
 }
