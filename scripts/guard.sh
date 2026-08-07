@@ -275,6 +275,45 @@ sizes=$(grep -rnE --include='*.tsx' --include='*.ts' \
   | grep -vE ':[0-9]+:[[:space:]]*([*]|//)' || true)
 report "size-vocabulary" "use setSelectedSizes() — setField leaves the per-size stock maps orphaned" "$sizes"
 
+# ─────────────────────────────────────────────────────────────────────
+# G19 — a control the wizard REQUIRES cannot be orphaned.
+#
+# Two validators demand data that only one component each can supply:
+#
+#   validateStep3  isVariationStocked wants per-variation, per-size
+#                  sizeStock/sizeMoq/sizeAlert — only StockMatrix writes them.
+#   validateStep4  wants media.front AND media.back on every variation — only
+#                  the per-variation media block writes them, through
+#                  setVariationMediaSlot.
+#
+# Both were orphaned at once, and the result was not a missing feature: every
+# variant product became UNSAVEABLE. Step 3 reported "N variation(s) have
+# invalid stock/moq/alert logic" and step 4 reported "N variation(s) missing
+# mandatory images", with no control on screen that could fix either. StockMatrix
+# was wired into an edit page that was later deleted; the five per-variation
+# media store actions never had a caller at all.
+#
+# Nothing else can catch this. The components compile, their own tests pass in
+# isolation, and TypeScript is perfectly happy with an export nobody imports.
+#
+# Comment lines are stripped before matching. Both of these symbols are NAMED in
+# the prose explaining why they must stay wired — including the block comment at
+# the top of Step4Media — so a guard that searched raw text would find its own
+# documentation and pass while the wire was cut. That is not hypothetical: the
+# first version of this guard did exactly that, and survived its own mutant.
+orphans=""
+for pair in "StockMatrix:the per-size stock grid" "setVariationMediaSlot:per-variation media"; do
+  symbol="${pair%%:*}"
+  what="${pair#*:}"
+  callers=$(grep -rnE --include='*.tsx' --include='*.ts' "\\b${symbol}\\b" "$SRC" \
+    | grep -vE '__tests__|/store/|StockMatrix\.tsx:' \
+    | grep -vE ':[0-9]+:[[:space:]]*([*]|//|/\\*|\\{/\\*)' || true)
+  if [ -z "$callers" ]; then
+    orphans="${orphans}${SRC}: ${symbol} (${what}) has no caller outside its own definition"$'\n'
+  fi
+done
+report "orphaned-required-control" "a validator demands this data and nothing renders the control that supplies it" "$orphans"
+
 # G12 — no financial figure is computed in a component.
 #
 # This is the most important rule in the system, and it exists because of a

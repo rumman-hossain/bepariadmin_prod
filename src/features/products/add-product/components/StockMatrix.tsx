@@ -29,7 +29,6 @@ import { Text } from '@/src/components/data';
 import { cn } from '@/src/design-system/utils/cn';
 import { useAddProductStore } from '../store/useAddProductStore';
 import { resolveHasVariant } from '../utils/resolveHasVariant';
-import type { ProductInventoryItem } from '../../types/registration';
 
 type Measure = 'stock' | 'moq' | 'lowStockAlert';
 
@@ -46,15 +45,37 @@ const MAP_FOR: Record<Measure, 'sizeStockSet' | 'moqSet' | 'sizeLowStockAlertSet
   lowStockAlert: 'sizeLowStockAlertSet',
 };
 
+/**
+ * The field on a VARIATION that backs each measure.
+ *
+ * TWO SHAPES, AND ONLY ONE OF THEM IS EDITABLE.
+ *
+ *   sizeStock / sizeMoq / sizeAlert   Record<string,string> — what the OPERATOR
+ *                                     types. The validator reads these
+ *                                     (`isVariationStocked`) and the payload
+ *                                     PREFERS them.
+ *   inventory[]                       {size, stock, moq, lowStockAlert} — what
+ *                                     the SERVER sent, populated on hydrate.
+ *                                     The payload falls back to it.
+ *
+ * This matrix first wrote `inventory[]`, which looks equivalent and is not: an
+ * edit landing there is indistinguishable from a value that arrived from the
+ * server, so `isVariationStocked` saw nothing filled in and step 3 could never
+ * pass for a sized variant product. Writes go to the maps; reads take the map
+ * first and fall back to the server row, which is exactly the precedence
+ * `resolveVariationInventory` applies when building the payload.
+ */
+const FIELD_FOR: Record<Measure, 'sizeStock' | 'sizeMoq' | 'sizeAlert'> = {
+  stock: 'sizeStock',
+  moq: 'sizeMoq',
+  lowStockAlert: 'sizeAlert',
+};
+
 const OTHERS: Record<Measure, Measure[]> = {
   stock: ['moq', 'lowStockAlert'],
   moq: ['stock', 'lowStockAlert'],
   lowStockAlert: ['stock', 'moq'],
 };
-
-function emptyRow(size: string): ProductInventoryItem {
-  return { size, stock: 0, moq: 1, lowStockAlert: 0 };
-}
 
 export function StockMatrix() {
   const store = useAddProductStore();
@@ -87,10 +108,25 @@ export function StockMatrix() {
   const readCell = (variationId: string | null, size: string, m: Measure): number => {
     if (variationId) {
       const v = variations.find((x) => x.id === variationId);
+      // The operator's edit wins; the server row is the fallback. Same
+      // precedence as `resolveVariationInventory` in buildProductPayload.
+      const typed = v?.[FIELD_FOR[m]]?.[size];
+      if (typed !== undefined && typed !== '') return Number(typed) || 0;
       const row = v?.inventory?.find((i) => i.size === size);
       return row ? row[m] : 0;
     }
     return Number(store[MAP_FOR[m]][size] ?? '') || 0;
+  };
+
+  /** True once the operator has typed into this cell, as the validator judges it. */
+  const isFilled = (variationId: string | null, size: string, m: Measure): boolean => {
+    if (variationId) {
+      const v = variations.find((x) => x.id === variationId);
+      const typed = v?.[FIELD_FOR[m]]?.[size];
+      return typed !== undefined && typed !== '';
+    }
+    const typed = store[MAP_FOR[m]][size];
+    return typed !== undefined && typed !== '';
   };
 
   const writeCell = (variationId: string | null, size: string, m: Measure, raw: string) => {
@@ -99,13 +135,14 @@ export function StockMatrix() {
     const value = Math.max(0, Number.parseInt(raw, 10) || 0);
 
     if (variationId) {
-      updateVariation(variationId, (v) => {
-        const inventory = v.inventory ? [...v.inventory] : [];
-        const at = inventory.findIndex((i) => i.size === size);
-        if (at === -1) inventory.push({ ...emptyRow(size), [m]: value });
-        else inventory[at] = { ...inventory[at], [m]: value };
-        return { ...v, inventory };
-      });
+      // Into the per-size MAP, not `inventory[]` — see FIELD_FOR. Stored as a
+      // string because that is what the validator distinguishes: `''` means
+      // "not looked at yet" and `'0'` means "deliberately zero", and a number
+      // cannot carry that difference.
+      updateVariation(variationId, (v) => ({
+        ...v,
+        [FIELD_FOR[m]]: { ...(v[FIELD_FOR[m]] ?? {}), [size]: String(value) },
+      }));
       return;
     }
 
@@ -128,13 +165,25 @@ export function StockMatrix() {
 
   const grandTotal = columnTotals.reduce((a, b) => a + b, 0);
 
+  /*
+   * Cells that would block step 3.
+   *
+   * NOT simply "stock reads 0". The validator refuses a size whose figures are
+   * UNFILLED as well as one filled in as zero, and it treats those differently
+   * from a size deliberately marked out — so a cell nobody has typed into is
+   * counted here even though `readCell` reports 0 for it, and a stocked-out
+   * size is counted for neither.
+   */
   const emptyCells = useMemo(
     () =>
       rows.reduce(
         (n, r) =>
           n +
-          sizes.filter((s) => !stockedOutSizes.includes(s) && readCell(r.id, s, 'stock') === 0)
-            .length,
+          sizes.filter(
+            (s) =>
+              !stockedOutSizes.includes(s) &&
+              (!isFilled(r.id, s, 'stock') || readCell(r.id, s, 'stock') === 0),
+          ).length,
         0,
       ),
     // eslint-disable-next-line react-hooks/exhaustive-deps

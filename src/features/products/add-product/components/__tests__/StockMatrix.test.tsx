@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent, within } from '@testing-library/react';
 import { StockMatrix } from '../StockMatrix';
 import { useAddProductStore } from '../../store/useAddProductStore';
+import { validateWizardStep } from '../../utils/validateWizardStep';
 
 /**
  * The stock grid, which is where an apparel product's numbers actually live.
@@ -14,9 +15,18 @@ import { useAddProductStore } from '../../store/useAddProductStore';
  *     parallel per-size maps, and editing one must not disturb the others;
  *   - "out of stock" is not zero. `stockedOutSizes` is a decision that a size
  *     is unavailable, stored apart from a quantity that happens to be nil;
- *   - a variant product writes to `variation.inventory`, a plain one writes to
- *     the maps — one grid, two backing stores, and a cell must land in the
- *     right one.
+ *   - a variant product writes to the variation's per-size maps
+ *     (`sizeStock`/`sizeMoq`/`sizeAlert`), a plain one writes to the shared
+ *     maps — one grid, two backing stores, and a cell must land in the right
+ *     one.
+ *
+ * The variant write used to go to `variation.inventory[]` instead, which looks
+ * equivalent and is not: `inventory[]` is what the SERVER sent, so an edit
+ * landing there is indistinguishable from a value that arrived on hydrate.
+ * `isVariationStocked` reads only the maps, so step 3 could never pass for a
+ * sized variant product — the grid appeared to work and the wizard refused to
+ * advance. That is why the assertions below are on the maps AND on the
+ * validator, not on whichever field the component happens to touch.
  */
 
 const store = () => useAddProductStore.getState();
@@ -174,22 +184,72 @@ describe('a variant product writes to each variation inventory', () => {
     render(<StockMatrix />);
     fireEvent.change(cellFor('S'), { target: { value: '20' } });
 
-    expect(store().variations[0].inventory?.find((i) => i.size === 'S')?.stock).toBe(20);
+    // The map the validator and the payload both read — as a string, because
+    // '' ("not looked at") and '0' ("deliberately zero") are different answers
+    // and a number cannot carry that difference.
+    expect(store().variations[0].sizeStock?.S).toBe('20');
     // The non-variant maps stay empty — a variant product does not use them.
     expect(store().sizeStockSet).toEqual({});
   });
 
-  it('creates the inventory row for a size that has none yet', () => {
+  it('shows the server figures until the operator overrides them', () => {
+    render(<StockMatrix />);
+    // Nothing typed yet, so the cell falls back to inventory[] — the same
+    // precedence resolveVariationInventory applies when building the payload.
+    expect(cellFor('S').value).toBe('4');
+    fireEvent.change(cellFor('S'), { target: { value: '20' } });
+    expect(cellFor('S').value).toBe('20');
+  });
+
+  it('records a size that had no server row at all', () => {
     useAddProductStore.setState({
       variations: [{ id: 'v1', subName: 'Red', inventory: [] }],
     });
     render(<StockMatrix />);
 
     fireEvent.change(cellFor('M'), { target: { value: '7' } });
-    const row = store().variations[0].inventory?.find((i) => i.size === 'M');
-    expect(row?.stock).toBe(7);
-    // Seeded with a usable MOQ rather than zero, which would be unorderable.
-    expect(row?.moq).toBe(1);
+    expect(store().variations[0].sizeStock?.M).toBe('7');
+  });
+
+  /*
+   * The blocker itself, asserted end to end.
+   *
+   * Before the grid was reachable and writing to the maps, a sized variant
+   * product could not be saved at all: step 3 reported "N variation(s) have
+   * invalid stock/moq/alert logic" and no control in the console could fix it.
+   * This fills every cell of a two-variation, two-size product through the UI
+   * and asks the validator — the actual gate — whether it passes.
+   */
+  it('fills a variant product to the point where step 3 accepts it', () => {
+    useAddProductStore.setState({
+      hasVariant: true,
+      basePrice: '100',
+      selectedSizes: ['S', 'M'],
+      variations: [
+        { id: 'v1', subName: 'Red', color: 'Red', subSku: 'SKU-RD', inventory: [] },
+        { id: 'v2', subName: 'Blue', color: 'Blue', subSku: 'SKU-BL', inventory: [] },
+      ],
+    });
+    const { rerender } = render(<StockMatrix />);
+
+    // Stock, then MOQ, then the alert — one measure at a time, exactly as the
+    // grid is operated. Every cell of every variation, because the validator
+    // demands all three for every selected size of every variation.
+    for (const [measure, value] of [
+      ['Stock', '20'],
+      ['MOQ', '5'],
+      ['Low-stock alert', '3'],
+    ] as const) {
+      fireEvent.click(screen.getByRole('button', { name: measure }));
+      rerender(<StockMatrix />);
+      for (const cell of screen.getAllByLabelText(new RegExp(`^${measure} for `, 'i'))) {
+        fireEvent.change(cell, { target: { value } });
+      }
+    }
+
+    const result = validateWizardStep(3, store());
+    expect(result.errors).toEqual({});
+    expect(result.isValid).toBe(true);
   });
 
   it('labels the row by colour and design, not by internal id', () => {

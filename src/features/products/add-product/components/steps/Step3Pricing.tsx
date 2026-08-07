@@ -5,6 +5,7 @@ import { useAddProductStore } from '../../store/useAddProductStore';
 import { resolveHasVariant } from '../../utils/resolveHasVariant';
 import { InventoryConfigSection } from '../InventoryConfigSection';
 import { VariationConfigSection } from '../VariationConfigSection';
+import { StockMatrix } from '../StockMatrix';
 
 interface Props {
   sellPrice: number;
@@ -89,11 +90,32 @@ export function Step3Pricing({
           </div>
         </>
       ) : (
-        <VariationConfigSection
-          onGenerate={onGenerateVariations}
-          platformMargin={platformMargin}
-          errorMessage={errors.variations}
-        />
+        <>
+          <VariationConfigSection
+            onGenerate={onGenerateVariations}
+            platformMargin={platformMargin}
+            errorMessage={errors.variations}
+          />
+
+          {/*
+            PER-SIZE STOCK PER VARIATION — without this, a sized variant product
+            cannot be saved at all.
+
+            `VariationConfigSection` above edits whole-variation price, stock and
+            MOQ. `isVariationStocked` (validateWizardStep.ts) demands a stock,
+            MOQ and alert for EVERY selected size of EVERY variation, and no
+            control in the console produced them: this component existed but had
+            no importer, so step 3 reported "N variation(s) have invalid
+            stock/moq/alert logic" with nothing on screen that could fix it.
+
+            Only when there are sizes. A variant product with no sizes is fully
+            described by the whole-variation figures above, and an empty grid
+            below them would just be noise.
+          */}
+          {selectedSizes.length > 0 && variations.length > 0 && (
+            <StockMatrix />
+          )}
+        </>
       )}
     </div>
   );
