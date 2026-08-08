@@ -52,10 +52,36 @@ export function formatMoney(
  */
 const DATE_LOCALE = 'en-GB';
 
+/**
+ * The zone is pinned for the same reason the locale is.
+ *
+ * The note above says passing `undefined` as the locale is not an option
+ * because "it follows the operator's browser, so two people looking at the same
+ * order saw different dates and neither could tell which was which". Leaving
+ * the ZONE unset does exactly that, and the locale being fixed hides it: the
+ * format agrees while the day does not.
+ *
+ * The backend stores UTC. A product created at 17:00 UTC is 23:00 the same day
+ * in Dhaka and 02:00 the NEXT day in Tokyo — measured, on this row:
+ * `WHL-00007-GT-TS-TT-006`, created `2026-06-04 17:00Z`, read as 4 June from
+ * Dhaka and 5 June from a browser set to Asia/Tokyo. Roughly a quarter of every
+ * day falls in that window, and an operator abroad, or on a machine whose clock
+ * settings nobody checked, silently reads a different date from the colleague
+ * beside them.
+ *
+ * This is a Bangladeshi marketplace: the business day is Dhaka's, so a
+ * timestamp means what it means there, and it must read the same to everyone
+ * looking at it. If operators outside Bangladesh should ever see their own
+ * local time, that is a deliberate feature with a UI for it, not a default
+ * inherited from whatever the browser happened to be set to.
+ */
+const BUSINESS_TIME_ZONE = 'Asia/Dhaka';
+
 const DATE_PARTS: Intl.DateTimeFormatOptions = {
   day: 'numeric',
   month: 'short',
   year: 'numeric',
+  timeZone: BUSINESS_TIME_ZONE,
 };
 
 /** "5 Jan 2026". Returns the input unchanged if it is not a usable date. */
@@ -80,7 +106,11 @@ export function formatDateTime(value: string | number | Date | null | undefined)
 export function formatTime(value: string | number | Date | null | undefined): string {
   const date = toDate(value);
   if (!date) return '—';
-  return new Intl.DateTimeFormat(DATE_LOCALE, { hour: '2-digit', minute: '2-digit' }).format(date);
+  return new Intl.DateTimeFormat(DATE_LOCALE, {
+    hour: '2-digit',
+    minute: '2-digit',
+    timeZone: BUSINESS_TIME_ZONE,
+  }).format(date);
 }
 
 /**
