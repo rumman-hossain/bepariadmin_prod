@@ -488,8 +488,27 @@ describe('validateWizardStep', () => {
     expect(validateWizardStep(2, wizard()).errors).toHaveProperty('sizes');
   });
 
-  it('always passes the read-only summary step', () => {
-    expect(validateWizardStep(6, wizard())).toEqual({ isValid: true, errors: {} });
+  /*
+   * CHANGED DELIBERATELY. This used to read "always passes the read-only summary
+   * step", asserting `{isValid: true, errors: {}}` for any state at all.
+   *
+   * The premise was that the summary has no inputs, so there is nothing on it to
+   * get wrong. True of the step, false of the moment — step 6 is where Submit
+   * and Update live, and "this screen has no fields" is not the same claim as
+   * "the form behind it is valid".
+   *
+   * The gap was reachable and expensive: in edit mode every step is marked done,
+   * so the step bar jumps to 6 from anywhere, and Reset emptied the store
+   * without re-hydrating. Reset → step 6 → Update PATCHed a live product to
+   * `name:''`, `basePrice:0`, `media:[]`, and nothing in between objected.
+   */
+  it('re-runs steps 1-5, so an empty form cannot reach submit', () => {
+    const result = validateWizardStep(6, wizard());
+
+    expect(result.isValid).toBe(false);
+    // Naming the step matters: the step bar is one click, and "invalid" alone
+    // leaves the operator hunting through six screens for the field.
+    expect(Object.values(result.errors).join(' ')).toMatch(/step 1/i);
   });
 
   it('fails closed on an unknown step', () => {

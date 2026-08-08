@@ -15,6 +15,19 @@ export interface LifecycleState {
   isHydrating: boolean;
   isEditMode: boolean;
   productStatus: string | null;
+  /**
+   * Why the product could not be loaded, on an edit route.
+   *
+   * There was no such field, and the absence created the worst bug in the flow:
+   * a failed hydrate fell through to `isHydrating:false` with `isEditMode` still
+   * at its initial `false`, so `/products/<id>/edit` rendered a blank wizard
+   * headed "Add Product" — and submitting it called `createProduct`. A 403, a
+   * 500 or a timeout while opening a product to edit it produced a DUPLICATE
+   * product, silently.
+   *
+   * Non-null means: do not render the wizard at all.
+   */
+  hydrateError: string | null;
 }
 
 /**
@@ -298,12 +311,31 @@ export function useProductFormLifecycle() {
     isHydrating: false,
     isEditMode: false,
     productStatus: null,
+    hydrateError: null,
   });
+
+  /*
+   * Both failure paths land here, and both must say the SAME thing about mode.
+   *
+   * `isEditMode: false` was previously reached by accident — it was simply never
+   * set to true — and that accident is what made a failed load indistinguishable
+   * from a new product. Setting it explicitly, next to the error, is what stops
+   * the two branches drifting again.
+   */
+  const failHydrate = useCallback((message: string) => {
+    setState({
+      editingProductId: null,
+      isHydrating: false,
+      isEditMode: false,
+      productStatus: null,
+      hydrateError: message,
+    });
+  }, []);
 
   const refetch = useCallback(async () => {
     if (!routeProductId) return;
     reset();
-    setState((prev) => ({ ...prev, isHydrating: true }));
+    setState((prev) => ({ ...prev, isHydrating: true, hydrateError: null }));
     try {
       const res = await getProductById(routeProductId);
       if (res.ok && res.data?.data) {
@@ -354,17 +386,18 @@ export function useProductFormLifecycle() {
           isHydrating: false,
           isEditMode: true,
           productStatus: res.data.data.status ?? null,
+          hydrateError: null,
         });
       } else {
-        setState((prev) => ({ ...prev, isHydrating: false }));
+        failHydrate(`The product could not be loaded (${res.status}).`);
       }
     } catch {
-      setState((prev) => ({ ...prev, isHydrating: false }));
+      failHydrate('The product could not be loaded. Check your connection and try again.');
     }
     // `store.wholesalerCode` is NOT a dependency any more: the supplier code now
     // comes from the response, so this callback no longer changes identity every
     // time the store does — which is what let the effect below hold a stale one.
-  }, [routeProductId, reset, hydrate]);
+  }, [routeProductId, reset, hydrate, failHydrate]);
 
   /*
    * The one remaining `set-state-in-effect` in the app, and it is deliberate.
@@ -385,7 +418,13 @@ export function useProductFormLifecycle() {
       void refetch();
     } else {
       reset();
-      setState({ editingProductId: null, isHydrating: false, isEditMode: false, productStatus: null });
+      setState({
+        editingProductId: null,
+        isHydrating: false,
+        isEditMode: false,
+        productStatus: null,
+        hydrateError: null,
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- see above
   }, [routeProductId]);
@@ -395,6 +434,7 @@ export function useProductFormLifecycle() {
     isHydrating: state.isHydrating,
     isEditMode: state.isEditMode,
     productStatus: state.productStatus,
+    hydrateError: state.hydrateError,
     refetch,
     routeProductId: routeProductId ?? null,
   };

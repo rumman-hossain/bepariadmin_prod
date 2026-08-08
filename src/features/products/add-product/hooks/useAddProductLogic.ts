@@ -58,7 +58,8 @@ export function useAddProductLogic() {
   const [selectionType, setSelectionType] = useState<SelectionType>('none');
   const [listSearch, setListSearch] = useState('');
 
-  const { editingProductId, isHydrating, isEditMode } = useProductFormLifecycle();
+  const { editingProductId, isHydrating, isEditMode, hydrateError, refetch } =
+    useProductFormLifecycle();
 
   const catalog = useCatalogCascade({
     categoryId: store.categoryId,
@@ -91,11 +92,25 @@ export function useAddProductLogic() {
     setField('variations', []);
   }, [setField, catalog.platformMargin]);
 
+  /*
+   * RESET MEANS "UNDO MY CHANGES", NOT "EMPTY THIS PRODUCT".
+   *
+   * On a NEW product those are the same thing. On an EDIT they are opposites,
+   * and this did the second: `reset()` drops the store to INITIAL_STATE while
+   * `editingProductId` stays set, and the hydrate effect keys on the route id —
+   * which has not changed — so nothing reloads. The operator is left holding an
+   * empty form that still points at a live product, and edit mode marks every
+   * step done, so Update is two clicks away.
+   *
+   * `refetch` already existed on the lifecycle hook and had no caller. It does
+   * reset-then-hydrate, which is exactly what "discard my changes" means here.
+   */
   const handleResetForm = useCallback(() => {
-    reset();
+    if (isEditMode) void refetch();
+    else reset();
     setSelectionType('none');
     setListSearch('');
-  }, [reset]);
+  }, [isEditMode, refetch, reset]);
 
   const nav = useWizardNavigation({
     isEditMode,
@@ -276,6 +291,8 @@ export function useAddProductLogic() {
     handleBack,
     isEditMode,
     isHydrating,
+    hydrateError,
+    refetch,
     categories: catalog.categories,
     subCategories: catalog.subCategories,
     productGroups: catalog.productGroups,

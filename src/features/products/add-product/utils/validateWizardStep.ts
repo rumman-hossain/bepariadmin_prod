@@ -435,14 +435,46 @@ export function validateStep5(state: WizardState): ValidationResult {
   return ok(errors);
 }
 
+/**
+ * Step 6 re-checks everything, and it is the last gate before a write.
+ *
+ * It used to be `() => ({ isValid: true })`, on the reasoning that the summary
+ * is read-only so there is nothing on it to get wrong. True of the step, and
+ * false of the moment: step 6 is where Submit and Update live, and "the summary
+ * has no inputs" is not the same claim as "the form behind it is valid".
+ *
+ * The gap was reachable. In EDIT mode every step is marked done, so the step bar
+ * jumps straight to 6 from anywhere — and `Reset` empties the store without
+ * re-hydrating, because the hydrate effect keys on the route id, which has not
+ * changed. Reset, click 6, press Update, and the console PATCHes a live product
+ * to `name:''`, `basePrice:0`, `media:[]`. Nothing in between objected.
+ *
+ * Re-running 1-5 here closes it structurally: it does not matter how a form
+ * became empty or which navigation allowed it, because the write is gated on the
+ * same rules that gate every other step. The step NUMBER is in the message
+ * because the step bar is one click and a bare "invalid" is not.
+ */
+function validateStep6(state: WizardState): ValidationResult {
+  for (const step of [1, 2, 3, 4, 5] as const) {
+    const result = VALIDATORS[step](state);
+    if (!result.isValid) {
+      const first = Object.values(result.errors)[0] ?? 'Something is missing.';
+      return {
+        isValid: false,
+        errors: { summary: `Step ${step} needs attention: ${first}` },
+      };
+    }
+  }
+  return { isValid: true, errors: {} };
+}
+
 const VALIDATORS: Record<number, (state: WizardState) => ValidationResult> = {
   1: validateStep1,
   2: validateStep2,
   3: validateStep3,
   4: validateStep4,
-  // Step 6 is the read-only summary — there is nothing on it to get wrong.
   5: validateStep5,
-  6: () => ({ isValid: true, errors: {} }),
+  6: validateStep6,
 };
 
 export function validateWizardStep(step: number, state: WizardState): ValidationResult {

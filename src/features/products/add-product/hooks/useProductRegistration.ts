@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   createProduct,
   updateProduct,
@@ -20,6 +20,13 @@ export type RegistrationState = 'idle' | 'saving' | 'success';
 
 export function useProductRegistration(editingProductId?: string | null) {
   const navigate = useNavigate();
+  /*
+   * The ROUTE's opinion of what we are doing, read independently of the
+   * lifecycle hook's. The two disagreeing is the failed-hydrate bug: the URL
+   * says edit, `editingProductId` says create, and the create wins. Compared
+   * below rather than trusted.
+   */
+  const { productId: routeProductId } = useParams<{ productId?: string }>();
   const store = useAddProductStore();
   const { setField } = store;
 
@@ -180,7 +187,34 @@ export function useProductRegistration(editingProductId?: string | null) {
       // See utils/buildProductPayload.ts — it is pure, and tested.
       const payload = buildProductPayload(s, { videoUrl: publishedVideoUrl });
 
+      /*
+       * TWO FLOORS BEFORE THE WRITE, both for damage that is not recoverable.
+       *
+       * An UPDATE with no name is the reset-on-edit bug arriving at the network:
+       * the store was emptied, nothing re-hydrated, and this PATCH would set a
+       * live product to `name:''`, `basePrice:0`, `media:[]`. Step 6 now
+       * validates, so this should be unreachable — which is exactly why it is
+       * cheap to keep. It costs one comparison and it is the last thing standing
+       * between a bug upstream and a blanked product.
+       *
+       * A CREATE on an `/edit` URL is the failed-hydrate bug arriving at the
+       * network: `editingProductId` is null only because the product could not
+       * be loaded, and creating here makes a duplicate of the very product the
+       * operator opened.
+       */
+      if (routeProductId && !editingProductId) {
+        throw new Error(
+          'This product has not finished loading. Reload the page before saving, ' +
+            'or you will create a second copy of it.',
+        );
+      }
+
       if (editingProductId) {
+        if (!s.name.trim()) {
+          throw new Error(
+            'This form is empty. Reload the product before updating it — saving now would erase it.',
+          );
+        }
         const res = await updateProduct(editingProductId, payload);
         if (!res.ok) throw new Error('Update failed — admin product API may not be connected yet.');
       } else {

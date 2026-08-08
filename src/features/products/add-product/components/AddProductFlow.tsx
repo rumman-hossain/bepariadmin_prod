@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@/src/components/controls';
-import { Dialog, DialogFooter } from '@/src/components/feedback';
+import { Dialog, DialogFooter, ErrorState } from '@/src/components/feedback';
 import { useAddProductLogic, type WizardStep } from '../hooks/useAddProductLogic';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { SelectionModal } from './SelectionModal';
@@ -69,6 +69,8 @@ export function AddProductFlow({ onBack }: Props) {
     unitTypes,
     registrationError,
     isHydrating,
+    hydrateError,
+    refetch,
     isEditMode,
   } = logic;
 
@@ -171,6 +173,30 @@ export function AddProductFlow({ onBack }: Props) {
         return null;
     }
   };
+
+  /*
+   * A PRODUCT THAT DID NOT LOAD MUST NOT BECOME A NEW PRODUCT.
+   *
+   * On a failed hydrate this used to fall straight through to the wizard, which
+   * — with `isEditMode` never set — rendered a blank form headed "Add Product"
+   * on an `/edit` URL. Filling it in and submitting called `createProduct`, so a
+   * 403, a 500 or a timeout while opening a product silently produced a
+   * DUPLICATE of it.
+   *
+   * The screen now says so and offers the two things worth doing. There is no
+   * branch below this that can reach the wizard with `hydrateError` set.
+   */
+  if (hydrateError) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <ErrorState
+          title="This product could not be loaded"
+          message={`${hydrateError} Nothing has been changed.`}
+          onRetry={() => void refetch()}
+        />
+      </div>
+    );
+  }
 
   if (isHydrating) {
     return (
