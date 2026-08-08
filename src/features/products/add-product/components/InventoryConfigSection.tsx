@@ -131,7 +131,30 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
             </tbody>
           </table>
         </div>
-        {errors.sizes && <p className="text-xs text-bad">{errors.sizes}</p>}
+        {/*
+          THE KEYS THIS STEP ACTUALLY PRODUCES.
+
+          This rendered `errors.sizes` alone — a STEP 2 key. validateStep3 can
+          never produce it, so the line was dead and the three keys this section
+          is the control for had no inline renderer at all: `sizeStockSet`,
+          `moqSet` and `sizeLowStockAlertSet` reached the operator only as
+          unlabelled entries in the summary banner, with nothing connecting
+          "MOQ required for all active sizes" to the grid that sets it.
+        */}
+        {[
+          errors.sizes,
+          errors.sizeStockSet,
+          errors.moqSet,
+          errors.sizeLowStockAlertSet,
+          errors.moqSetLimit,
+          errors.alertSetLimit,
+        ]
+          .filter(Boolean)
+          .map((message) => (
+            <p key={message} className="text-xs text-bad">
+              {message}
+            </p>
+          ))}
       </div>
     );
   }

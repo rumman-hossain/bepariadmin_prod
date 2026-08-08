@@ -351,13 +351,29 @@ report "orphaned-variation-alert" "a variant product needs a low-stock alert and
 #
 # Scoped to features/ and pages/: components/feedback owns the primitive and
 # ConfirmDialog is its deliberate exception.
-dialogs=$(grep -rn --include='*.tsx' "<Dialog$" "$SRC/features" 2>/dev/null | while IFS=: read -r file line _; do
-  # The props of a multi-line <Dialog ...> tag end at the first line that is
-  # just `>` or `/>`; look no further than that.
+# Both tag shapes. This matched `<Dialog$` only, so a SINGLE-LINE
+# `<Dialog open onClose={…} size="md">` slipped straight through — which is
+# exactly how SelectionModal kept its missing title after the guard was added.
+# A guard that only sees one of two spellings reads as coverage without being
+# any.
+dialogs=$(grep -rnE --include='*.tsx' "<Dialog(\s|$)" "$SRC/features" 2>/dev/null | while IFS=: read -r file line _; do
+  tag=$(sed -n "${line}p" "$file")
+  # A single-line tag closes on its own line, so it can be decided here. This
+  # guard matched `<Dialog$` only, so `<Dialog open onClose={…} size="md">`
+  # slipped straight through — which is how SelectionModal kept its missing
+  # title after the guard was added. A guard that sees one of two spellings
+  # reads as coverage without being any.
+  if printf '%s' "$tag" | grep -q '>'; then
+    printf '%s' "$tag" | grep -q 'title=' \
+      || echo "$file:$line: <Dialog> with no title — no accessible name, no close button"
+    continue
+  fi
+  # Multi-line: the props end at the first line that is just `>` or `/>`.
+  #
   # A flag, not `exit 0` from the rule: awk runs END after an in-rule exit, so
-  # END's status replaced it and every dialog reported as untitled — including
-  # the six that are correct. Caught by running the guard against a file known
-  # to pass, which is why a guard's first run should be against known-good code.
+  # END's status replaced it and every dialog reported as untitled, including
+  # the six that are correct. Caught by running the guard against known-good
+  # code, which is what a new guard's first run should be.
   if ! awk -v start="$line" '
         NR<=start { next }
         NR>start+25 { exit found?0:1 }

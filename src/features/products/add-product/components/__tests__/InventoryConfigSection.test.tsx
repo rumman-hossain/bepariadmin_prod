@@ -112,3 +112,44 @@ describe('marking a size out and back in does not lose its figures', () => {
     expect(validateWizardStep(3, store()).isValid).toBe(true);
   });
 });
+
+/**
+ * The three keys this section is the control for had no inline renderer.
+ *
+ * It rendered `errors.sizes` — a STEP 2 key that validateStep3 can never
+ * produce, so the line was dead — while `sizeStockSet`, `moqSet` and
+ * `sizeLowStockAlertSet` reached the operator only as unlabelled entries in
+ * the summary banner. "MOQ required for all active sizes" sat at the top of the
+ * page with nothing connecting it to the grid that sets MOQ.
+ */
+describe('the size errors appear on the control that fixes them', () => {
+  beforeEach(() => {
+    useAddProductStore.setState({
+      hasVariant: false,
+      basePrice: '100',
+      selectedSizes: ['S'],
+      sizeStockSet: { S: '40' },
+    });
+  });
+
+  it.each([
+    ['moqSet', 'MOQ required for all active sizes'],
+    ['sizeLowStockAlertSet', 'Alert required for all active sizes'],
+    ['sizeStockSet', 'Stock required for all active sizes'],
+    ['moqSetLimit', 'MOQ must be less than stock'],
+  ])('renders %s inline', (key, message) => {
+    render(<InventoryConfigSection selectedSizes={['S']} errors={{ [key]: message }} />);
+    expect(screen.getByText(message)).toBeTruthy();
+  });
+
+  it('shows every outstanding one at once, not just the first', () => {
+    render(
+      <InventoryConfigSection
+        selectedSizes={['S']}
+        errors={{ moqSet: 'MOQ required', sizeLowStockAlertSet: 'Alert required' }}
+      />,
+    );
+    expect(screen.getByText('MOQ required')).toBeTruthy();
+    expect(screen.getByText('Alert required')).toBeTruthy();
+  });
+});

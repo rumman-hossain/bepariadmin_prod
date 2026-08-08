@@ -161,9 +161,17 @@ export function SelectionModal({
   if (selectionType === 'none') return null;
 
   return (
-    <Dialog open onClose={onClose} size="md">
-      <div className="p-6 space-y-4">
-        <h2 className="text-lg font-semibold text-ink">{title}</h2>
+    /*
+      `title` on the Dialog, not an <h2> in the body.
+
+      Dialog gates its header row — heading and close button — on
+      `title || subtitle`, so with the heading inside the body this picker had
+      no accessible name and no X: an operator who opened the supplier list by
+      accident could only leave it by Escape or a backdrop click, neither of
+      which is visible. The `p-6` also doubled Dialog's own `px-5 py-4`.
+    */
+    <Dialog open onClose={onClose} size="md" title={title}>
+      <div className="space-y-4">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-3" />
           <Input
