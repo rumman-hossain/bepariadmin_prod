@@ -20,6 +20,14 @@ export interface MediaSlot {
    * this is `galleryKey` on the same type.
    */
   galleryKey?: string;
+  /**
+   * The GCS object this slot's bytes landed in.
+   *
+   * Kept so the slot has an identity independent of any URL — the URL format is
+   * the server's business and has already been wrong once (a signed PUT URL was
+   * being stored as the product's image). Not sent in the payload today.
+   */
+  objectName?: string;
 }
 
 export interface ProductMediaState {

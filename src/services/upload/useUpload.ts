@@ -66,6 +66,19 @@ export const ALLOWED_DOCUMENT_TYPES = [...ALLOWED_IMAGE_TYPES, 'application/pdf'
  * anything. `rejectionReason` is the gate on the client, and the server's own
  * magic-byte sniff is the gate that counts.
  */
+/**
+ * The durable public URL for an uploaded object.
+ *
+ * Mirrors `internal/upload/repository.go:1069`, which builds the same string
+ * when it records a MediaAsset. Duplicated deliberately rather than waiting on
+ * the publish response, so a slot is storable the moment its bytes land — but
+ * it is a duplicated format, so if the server ever moves to a CDN host this is
+ * the second place to change.
+ */
+export function durableObjectUrl(bucket: string, objectName: string): string {
+  return `https://storage.googleapis.com/${bucket}/${objectName}`;
+}
+
 export function acceptAttribute(mediaType: 'image' | 'video' | 'document'): string {
   const allowed =
     mediaType === 'video'
@@ -221,9 +234,31 @@ export function useUpload() {
           actualChecksum: checksum,
         });
 
+        /*
+         * `uploadedUrl` IS WHAT GETS STORED, so it must outlive the upload.
+         *
+         * Both fields used to be `fileDetail.signedUrl` — the V4 signed PUT URL
+         * this request was just made against. It is bound to a method, a
+         * content type, a checksum and an expiry, and it is what
+         * `collectProductMedia` hands to the API and `repository.Create`
+         * inserts verbatim into `products.product_media.url`. Every image would
+         * have 403'd a few hours after saving, with the object name recorded
+         * nowhere in the product row.
+         *
+         * The durable form is the one the server itself writes at publish:
+         * `https://storage.googleapis.com/{bucket}/{object}`
+         * (`internal/upload/repository.go:1069`). Deriving it here rather than
+         * waiting for the publish response keeps the slot correct even on paths
+         * that never publish — an edit that re-uploads one image, for instance.
+         *
+         * `localUri` keeps the signed URL: it is the PREVIEW, it only has to
+         * work for this session, and the object is not necessarily public until
+         * the draft is published.
+         */
         onSlotUpdate({
           localUri: fileDetail.signedUrl,
-          uploadedUrl: fileDetail.signedUrl,
+          uploadedUrl: durableObjectUrl(fileDetail.gcsBucket, fileDetail.gcsObjectName),
+          objectName: fileDetail.gcsObjectName,
           uploadStatus: 'done',
         });
 
