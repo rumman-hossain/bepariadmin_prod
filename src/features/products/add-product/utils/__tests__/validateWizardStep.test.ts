@@ -529,14 +529,32 @@ describe('step 3 names what is wrong, not just how much', () => {
       ...over,
     });
 
-  it('reports an empty base price as a PRICE fault, not a stock one', () => {
+  /*
+   * An empty base price is ONE fault, not one per variation.
+   *
+   * `price` falls back to `basePrice`, so a blank base fails every variation at
+   * once. The original message called that "N variation(s) have invalid
+   * stock/moq/alert logic" and sent the operator to a grid where nothing was
+   * wrong. Naming it a price fault was better but still wrong: walking the live
+   * wizard showed "Base price must be greater than 0" AND "2 variation(s) need
+   * attention" side by side, which is the same misdirection in a new costume.
+   */
+  it('blames the base price box, not the variations', () => {
     const result = validateStep3(withVariation(sized(), { basePrice: '' }));
-    const issues = result.variationIssues ?? [];
 
-    expect(issues.some((i) => i.field === 'price')).toBe(true);
-    // The stock figures are complete; nothing may claim otherwise.
-    expect(issues.some((i) => i.field === 'stock')).toBe(false);
-    expect(result.errors.variations).not.toMatch(/stock\/moq\/alert/);
+    expect(result.errors.basePrice).toBeTruthy();
+    // Nothing is wrong with the variations, so nothing may say there is.
+    expect(result.errors.variations).toBeUndefined();
+    expect(result.variationIssues).toBeUndefined();
+  });
+
+  it('still reports a genuine stock fault while the base price is empty', () => {
+    // The base price must not mask real problems — only stop inventing ones.
+    const result = validateStep3(
+      withVariation(sized({ sizeMoq: {} }), { basePrice: '' }),
+    );
+    expect(result.errors.basePrice).toBeTruthy();
+    expect((result.variationIssues ?? []).some((i) => i.field === 'moq')).toBe(true);
   });
 
   it('names the size and the field for a blank cell', () => {

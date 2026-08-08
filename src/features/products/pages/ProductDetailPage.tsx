@@ -258,7 +258,6 @@ export function ProductDetailPage() {
   // product's sizes belong to its variations and are shown in that tab.
   const sizeRows = (product.inventory ?? []).filter((row) => !row.variationId);
   const variations = product.variations ?? [];
-  const margin = product.sellingPrice - product.basePrice;
 
   return (
     <div className="animate-fade-in space-y-5 pb-8">
@@ -562,9 +561,24 @@ export function ProductDetailPage() {
                 <dd className="m-0 text-base font-semibold text-ink">
                   <Money amount={product.sellingPrice} decimals />
                 </dd>
+                {/*
+                  The SERVER's percentage, like the checklist above and the list
+                  column. This was `sellingPrice - basePrice` computed here —
+                  money derived in a component, which G12 exists to forbid — and
+                  it answered the wrong question anyway: a taka figure does not
+                  say whether this supplier is on the platform default or on
+                  something set for them. Both prices are on the two rows above,
+                  so the difference is still there to read.
+                */}
                 <dt className="text-xs text-ink-3">Platform margin</dt>
-                <dd className={margin >= 0 ? 'm-0 text-sm text-ok' : 'm-0 text-sm text-bad'}>
-                  <Money amount={margin} decimals />
+                <dd
+                  className={
+                    product.marginPercent >= MARGIN_FLOOR_PERCENT
+                      ? 'm-0 text-sm text-ok'
+                      : 'm-0 text-sm text-warn'
+                  }
+                >
+                  {product.marginPercent}%
                 </dd>
                 <dt className="text-xs text-ink-3">Available stock</dt>
                 <dd className="m-0 text-sm text-ink">{product.availableStock ?? product.stock}</dd>

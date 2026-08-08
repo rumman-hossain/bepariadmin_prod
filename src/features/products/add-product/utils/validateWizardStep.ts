@@ -167,9 +167,19 @@ function priceIssue(
   basePrice: number,
 ): { field: 'price'; message: string } | null {
   const price = variation.price ?? basePrice;
-  if (basePrice <= 0) {
-    return { field: 'price', message: 'Set the base price above — every variant is priced from it' };
-  }
+  /*
+   * An empty base price is ONE fault, not one per variation.
+   *
+   * `price` falls back to `basePrice`, so a blank base makes every variation
+   * fail here at once — and the operator was shown "Base price must be greater
+   * than 0" AND "4 variation(s) need attention" together, then sent to inspect
+   * four variations with nothing wrong with them. Found by walking the live
+   * wizard: the message no longer said "stock/moq/alert", but the misdirection
+   * it caused was still there in a new costume.
+   *
+   * `errors.basePrice` already names it, and it is the only box that fixes it.
+   */
+  if (basePrice <= 0) return null;
   // A variation may cost more than the base product but never less — the base
   // price is the floor the margin was calculated against.
   if (price <= 0) return { field: 'price', message: 'Price required' };
