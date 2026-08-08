@@ -473,11 +473,19 @@ function VariationCard({ variation, index }: { variation: ProductVariation; inde
         </span>
       </header>
 
+      {/*
+        The requirement is stated ONCE, in the pill above, not again on each
+        tile. A variant card packs six tiles into a row, so a tile is narrower
+        than the words "FRONT REQUIRED" — the badge overflowed into the next
+        column and rendered as "FRONT REQUIREDBACK REQUIRED". The pill says the
+        same thing with room to say it, and it says it about the pair, which is
+        how the validator actually checks.
+      */}
+
       <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-4 lg:grid-cols-6">
         <MediaTile
           label="Front"
           ariaLabel={`Front — ${label}`}
-          requirement="required"
           slot={media.front}
           purpose={`variation:${id}:front`}
           position={0}
@@ -488,7 +496,6 @@ function VariationCard({ variation, index }: { variation: ProductVariation; inde
         <MediaTile
           label="Back"
           ariaLabel={`Back — ${label}`}
-          requirement="required"
           slot={media.back}
           purpose={`variation:${id}:back`}
           position={1}
