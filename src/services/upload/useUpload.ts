@@ -251,19 +251,39 @@ export function useUpload() {
          * waiting for the publish response keeps the slot correct even on paths
          * that never publish — an edit that re-uploads one image, for instance.
          *
-         * `localUri` keeps the signed URL: it is the PREVIEW, it only has to
-         * work for this session, and the object is not necessarily public until
-         * the draft is published.
+         * `localUri` IS DELIBERATELY ABSENT BELOW — the blob preview stays.
+         *
+         * It used to be set to `fileDetail.signedUrl`, under a comment saying
+         * the preview "only has to work for this session". That was wrong: a V4
+         * signed URL is bound to a METHOD, and this one was minted for the PUT
+         * that just completed. Its signature also covers
+         * `x-goog-if-generation-match` and `x-goog-meta-expected-sha256`, which
+         * an `<img>` GET does not send, so the request does not match the header
+         * set the signature declares:
+         *
+         *   GET …?X-Goog-SignedHeaders=content-type;host;
+         *          x-goog-if-generation-match;x-goog-meta-expected-sha256
+         *   → 400 Bad Request
+         *
+         * 400 and not 403: malformed, not unauthorised. No session and no
+         * expiry window makes it fetchable. So every tile on Step 4 became a
+         * broken image at the moment its upload SUCCEEDED — which is exactly
+         * why it looked fine in testing, since the blob renders throughout the
+         * upload and only breaks on completion.
+         *
+         * The blob is the only correct preview here. The uploaded object is not
+         * necessarily readable until the draft is published, so `uploadedUrl`
+         * is for STORING now and for DISPLAYING after publish, not for this
+         * tile.
          */
         onSlotUpdate({
-          localUri: fileDetail.signedUrl,
           uploadedUrl: durableObjectUrl(fileDetail.gcsBucket, fileDetail.gcsObjectName),
           objectName: fileDetail.gcsObjectName,
           uploadStatus: 'done',
         });
 
-        // The server URL has replaced the local preview, so the blob can go.
-        releasePreviewUrl(previewUrl);
+        // The blob is NOT released here: it is what the tile is still showing.
+        // Whatever is left in `objectUrls` is revoked on unmount, above.
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Upload failed';
         // Keep the preview on failure — the user can still see what they picked
@@ -272,7 +292,10 @@ export function useUpload() {
         throw err;
       }
     },
-    [createPreviewUrl, releasePreviewUrl],
+    // `releasePreviewUrl` is no longer a dependency: a successful upload keeps
+    // its blob, because the blob IS the preview. Clearing a slot releases it —
+    // see the callers in Step4Media — and unmount sweeps the rest.
+    [createPreviewUrl],
   );
 
   return { uploadSlot, releasePreviewUrl, client: clientRef.current };

@@ -315,6 +315,30 @@ export function ProductListPage() {
         </div>
       )}
 
+      {/*
+        THE SAME CONTROL, ABOVE THE TABLE AS WELL.
+
+        Twenty rows plus whatever variant rows are expanded is a long way to
+        scroll to reach Next, and a long way back up to read the page you landed
+        on. Gated on the same condition as the one below, so the two appear and
+        disappear together and the operator never sees one without the other.
+
+        `announce={false}`: the page indicator is a live region, and two of them
+        reading the same number means every page change is announced twice. The
+        copy below the table keeps the announcement it has always had.
+      */}
+      {pagination.total > pagination.limit && (
+        <Pagination
+          label="Product pages, above the table"
+          announce={false}
+          page={pagination.page}
+          pageSize={pagination.limit}
+          total={pagination.total}
+          disabled={isFetching}
+          onPageChange={setPage}
+        />
+      )}
+
       <DataTable
         columns={columns}
         data={products}
@@ -357,6 +381,7 @@ export function ProductListPage() {
 
       {pagination.total > pagination.limit && (
         <Pagination
+          label="Product pages, below the table"
           page={pagination.page}
           pageSize={pagination.limit}
           total={pagination.total}

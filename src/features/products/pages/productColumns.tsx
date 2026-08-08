@@ -12,7 +12,7 @@
  * six is.
  */
 import { ChevronRight, ChevronDown, ImageOff, Layers } from 'lucide-react';
-import { Money, Text, formatAge } from '@/src/components/data';
+import { Money, Text, formatAge, formatDate } from '@/src/components/data';
 import { StatusBadge } from '@/src/components/data/StatusBadge';
 import { cn } from '@/src/design-system/utils/cn';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
@@ -252,6 +252,45 @@ export function buildColumns({
           </span>
         </div>
       ),
+    },
+    /**
+     * WHEN IT WAS CREATED, AND WHEN IT WAS LAST TOUCHED.
+     *
+     * Neither was on this screen. The only date-shaped thing in the table is the
+     * grey line under the State badge, and that is `formatAge(updatedAt)` — age
+     * IN STATE, for queue triage. It answers "how long has this been waiting",
+     * moves every time anybody edits the product, and never says when the
+     * product came into existence.
+     *
+     * Exact dates rather than "3w": this is the figure an operator quotes back
+     * to a supplier, and the relative form already exists one column to the
+     * left for the scanning job.
+     */
+    {
+      key: 'dates',
+      header: 'Created',
+      width: 'w-36',
+      render: (row) => {
+        /*
+         * `updated_at` is set EQUAL to `created_at` on insert, so a product
+         * nobody has touched carries two identical timestamps. Printing the
+         * second one anyway would tell the operator that every new product was
+         * edited on the day it was created — a fact about the schema rendered
+         * as a fact about the product.
+         */
+        const edited = Boolean(row.updatedAt) && row.updatedAt !== row.createdAt;
+
+        return (
+          <div className="cell-numeric">
+            <p className="text-sm text-ink-2">{formatDate(row.createdAt)}</p>
+            {edited ? (
+              <p className="text-2xs text-ink-3">edited {formatDate(row.updatedAt)}</p>
+            ) : (
+              <p className="text-2xs text-ink-4">never edited</p>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'images',

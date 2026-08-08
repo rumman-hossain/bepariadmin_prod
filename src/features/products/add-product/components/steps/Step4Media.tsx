@@ -100,7 +100,7 @@ function MediaTile({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const { draftId, setField } = useAddProductStore();
-  const { uploadSlot } = useUpload();
+  const { uploadSlot, releasePreviewUrl } = useUpload();
 
   const name = ariaLabel ?? label;
   const uploading = slot.uploadStatus === 'uploading';
@@ -131,6 +131,23 @@ function MediaTile({
       onSlotUpdate: onUpdate,
     });
   };
+
+  /*
+   * Clearing a slot revokes its blob.
+   *
+   * The preview a slot holds after a successful upload is an object URL, not a
+   * server URL — see the note in `useUpload`. Emptying the slot without
+   * revoking it leaks the whole image for as long as the wizard is open, and
+   * an operator swapping the poster a few times is the ordinary case, not a
+   * pathological one. Unmount sweeps whatever is left; this is for the slots
+   * that stay mounted and simply become empty.
+   */
+  const clear = onClear
+    ? () => {
+        releasePreviewUrl(slot.localUri);
+        onClear();
+      }
+    : undefined;
 
   /* `uploadSlot` runs `rejectionReason` on whatever it is handed, so a dropped
      file meets exactly the same gate as a picked one — the drop target is not a
@@ -222,10 +239,10 @@ function MediaTile({
             >
               <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
             </button>
-            {onClear && (
+            {clear && (
               <button
                 type="button"
-                onClick={onClear}
+                onClick={clear}
                 aria-label={`Remove ${name}`}
                 className={cn(CORNER_ACTION, 'hover:bg-bad-wash hover:text-bad')}
               >
