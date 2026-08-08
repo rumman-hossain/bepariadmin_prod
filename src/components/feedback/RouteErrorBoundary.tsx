@@ -3,6 +3,7 @@ import { useLocation, useNavigate, useRouteError } from 'react-router-dom';
 import { AlertOctagon } from 'lucide-react';
 import { Button } from '@/src/components/controls';
 import { ErrorBoundary } from './ErrorBoundary';
+import { reportCrash } from '@/src/observability/reportCrash';
 
 /**
  * A RENDER FAILURE COSTS YOU THE PAGE, NOT THE CONSOLE.
@@ -90,7 +91,13 @@ export function RoutePageError() {
   const navigate = useNavigate();
   const { pathname } = useLocation();
 
-  if (import.meta.env.DEV) console.error('Route render failed:', error);
+  /*
+   * Reported in PRODUCTION too. This line used to be gated on
+   * `import.meta.env.DEV`, which is precisely why no route crash an operator
+   * ever hit left a trace — the one environment where nobody is watching the
+   * console was the one environment that logged nothing.
+   */
+  reportCrash(error, { boundary: 'route', kind: 'render' });
 
   // A new location key is what clears React Router's error state, so this is a
   // real retry rather than a re-render of the same failure.

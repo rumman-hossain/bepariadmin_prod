@@ -8,6 +8,15 @@ import { ToastProvider } from '@/src/components/feedback/Toast';
 import { ErrorBoundary } from '@/src/components/feedback';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/src/app/queryClient';
+import { installGlobalHandlers } from '@/src/observability/reportCrash';
+
+/*
+ * Before anything renders. An error boundary sees render, lifecycle and effects
+ * — it does NOT see an event handler, a setTimeout, or a floating promise, and
+ * those were silent even in development. Installed first so a failure during
+ * mount is caught by the same channel as one an hour later.
+ */
+installGlobalHandlers();
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -17,7 +26,7 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <ErrorBoundary>
+    <ErrorBoundary name="root">
       <QueryClientProvider client={queryClient}>
         <ThemeProvider>
           <AuthProvider>

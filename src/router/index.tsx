@@ -326,7 +326,7 @@ const RouteGuard: React.FC<{ children: React.ReactNode }> = ({ children }) => {
  */
 const ProtectedLayout: React.FC = () => (
   <ProtectedRoute>
-    <ErrorBoundary>
+    <ErrorBoundary name="shell">
       <AppLayout>
         <RouteErrorBoundary>
           <RouteGuard>

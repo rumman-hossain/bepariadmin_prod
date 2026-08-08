@@ -1,11 +1,20 @@
 import React from 'react';
 import { AlertOctagon } from 'lucide-react';
 import { Button } from '@/src/components/controls';
+import { reportCrash } from '@/src/observability/reportCrash';
 
 export interface ErrorBoundaryProps {
   children: React.ReactNode;
   /** Rendered instead of the default screen. For scoping a failure to one panel. */
   fallback?: React.ReactNode;
+  /**
+   * Names this boundary in crash reports — "root", "shell", "wizard-step-4".
+   *
+   * Without it a report says only that something threw. Which boundary caught it
+   * is most of the diagnosis, because it says how much of the screen the
+   * operator lost.
+   */
+  name?: string;
 }
 
 interface ErrorBoundaryState {
@@ -41,6 +50,21 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       hasError: true,
       errorInfo: error instanceof Error ? error.message : String(error),
     };
+  }
+
+  /**
+   * The only place React hands over the component stack — and this class did not
+   * implement it, so every crash the boundary caught was swallowed whole. The
+   * screen said "Application Error" and nothing anywhere recorded what threw or
+   * where. This is the entire reason the crashes found this week had to be found
+   * by reading code rather than by looking at a log.
+   */
+  componentDidCatch(error: unknown, info: React.ErrorInfo) {
+    reportCrash(error, {
+      boundary: this.props.name ?? 'unnamed',
+      componentStack: info.componentStack ?? undefined,
+      kind: 'render',
+    });
   }
 
   render() {

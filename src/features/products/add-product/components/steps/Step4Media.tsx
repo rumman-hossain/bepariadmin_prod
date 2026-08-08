@@ -116,6 +116,16 @@ function MediaTile({
     if (!uploading) inputRef.current?.click();
   };
 
+  /*
+   * `.catch(() => {})` at both call sites, not carelessness.
+   *
+   * `uploadSlot` writes `uploadStatus:'error'` and the message into the slot
+   * BEFORE it rethrows (`useUpload.ts`), so the tile and the readiness banner
+   * already show the failure — the rethrow exists for callers that want to
+   * await it, and this one does not. Left floating it produced an unhandled
+   * promise rejection on every failed upload, which is noise in the crash
+   * channel that now watches for exactly that.
+   */
   const send = async (file: File) => {
     await uploadSlot({
       file,
@@ -152,7 +162,7 @@ function MediaTile({
     e.preventDefault();
     setDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file && !uploading) void send(file);
+    if (file && !uploading) void send(file).catch(() => {});
   };
 
   return (
@@ -272,7 +282,7 @@ function MediaTile({
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) void send(file);
+            if (file) void send(file).catch(() => {});
             e.target.value = '';
           }}
         />
