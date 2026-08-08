@@ -7,6 +7,7 @@ import {
 } from '../store/useAddProductStore';
 import { getProductById, getReservedSku } from '@/src/api/products';
 import type { Product } from '@/src/features/products/types';
+import type { ProductInventoryItem } from '../../types/registration';
 
 export interface LifecycleState {
   editingProductId: string | null;
@@ -15,7 +16,16 @@ export interface LifecycleState {
   productStatus: string | null;
 }
 
-function mapProductToWizardState(p: Product): Partial<WizardState> {
+/**
+ * Exported for its own tests.
+ *
+ * Everything about loading a product for edit happens here, and it was covered
+ * only through the hook — which needs a router, a query client and a network
+ * stub, so in practice it was covered not at all. The per-size hydrate bug
+ * below shipped because every wizard test builds state directly instead of
+ * arriving at it the way an operator does.
+ */
+export function mapProductToWizardState(p: Product): Partial<WizardState> {
   const selectedSizes = p.availableSizes || [];
   const sizeStockSet: Record<string, string> = {};
   const moqSet: Record<string, string> = {};
@@ -54,7 +64,40 @@ function mapProductToWizardState(p: Product): Partial<WizardState> {
     };
   }
 
-  const variations = ((p as Product & { variations?: unknown[] }).variations || []) as WizardState['variations'];
+  /*
+   * HYDRATE THE PER-SIZE MAPS, not just `inventory[]`.
+   *
+   * The server sends each variation's per-size figures as `inventory[]`. The
+   * wizard EDITS them through `sizeStock`/`sizeMoq`/`sizeAlert`, and those are
+   * what `isVariationStocked` reads — so loading a product for edit without
+   * filling them left every cell "unfilled" to the validator.
+   *
+   * The screen made that unreadable rather than merely wrong: `StockMatrix`
+   * falls back to `inventory[]` for DISPLAY, so the grid showed the stored
+   * figures — 50 in every cell — while marking each one red with "Stock
+   * required" and the chip read "4 cells to fill". Editing any existing sized
+   * variant product meant retyping numbers that were already on screen.
+   *
+   * Found by opening a real product on dev; no unit test would have caught it,
+   * because they all build wizard state directly rather than hydrating it.
+   */
+  const rawVariations = ((p as Product & { variations?: unknown[] }).variations ||
+    []) as WizardState['variations'];
+  const variations = rawVariations.map((v) => {
+    const rows = v.inventory ?? [];
+    if (rows.length === 0) return v;
+    const from = (pick: (r: ProductInventoryItem) => number | undefined) =>
+      Object.fromEntries(
+        rows.map((r) => [r.size, String(pick(r) ?? '')]).filter(([, value]) => value !== ''),
+      );
+    return {
+      ...v,
+      // The operator's own edits win if hydrate ever runs over a dirty form.
+      sizeStock: { ...from((r) => r.stock), ...(v.sizeStock ?? {}) },
+      sizeMoq: { ...from((r) => r.moq), ...(v.sizeMoq ?? {}) },
+      sizeAlert: { ...from((r) => r.lowStockAlert), ...(v.sizeAlert ?? {}) },
+    };
+  });
   const rawHasVariant = (p as Product & { hasVariant?: boolean }).hasVariant;
   const hasVariant =
     rawHasVariant === true || rawHasVariant === false
