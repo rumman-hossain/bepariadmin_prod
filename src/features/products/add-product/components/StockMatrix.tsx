@@ -29,6 +29,7 @@ import { Text } from '@/src/components/data';
 import { cn } from '@/src/design-system/utils/cn';
 import { useAddProductStore } from '../store/useAddProductStore';
 import { resolveHasVariant } from '../utils/resolveHasVariant';
+import type { VariationIssue } from '../utils/validateWizardStep';
 
 type Measure = 'stock' | 'moq' | 'lowStockAlert';
 
@@ -80,7 +81,19 @@ const OTHERS: Record<Measure, Measure[]> = {
   lowStockAlert: ['stock', 'moq'],
 };
 
-export function StockMatrix() {
+interface Props {
+  /**
+   * What the validator objected to, per variation and per size.
+   *
+   * Without these the grid could only be told "N variation(s) need attention"
+   * by a banner above it, leaving the operator to find the offending cell among
+   * colours × sizes × three measures by hand. Optional so the non-variant
+   * caller need not pass any.
+   */
+  issues?: VariationIssue[];
+}
+
+export function StockMatrix({ issues = [] }: Props) {
   const store = useAddProductStore();
   const {
     selectedSizes,
@@ -96,6 +109,15 @@ export function StockMatrix() {
   } = store;
 
   const [measure, setMeasure] = useState<Measure>('stock');
+
+  /** The complaint about one cell in the measure currently being edited. */
+  const issueFor = (variationId: string | null, size: string, m: Measure): string | undefined =>
+    issues.find((i) => i.variationId === variationId && i.size === size && i.field === m)?.message;
+
+  /** Any complaint about this row, in any measure — so the row can be marked
+   *  even while the operator is looking at a measure that is fine. */
+  const rowHasIssue = (variationId: string | null): boolean =>
+    Boolean(variationId) && issues.some((i) => i.variationId === variationId);
   const hasVariant = resolveHasVariant(hasVariantRaw, variations);
 
   const sizes = selectedSizes;
@@ -221,6 +243,10 @@ export function StockMatrix() {
     const out = stockedOutSizes.includes(size);
     const value = readCell(variationId, size, measure);
     const zeroStock = measure === 'stock' && value === 0 && !out;
+    // What the validator said about THIS cell. Named, not inferred from the
+    // value: "must be below the stock of 20" and "required" look identical to a
+    // component reading only the number.
+    const issue = issueFor(variationId, size, measure);
 
     return (
       <div className="flex flex-col items-center gap-0.5">
@@ -232,20 +258,28 @@ export function StockMatrix() {
           value={String(value)}
           onChange={(e) => writeCell(variationId, size, measure, e.target.value)}
           aria-label={`${MEASURE_LABEL[measure]} for ${size}`}
+          aria-invalid={issue ? true : undefined}
+          title={issue}
           className={cn(
             'w-16 rounded-sm border px-1.5 py-1 text-center text-sm tabular-nums',
             'bg-sheet text-ink focus-visible:border-brass',
             out
               ? 'border-rule bg-sheet-2 text-ink-4'
-              : zeroStock
+              : issue || zeroStock
                 ? 'border-bad-border bg-bad-wash text-bad'
                 : 'border-rule-input',
           )}
         />
-        {/* The other two measures, small — present, not competing. */}
-        <span className="text-2xs text-ink-3 tabular-nums">
-          {OTHERS[measure].map((m) => readCell(variationId, size, m)).join(' · ')}
-        </span>
+        {/* The reason, in place of the other two measures when there is one.
+            A cell the operator has to fix should say why, not show them two
+            numbers that are fine. */}
+        {issue ? (
+          <span className="max-w-24 text-center text-2xs leading-tight text-bad">{issue}</span>
+        ) : (
+          <span className="text-2xs text-ink-3 tabular-nums">
+            {OTHERS[measure].map((m) => readCell(variationId, size, m)).join(' · ')}
+          </span>
+        )}
       </div>
     );
   };
@@ -355,6 +389,15 @@ export function StockMatrix() {
                       <span className="block truncate text-sm text-ink">{r.label}</span>
                       {r.sku && (
                         <span className="block truncate font-mono text-2xs text-ink-2">{r.sku}</span>
+                      )}
+                      {/* Marked on the ROW, because the fault may be in a
+                          measure the operator is not currently looking at —
+                          switching to MOQ to find out which colour is wrong is
+                          the search this whole change exists to remove. */}
+                      {rowHasIssue(r.id) && (
+                        <span className="mt-0.5 block text-2xs font-semibold text-bad">
+                          Needs attention
+                        </span>
                       )}
                     </td>
                     {sizes.map((size) => (

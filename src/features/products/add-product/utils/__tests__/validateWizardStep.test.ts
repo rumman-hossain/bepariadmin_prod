@@ -500,3 +500,74 @@ describe('validateWizardStep', () => {
     });
   });
 });
+
+/**
+ * A COUNT IS NOT SOMETHING AN OPERATOR CAN ACT ON.
+ *
+ * Step 3 said "4 variation(s) have invalid stock/moq/alert logic" and nothing
+ * else. It did not say which variation, which size, or which of the three
+ * figures — and it said "stock/moq/alert" even when the fault was the price,
+ * which sent operators to a grid where nothing was wrong. With four colours
+ * across three sizes that is one sentence about thirty-six cells.
+ */
+describe('step 3 names what is wrong, not just how much', () => {
+  const sized = (over: Partial<ProductVariation> = {}): ProductVariation => ({
+    id: 'v1',
+    color: 'Red',
+    subName: 'Red',
+    sizeStock: { M: '20' },
+    sizeMoq: { M: '5' },
+    sizeAlert: { M: '3' },
+    ...over,
+  });
+  const withVariation = (v: ProductVariation, over: Partial<WizardState> = {}) =>
+    wizard({
+      hasVariant: true,
+      basePrice: '400',
+      selectedSizes: ['M'],
+      variations: [v],
+      ...over,
+    });
+
+  it('reports an empty base price as a PRICE fault, not a stock one', () => {
+    const result = validateStep3(withVariation(sized(), { basePrice: '' }));
+    const issues = result.variationIssues ?? [];
+
+    expect(issues.some((i) => i.field === 'price')).toBe(true);
+    // The stock figures are complete; nothing may claim otherwise.
+    expect(issues.some((i) => i.field === 'stock')).toBe(false);
+    expect(result.errors.variations).not.toMatch(/stock\/moq\/alert/);
+  });
+
+  it('names the size and the field for a blank cell', () => {
+    const result = validateStep3(withVariation(sized({ sizeMoq: {} })));
+    const issue = (result.variationIssues ?? []).find((i) => i.field === 'moq');
+
+    expect(issue).toBeDefined();
+    expect(issue!.size).toBe('M');
+    expect(issue!.label).toBe('Red');
+    expect(issue!.message).toMatch(/required/i);
+  });
+
+  it('explains a limit rather than restating the rule', () => {
+    // MOQ 20 against stock 20 — legal-looking until you know the rule.
+    const result = validateStep3(withVariation(sized({ sizeMoq: { M: '20' } })));
+    const issue = (result.variationIssues ?? []).find((i) => i.field === 'moq');
+    expect(issue!.message).toMatch(/below the stock of 20/i);
+  });
+
+  it('counts variations, not faults', () => {
+    // One variation, three blank figures — that is one variation to fix.
+    const result = validateStep3(
+      withVariation(sized({ sizeStock: {}, sizeMoq: {}, sizeAlert: {} })),
+    );
+    expect(result.errors.variations).toMatch(/^1 variation/);
+    expect((result.variationIssues ?? []).length).toBe(3);
+  });
+
+  it('reports nothing when the step passes', () => {
+    const result = validateStep3(withVariation(sized()));
+    expect(result.isValid).toBe(true);
+    expect(result.variationIssues).toBeUndefined();
+  });
+});

@@ -4,13 +4,17 @@ import { Button } from '@/src/components/controls';
 import { Dialog } from '@/src/components/feedback';
 import { Input } from '@/src/components/controls';
 import { Money, Text } from '@/src/components/data';
+import { cn } from '@/src/design-system/utils/cn';
 import { useAddProductStore } from '../store/useAddProductStore';
+import type { VariationIssue } from '../utils/validateWizardStep';
 import type { ProductVariation } from '../../types/registration';
 
 interface Props {
   onGenerate: () => void;
   platformMargin: number;
   errorMessage?: string;
+  /** Per-variation faults, so the manager can mark the offending row. */
+  issues?: VariationIssue[];
 }
 
 function ChipList({
@@ -64,8 +68,9 @@ function ChipList({
   );
 }
 
-export function VariationConfigSection({ onGenerate, platformMargin, errorMessage }: Props) {
-  const { variationColors, variationDesigns, variations, sku, basePrice, setField } = useAddProductStore();
+export function VariationConfigSection({ onGenerate, platformMargin, errorMessage, issues = [] }: Props) {
+  const { variationColors, variationDesigns, variations, sku, basePrice, selectedSizes, setField } =
+    useAddProductStore();
   const [colorInput, setColorInput] = useState('');
   const [designInput, setDesignInput] = useState('');
   const [managerOpen, setManagerOpen] = useState(false);
@@ -123,6 +128,23 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
     setField('variations', next);
   };
 
+  /** The validator's complaint about one variation's whole-variation field. */
+  const fieldIssue = (variationId: string, field: VariationIssue['field']) =>
+    issues.find((i) => i.variationId === variationId && !i.size && i.field === field)?.message;
+
+  /** True when this variation has anything wrong with it, in any field. */
+  const rowHasIssue = (variationId: string) =>
+    issues.some((i) => i.variationId === variationId);
+
+  /*
+   * Once the product has sizes, `isVariationStocked` reads the per-size maps and
+   * never looks at these three. The operator could fill Stock and MOQ for every
+   * variation and watch the error count refuse to move, with nothing on screen
+   * saying the figures they were entering did not count.
+   */
+  const sizedHint =
+    selectedSizes.length > 0 ? 'Per-size figures below override this' : undefined;
+
   const base = parseFloat(basePrice) || 0;
   const calcRetail = (price?: number) => {
     const b = price ?? base;
@@ -148,9 +170,18 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
         onRemove={(idx) => setField('variationDesigns', variationDesigns.filter((_, i) => i !== idx))}
       />
 
-      {(alert || errorMessage) && (
-        <Text as="p" variant="error">{alert || errorMessage}</Text>
-      )}
+      {/*
+        BOTH, not one masking the other.
+        
+        This rendered `{alert || errorMessage}`. `alert` is this component's own
+        imperative message — "Add at least one color or design", "Maximum 5
+        colors allowed" — set on a button press and cleared only by the next
+        successful add or generate. While it was set it HID the validator's
+        message entirely, so an operator who had once pressed Generate too early
+        could not see why step 3 was still refusing them.
+      */}
+      {alert && <Text as="p" variant="error">{alert}</Text>}
+      {errorMessage && <Text as="p" variant="error">{errorMessage}</Text>}
 
       <div className="flex flex-wrap gap-2">
         <Button type="button" onClick={handleGenerateClick}>
@@ -171,7 +202,15 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
           ) : (
             <div className="space-y-3">
               {variations.map((v, idx) => (
-                <div key={v.id ?? idx} className="p-3 rounded-xl border border-rule space-y-2">
+                <div
+                  key={v.id ?? idx}
+                  className={cn(
+                    'p-3 rounded-xl border space-y-2',
+                    // Marked on the ROW as well as the field, so a manager with
+                    // a dozen colours in it can be scanned rather than read.
+                    rowHasIssue(v.id) ? 'border-bad-border bg-bad-wash' : 'border-rule',
+                  )}
+                >
                   <div className="flex justify-between gap-2">
                     <div>
                       <p className="font-semibold text-sm">{v.displayLabel || v.subName}</p>
@@ -179,24 +218,52 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
                     </div>
                     <Money amount={calcRetail(v.price)} className="text-sm font-semibold" />
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
+                  {/*
+                    FOUR fields, and responsive.
+
+                    The low-stock alert had no control anywhere in the console,
+                    while `isVariationStocked` requires it above 0 for a variant
+                    product with no sizes — a required field nothing could write,
+                    which is the same shape as the two blockers before it. The
+                    wholesale app has had this input all along.
+
+                    `grid-cols-3` was unconditional, so three number inputs sat
+                    at a third of the panel each on a phone; four would have been
+                    unusable. Two columns until there is room for four.
+                  */}
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                     <Input
                       label="Base Price"
                       type="number"
                       value={v.price != null ? String(v.price) : ''}
                       onChange={(e) => updateVariation(idx, { price: Number(e.target.value) || undefined })}
+                      error={fieldIssue(v.id, 'price')}
                     />
                     <Input
                       label="Stock"
                       type="number"
                       value={v.stock != null ? String(v.stock) : ''}
                       onChange={(e) => updateVariation(idx, { stock: Number(e.target.value) || 0 })}
+                      error={fieldIssue(v.id, 'stock')}
+                      hint={sizedHint}
                     />
                     <Input
                       label="MOQ"
                       type="number"
                       value={v.moq != null ? String(v.moq) : ''}
                       onChange={(e) => updateVariation(idx, { moq: Number(e.target.value) || 1 })}
+                      error={fieldIssue(v.id, 'moq')}
+                      hint={sizedHint}
+                    />
+                    <Input
+                      label="Low-stock alert"
+                      type="number"
+                      value={v.lowStockAlert != null ? String(v.lowStockAlert) : ''}
+                      onChange={(e) =>
+                        updateVariation(idx, { lowStockAlert: Number(e.target.value) || 0 })
+                      }
+                      error={fieldIssue(v.id, 'lowStockAlert')}
+                      hint={sizedHint}
                     />
                   </div>
                 </div>

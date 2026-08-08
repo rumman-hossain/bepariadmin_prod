@@ -157,6 +157,8 @@ export function AddProductFlow({ onBack }: Props) {
             platformMargin={platformMargin}
             onGenerateVariations={handleGenerateVariations}
             errors={visibleErrors}
+            issues={showErrors ? (validation.variationIssues ?? []) : []}
+            isEditMode={isEditMode}
           />
         );
       case 4:

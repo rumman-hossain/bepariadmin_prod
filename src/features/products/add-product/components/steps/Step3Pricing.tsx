@@ -6,6 +6,7 @@ import { resolveHasVariant } from '../../utils/resolveHasVariant';
 import { InventoryConfigSection } from '../InventoryConfigSection';
 import { VariationConfigSection } from '../VariationConfigSection';
 import { StockMatrix } from '../StockMatrix';
+import type { VariationIssue } from '../../utils/validateWizardStep';
 
 interface Props {
   sellPrice: number;
@@ -13,6 +14,8 @@ interface Props {
   onGenerateVariations: () => void;
   isEditMode?: boolean;
   errors?: Record<string, string>;
+  /** Per-variation, per-size faults — see VariationIssue. */
+  issues?: VariationIssue[];
 }
 
 export function Step3Pricing({
@@ -21,6 +24,7 @@ export function Step3Pricing({
   onGenerateVariations,
   isEditMode = false,
   errors = {},
+  issues = [],
 }: Props) {
   const store = useAddProductStore();
   const { setField, hasVariant: hasVariantRaw, selectedSizes, basePrice, sizeStockSet, stock, moqSet, moq, variations } =
@@ -95,6 +99,7 @@ export function Step3Pricing({
             onGenerate={onGenerateVariations}
             platformMargin={platformMargin}
             errorMessage={errors.variations}
+            issues={issues}
           />
 
           {/*
@@ -113,7 +118,7 @@ export function Step3Pricing({
             below them would just be noise.
           */}
           {selectedSizes.length > 0 && variations.length > 0 && (
-            <StockMatrix />
+            <StockMatrix issues={issues} />
           )}
         </>
       )}

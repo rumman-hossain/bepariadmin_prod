@@ -2,9 +2,37 @@ import type { MediaSlot, ProductVariation, WizardState } from '../../types/regis
 import type { VariationMediaState } from '../store/useAddProductStore';
 import { resolveHasVariant } from './resolveHasVariant';
 
+/**
+ * One thing wrong with one variation, named precisely enough to point at.
+ *
+ * `errors.variations` is a COUNT — "4 variation(s) have invalid stock/moq/alert
+ * logic" — and a count cannot be acted on. It does not say which variation,
+ * which size, or which of the three figures, and it says "stock/moq/alert" even
+ * when the fault is the price. An operator with four colours across three sizes
+ * is told something is wrong with one of thirty-six cells.
+ *
+ * These travel beside the count so the grid can mark the offending cell and the
+ * manager can mark the offending row. The count stays, as the summary.
+ */
+export interface VariationIssue {
+  variationId: string;
+  /** Colour · design, or the sub-name — what the operator sees on the row. */
+  label: string;
+  /** Absent for a whole-variation fault such as the price. */
+  size?: string;
+  field: 'price' | 'stock' | 'moq' | 'lowStockAlert';
+  message: string;
+}
+
 export interface ValidationResult {
   isValid: boolean;
   errors: Record<string, string>;
+  /**
+   * Populated by step 3 only. Deliberately outside `errors`, which the summary
+   * banner renders wholesale — thirty-six entries there would bury the four
+   * sentences that matter.
+   */
+  variationIssues?: VariationIssue[];
 }
 
 /** Hard ceiling on generated variants, enforced here and nowhere else. */
@@ -116,12 +144,39 @@ function validateUnsizedInventory(state: WizardState, errors: Record<string, str
   if (alertTooHigh) errors.alertLimit = 'Alert must be less than stock';
 }
 
-/** True when one variation's stock figures are complete and self-consistent. */
-function isVariationPriced(variation: ProductVariation, basePrice: number): boolean {
+/** The operator-facing name of a variation row. */
+function variationLabel(v: ProductVariation, index: number): string {
+  return (
+    [v.color, v.design].filter(Boolean).join(' · ') ||
+    v.subName ||
+    v.displayLabel ||
+    `Variant ${index + 1}`
+  );
+}
+
+/**
+ * What is wrong with one variation's PRICE, or null.
+ *
+ * Was `isVariationPriced`, returning a bare boolean that the caller folded into
+ * a message reading "invalid stock/moq/alert logic". So the commonest cause of
+ * that message — an empty base price, which makes `price` 0 for EVERY variation
+ * at once — pointed the operator at the stock grid, where nothing was wrong.
+ */
+function priceIssue(
+  variation: ProductVariation,
+  basePrice: number,
+): { field: 'price'; message: string } | null {
   const price = variation.price ?? basePrice;
+  if (basePrice <= 0) {
+    return { field: 'price', message: 'Set the base price above — every variant is priced from it' };
+  }
   // A variation may cost more than the base product but never less — the base
   // price is the floor the margin was calculated against.
-  return price > 0 && price >= basePrice;
+  if (price <= 0) return { field: 'price', message: 'Price required' };
+  if (price < basePrice) {
+    return { field: 'price', message: `Cannot be below the base price of ${basePrice}` };
+  }
+  return null;
 }
 
 /*
@@ -144,49 +199,49 @@ function isVariationPriced(variation: ProductVariation, basePrice: number): bool
  * per-variation exemption would need its own control before it could mean
  * anything.
  */
-function isVariationStocked(
+function stockIssues(
   variation: ProductVariation,
   selectedSizes: string[],
   stockedOutSizes: string[],
-): boolean {
+): Array<{ size?: string; field: 'stock' | 'moq' | 'lowStockAlert'; message: string }> {
+  const out: Array<{ size?: string; field: 'stock' | 'moq' | 'lowStockAlert'; message: string }> = [];
+
+  const check = (stock: number, moq: number, alert: number, size?: string) => {
+    const { moqTooHigh, alertTooHigh } = checkStockTriple(stock, moq, alert);
+    if (stock <= 0) out.push({ size, field: 'stock', message: 'Stock required' });
+    if (moq < 1) out.push({ size, field: 'moq', message: 'MOQ must be at least 1' });
+    else if (moqTooHigh) out.push({ size, field: 'moq', message: `Must be below the stock of ${stock}` });
+    if (alert <= 0) out.push({ size, field: 'lowStockAlert', message: 'Alert required' });
+    else if (alertTooHigh) out.push({ size, field: 'lowStockAlert', message: `Must be below the stock of ${stock}` });
+  };
+
   if (selectedSizes.length === 0) {
-    const { moqTooHigh, alertTooHigh } = checkStockTriple(
-      variation.stock || 0,
-      variation.moq || 0,
-      variation.lowStockAlert || 0,
-    );
-    return (
-      (variation.stock || 0) > 0 &&
-      (variation.moq || 0) >= 1 &&
-      (variation.lowStockAlert || 0) > 0 &&
-      !moqTooHigh &&
-      !alertTooHigh
-    );
+    check(variation.stock || 0, variation.moq || 0, variation.lowStockAlert || 0);
+    return out;
   }
 
-  return selectedSizes.every((size) => {
-    if (stockedOutSizes.includes(size)) return true;
+  for (const size of selectedSizes) {
+    if (stockedOutSizes.includes(size)) continue;
 
-    const raw = [
-      variation.sizeStock?.[size],
-      variation.sizeMoq?.[size],
-      variation.sizeAlert?.[size],
-    ];
+    const raw = [variation.sizeStock?.[size], variation.sizeMoq?.[size], variation.sizeAlert?.[size]];
     // Distinguish "not filled in" from "filled in as zero": both are invalid,
-    // but only the first means the operator has not looked at this size yet.
-    if (raw.some((value) => value === undefined || value === '')) return false;
-
-    const stock = Number(raw[0]) || 0;
-    const moq = Number(raw[1]) || 0;
-    const alert = Number(raw[2]) || 0;
-    const { moqTooHigh, alertTooHigh } = checkStockTriple(stock, moq, alert);
-    return stock > 0 && moq >= 1 && alert > 0 && !moqTooHigh && !alertTooHigh;
-  });
+    // but only the first means the operator has not looked at this size yet,
+    // and saying "required" beats saying "must be above 0" about a blank box.
+    if (raw.some((value) => value === undefined || value === '')) {
+      if (raw[0] === undefined || raw[0] === '') out.push({ size, field: 'stock', message: 'Stock required' });
+      if (raw[1] === undefined || raw[1] === '') out.push({ size, field: 'moq', message: 'MOQ required' });
+      if (raw[2] === undefined || raw[2] === '') out.push({ size, field: 'lowStockAlert', message: 'Alert required' });
+      continue;
+    }
+    check(Number(raw[0]) || 0, Number(raw[1]) || 0, Number(raw[2]) || 0, size);
+  }
+  return out;
 }
 
 /** Pricing and inventory. */
 export function validateStep3(state: WizardState): ValidationResult {
   const errors: Record<string, string> = {};
+  let variationIssues: VariationIssue[] | undefined;
   const basePrice = parseFloat(state.basePrice) || 0;
   const hasVariant = resolveHasVariant(state.hasVariant, state.variations);
 
@@ -199,16 +254,27 @@ export function validateStep3(state: WizardState): ValidationResult {
     if (state.variations.length === 0) {
       errors.variations = 'Please generate variations first';
     } else {
-      const incomplete = state.variations.filter(
-        (v) =>
-          !isVariationPriced(v, basePrice) ||
-          !isVariationStocked(v, state.selectedSizes, state.stockedOutSizes),
-      );
-      if (incomplete.length > 0) {
-        errors.variations = `${incomplete.length} variation(s) have invalid stock/moq/alert logic`;
+      const issues: VariationIssue[] = [];
+      state.variations.forEach((v, i) => {
+        const label = variationLabel(v, i);
+        const price = priceIssue(v, basePrice);
+        if (price) issues.push({ variationId: v.id, label, ...price });
+        for (const issue of stockIssues(v, state.selectedSizes, state.stockedOutSizes)) {
+          issues.push({ variationId: v.id, label, ...issue });
+        }
+      });
+
+      if (issues.length > 0) {
+        // The count is the summary; `variationIssues` is what the grid points
+        // at. It says "need attention" rather than naming stock/moq/alert,
+        // because a price fault produced that message too and sent the operator
+        // to look at a grid where nothing was wrong.
+        const affected = new Set(issues.map((i) => i.variationId)).size;
+        errors.variations = `${affected} variation(s) need attention`;
+        variationIssues = issues;
       }
     }
-    return ok(errors);
+    return { ...ok(errors), variationIssues };
   }
 
   if (state.selectedSizes.length > 0) {
