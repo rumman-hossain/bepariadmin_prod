@@ -12,6 +12,7 @@ interface CatalogDetail {
 export function ClassificationTemplates() {
   const classificationDetails = useAddProductStore((s) => s.classificationDetails);
   const productDetailId = useAddProductStore((s) => s.productDetailId);
+  const description = useAddProductStore((s) => s.description);
   const setField = useAddProductStore((s) => s.setField);
 
   /*
@@ -24,11 +25,30 @@ export function ClassificationTemplates() {
     [classificationDetails],
   );
 
+  /*
+   * A TEMPLATE MAY FILL AN EMPTY DESCRIPTION. IT MAY NOT REPLACE ONE.
+   *
+   * This wrote `first.details` over whatever was there, and it runs on MOUNT of
+   * step 2 — so the sequence "pick a classification on step 1, type a
+   * description, press Continue" silently replaced the operator's words with
+   * catalogue boilerplate. Reproduced on dev: a typed sentence became the
+   * Bengali template between one step and the next, with nothing said.
+   *
+   * It mattered little while the description reached no column. It persists
+   * now, so the wrong text is durably stored.
+   *
+   * Read imperatively rather than through a dependency or a ref: including
+   * `description` would re-run a one-time seed on every keystroke, and writing
+   * a ref during render is what this project's React Compiler lint refuses.
+   * `getState()` is the store's own escape hatch for exactly this.
+   */
   useEffect(() => {
     if (details.length > 0 && !productDetailId) {
       const first = details[0];
       setField('productDetailId', first.id);
-      if (first.details) setField('description', first.details);
+      if (first.details && !useAddProductStore.getState().description.trim()) {
+        setField('description', first.details);
+      }
     }
   }, [details, productDetailId, setField]);
 
@@ -48,8 +68,13 @@ export function ClassificationTemplates() {
               key={detail.id}
               type="button"
               onClick={() => {
+                // Same rule on an explicit pick: the classification is what the
+                // operator chose, the description is what they wrote. Clearing
+                // the box first is how they ask for the template text.
                 setField('productDetailId', detail.id);
-                if (detail.details) setField('description', detail.details);
+                if (detail.details && !description.trim()) {
+                  setField('description', detail.details);
+                }
               }}
               className={cn(
                 'w-full text-left p-3 rounded-xl border transition-colors',
