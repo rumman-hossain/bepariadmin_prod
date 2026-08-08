@@ -295,3 +295,90 @@ describe('FormActions', () => {
     expect(buttons).toEqual(['Cancel', 'Save']);
   });
 });
+
+// ─── Dialog: dismissing something half-typed ─────────────────────
+
+/**
+ * A DISMISSAL MUST NOT SILENTLY DESTROY WORK.
+ *
+ * `closeOnBackdrop` defaults to true, and `ReasonDialog` — the one dialog in
+ * the app whose entire purpose is a piece of writing the supplier will read —
+ * inherited it with no guard. A stray click on the backdrop threw away a
+ * rejection reason mid-sentence, with no warning and no undo.
+ *
+ * The guard lives on the PRIMITIVE, not on that caller, because this is a
+ * failure every hand-rolled modal gets wrong differently and six in this app
+ * had not considered at all. These assertions therefore hold for every dialog
+ * that opts in, not just the one that prompted them.
+ */
+describe('Dialog guards unsaved input', () => {
+  const dirtyDialog = (onClose: () => void) =>
+    render(
+      <Dialog open onClose={onClose} title="Reject product" isDirty>
+        <textarea aria-label="Reason" defaultValue="Photos are blurry" />
+      </Dialog>,
+    );
+
+  it('asks before discarding on Escape', () => {
+    const onClose = vi.fn();
+    dirtyDialog(onClose);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByText(/discard your changes\?/i)).toBeTruthy();
+  });
+
+  it('closes once the operator confirms', () => {
+    const onClose = vi.fn();
+    dirtyDialog(onClose);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: /^discard$/i }));
+
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('keeps the dialog open when the operator backs out', () => {
+    const onClose = vi.fn();
+    dirtyDialog(onClose);
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    fireEvent.click(screen.getByRole('button', { name: /keep editing/i }));
+
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.queryByText(/discard your changes\?/i)).toBeNull();
+  });
+
+  it('does not nag when nothing has been typed', () => {
+    const onClose = vi.fn();
+    render(
+      <Dialog open onClose={onClose} title="Reject product">
+        <textarea aria-label="Reason" />
+      </Dialog>,
+    );
+
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalled();
+  });
+});
+
+describe('Dialog names itself', () => {
+  it('wires aria-labelledby to the title it renders', () => {
+    // Without `title` the header row does not render at all — no heading, no
+    // close button — and aria-labelledby resolves to undefined. Seven modals
+    // shipped that way, each with a bare <h3> in the body that the
+    // accessibility tree never connected to the dialog.
+    render(
+      <Dialog open onClose={() => {}} title="Adjust points">
+        <p>body</p>
+      </Dialog>,
+    );
+
+    const dialog = screen.getByRole('dialog');
+    const labelledBy = dialog.getAttribute('aria-labelledby');
+    expect(labelledBy).toBeTruthy();
+    expect(document.getElementById(labelledBy!)?.textContent).toBe('Adjust points');
+    expect(screen.getByRole('button', { name: /close/i })).toBeTruthy();
+  });
+});

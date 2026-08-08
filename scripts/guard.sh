@@ -314,6 +314,61 @@ for pair in "StockMatrix:the per-size stock grid" "setVariationMediaSlot:per-var
 done
 report "orphaned-required-control" "a validator demands this data and nothing renders the control that supplies it" "$orphans"
 
+# The per-variation low-stock alert, checked by its WRITE rather than its name.
+#
+# `lowStockAlert` alone is far too common a symbol — the non-variant inventory
+# section, the payload builder and the summary all mention it legitimately, so a
+# name-based check passed while the control was gone. What has to exist is
+# something that writes the field ON A VARIATION; `isVariationStocked` requires
+# it above 0 for a sizeless variant product, and for a long time nothing did.
+alertctl=$(grep -rnE --include='*.tsx' "updateVariation\([^)]*lowStockAlert" "$SRC/features" 2>/dev/null \
+  | grep -v '__tests__' || true)
+if [ -z "$alertctl" ]; then
+  alertctl="${SRC}: nothing writes lowStockAlert on a variation — the validator requires it"
+else
+  alertctl=""
+fi
+report "orphaned-variation-alert" "a variant product needs a low-stock alert and no control writes one" "$alertctl"
+
+# ─────────────────────────────────────────────────────────────────────
+# G20 — a Dialog without a title has no name and no way out.
+#
+# `Dialog` gates its ENTIRE header row — the heading, the subtitle and the
+# close button — on `title || subtitle`, and wires `aria-labelledby` to the
+# title it renders. Omit the prop and you get a dialog with no accessible name
+# and no X, whose only exit is whatever the author remembered to put in the
+# body.
+#
+# Seven modals were built that way: the five add-product prompts, the selection
+# picker and the Variation Manager. Each hand-rolled a bare <h3> inside the
+# body, which reads as a heading to a sighted user and is invisible to the
+# accessibility tree as the dialog's name. All seven also re-added `p-6` inside
+# a body already padded `px-5 py-4`.
+#
+# Nothing else can see this. `title` is optional — legitimately, since
+# ConfirmDialog composes its own layout — so TypeScript is satisfied, lint has
+# no opinion, and the component renders perfectly well.
+#
+# Scoped to features/ and pages/: components/feedback owns the primitive and
+# ConfirmDialog is its deliberate exception.
+dialogs=$(grep -rn --include='*.tsx' "<Dialog$" "$SRC/features" 2>/dev/null | while IFS=: read -r file line _; do
+  # The props of a multi-line <Dialog ...> tag end at the first line that is
+  # just `>` or `/>`; look no further than that.
+  # A flag, not `exit 0` from the rule: awk runs END after an in-rule exit, so
+  # END's status replaced it and every dialog reported as untitled — including
+  # the six that are correct. Caught by running the guard against a file known
+  # to pass, which is why a guard's first run should be against known-good code.
+  if ! awk -v start="$line" '
+        NR<=start { next }
+        NR>start+25 { exit found?0:1 }
+        /title=/ { found=1; exit 0 }
+        /^[[:space:]]*\/?>[[:space:]]*$/ { exit found?0:1 }
+        END { exit found?0:1 }' "$file"; then
+    echo "$file:$line: <Dialog> with no title — no accessible name, no close button"
+  fi
+done || true)
+report "dialog-needs-title" "pass title= so Dialog renders its header, close button and aria-labelledby" "$dialogs"
+
 # G12 — no financial figure is computed in a component.
 #
 # This is the most important rule in the system, and it exists because of a

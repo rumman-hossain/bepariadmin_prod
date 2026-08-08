@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Check, ChevronLeft, ChevronRight, Loader2, RotateCcw } from 'lucide-react';
 import { Button } from '@/src/components/controls';
-import { Dialog } from '@/src/components/feedback';
+import { Dialog, DialogFooter } from '@/src/components/feedback';
 import { useAddProductLogic, type WizardStep } from '../hooks/useAddProductLogic';
 import { useFormValidation } from '../hooks/useFormValidation';
 import { SelectionModal } from './SelectionModal';
@@ -335,13 +335,24 @@ export function AddProductFlow({ onBack }: Props) {
         </div>
       </div>
 
-      <Dialog open={showResetPrompt} onClose={() => setShowResetPrompt(false)} size="sm">
-        <div className="space-y-4 p-6">
-          <h3 className="text-lg font-semibold">Reset form?</h3>
-          <Text as="p" variant="secondary">
-            Everything entered so far is cleared, including uploaded media.
-          </Text>
-          <div className="flex gap-3">
+      {/*
+        All five prompts below pass `title` and `footer`.
+
+        They used to hand-roll both inside the body. Dialog gates its whole
+        header row — heading, subtitle and the close button — on
+        `title || subtitle`, and wires `aria-labelledby` to the title it renders.
+        So a prompt with a bare <h3> in its body had NO accessible name and NO
+        close control, and added `p-6` inside a body already at `px-5 py-4`.
+        Their footers were left-aligned with the primary action first, against
+        the convention every other dialog in the app follows.
+      */}
+      <Dialog
+        open={showResetPrompt}
+        onClose={() => setShowResetPrompt(false)}
+        size="sm"
+        title="Reset form?"
+        footer={
+          <DialogFooter onCancel={() => setShowResetPrompt(false)}>
             <Button
               variant="danger"
               onClick={() => {
@@ -352,11 +363,12 @@ export function AddProductFlow({ onBack }: Props) {
             >
               Reset
             </Button>
-            <Button variant="outline" onClick={() => setShowResetPrompt(false)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
+          </DialogFooter>
+        }
+      >
+        <Text as="p" variant="secondary">
+          Everything entered so far is cleared, including uploaded media.
+        </Text>
       </Dialog>
 
       {selectionType !== 'none' && (
@@ -378,86 +390,129 @@ export function AddProductFlow({ onBack }: Props) {
         />
       )}
 
-      <Dialog open={showVariantPrompt} onClose={cancelPrompt} size="sm">
-        <div className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold">Does this product have variants?</h3>
-          <Text as="p" variant="secondary">
-            Choose whether customers can select colors, designs, or sizes as separate SKUs.
-          </Text>
-          <div className="flex gap-3">
-            <Button fullWidth onClick={() => handleVariantChoice(true)}>
-              Yes, has variants
-            </Button>
-            <Button fullWidth variant="outline" onClick={() => handleVariantChoice(false)}>
+      <Dialog
+        open={showVariantPrompt}
+        onClose={cancelPrompt}
+        size="sm"
+        title="Does this product have variants?"
+        footer={
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => handleVariantChoice(false)}>
               No variants
             </Button>
-          </div>
-        </div>
+            <Button onClick={() => handleVariantChoice(true)}>Yes, has variants</Button>
+          </DialogFooter>
+        }
+      >
+        <Text as="p" variant="secondary">
+          Choose whether customers can select colors, designs, or sizes as separate SKUs.
+        </Text>
       </Dialog>
 
-      <Dialog open={showDiscardPricingPrompt} onClose={() => setShowDiscardPricingPrompt(false)} size="sm">
-        <div className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold">Discard pricing data?</h3>
-          <Text as="p" variant="secondary">Going back will clear pricing and inventory fields.</Text>
-          <div className="flex gap-3">
+      <Dialog
+        open={showDiscardPricingPrompt}
+        onClose={() => setShowDiscardPricingPrompt(false)}
+        size="sm"
+        title="Discard pricing data?"
+        footer={
+          <DialogFooter cancelLabel="Stay" onCancel={() => setShowDiscardPricingPrompt(false)}>
             <Button variant="danger" onClick={handleDiscardPricingConfirm}>
-              Discard & go back
+              Discard &amp; go back
             </Button>
-            <Button variant="outline" onClick={() => setShowDiscardPricingPrompt(false)}>
-              Stay
-            </Button>
-          </div>
-        </div>
+          </DialogFooter>
+        }
+      >
+        <Text as="p" variant="secondary">Going back will clear pricing and inventory fields.</Text>
       </Dialog>
 
-      <Dialog open={showPricingReusePrompt} onClose={cancelPrompt} size="sm">
-        <div className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold">Reuse existing pricing?</h3>
-          <Text as="p" variant="secondary">
-            You already entered pricing data. Keep it for this variant choice or start fresh?
-          </Text>
-          <div className="flex gap-3">
-            <Button onClick={() => handlePricingReuseChoice(true)}>Keep pricing</Button>
-            <Button variant="outline" onClick={() => handlePricingReuseChoice(false)}>
+      <Dialog
+        open={showPricingReusePrompt}
+        onClose={cancelPrompt}
+        size="sm"
+        title="Reuse existing pricing?"
+        footer={
+          <DialogFooter>
+            {/* Start fresh DISCARDS what was typed, so it is the danger one —
+                and it does not sit where a hurried operator clicks first. */}
+            <Button variant="danger" onClick={() => handlePricingReuseChoice(false)}>
               Start fresh
             </Button>
-          </div>
-        </div>
+            <Button onClick={() => handlePricingReuseChoice(true)}>Keep pricing</Button>
+          </DialogFooter>
+        }
+      >
+        <Text as="p" variant="secondary">
+          You already entered pricing data. Keep it for this variant choice or start fresh?
+        </Text>
       </Dialog>
 
-      <Dialog open={showSubmitPrompt} onClose={() => setShowSubmitPrompt(false)} size="sm">
-        <div className="p-6 space-y-4">
-          <h3 className="text-lg font-semibold">
-            {isEditMode ? 'Update this product?' : 'Register this product?'}
-          </h3>
-          <Text as="p" variant="secondary">
-            Media uploads must finish before submit. Admin JWT may block wholesaler-only APIs until backend support
-            is added.
-          </Text>
-          <div className="flex gap-3">
+      <Dialog
+        open={showSubmitPrompt}
+        onClose={() => setShowSubmitPrompt(false)}
+        size="sm"
+        title={isEditMode ? 'Update this product?' : 'Register this product?'}
+        footer={
+          <DialogFooter
+            onCancel={isSaving ? undefined : () => setShowSubmitPrompt(false)}
+          >
             <Button
               loading={isSaving}
               onClick={() => {
                 void handleSubmitProduct().then(() => setShowSubmitPrompt(false));
               }}
             >
-              Confirm
+              {isEditMode ? 'Update' : 'Register'}
             </Button>
-            <Button variant="outline" onClick={() => setShowSubmitPrompt(false)}>
-              Cancel
-            </Button>
-          </div>
-        </div>
+          </DialogFooter>
+        }
+      >
+        {/* Cancel disappears while saving rather than sitting there clickable:
+            it was live mid-submit, and cancelling a request already in flight
+            does not un-send it — it just leaves the operator unsure whether the
+            product was created. */}
+        <Text as="p" variant="secondary">
+          Media uploads must finish before submit. Admin JWT may block wholesaler-only APIs until backend support
+          is added.
+        </Text>
       </Dialog>
 
-      {registrationState === 'success' && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-8 text-center space-y-3">
-            <Check className="w-12 h-12 text-ok mx-auto" />
-            <p className="text-lg font-semibold">Product saved successfully</p>
-          </div>
+      {/*
+        A REAL DIALOG, ON TOKENS.
+
+        This was a bare `fixed inset-0 bg-black/40` with a `bg-white` card: not
+        a portal, no role, no aria-live, no dismiss control, no Escape, and a
+        hardcoded `z-50` — the exact value Dialog was changed away from so it
+        would sit on the documented stacking scale rather than colliding with
+        whatever else picked 50.
+
+        `bg-white` is also invisible to the palette guard, whose family list has
+        no `white` or `black`, so it passed review while being broken: in dark
+        mode `--color-ink` is near-white, so this rendered white text on a white
+        card. The one screen state that says "your work was saved" was the one
+        an operator in dark mode could not read.
+
+        aria-live via `role="status"` so it is announced, not just drawn.
+      */}
+      <Dialog
+        open={registrationState === 'success'}
+        onClose={onBack}
+        size="sm"
+        title="Product saved"
+        footer={
+          <DialogFooter>
+            <Button onClick={onBack}>Back to products</Button>
+          </DialogFooter>
+        }
+      >
+        <div role="status" className="flex flex-col items-center gap-3 py-2 text-center">
+          <Check className="h-12 w-12 text-ok" aria-hidden="true" />
+          <Text as="p" variant="secondary">
+            {isEditMode
+              ? 'Your changes are saved and the listing has been updated.'
+              : 'The listing has been created and sent for review.'}
+          </Text>
         </div>
-      )}
+      </Dialog>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { Button } from '@/src/components/controls';
-import { Dialog } from '@/src/components/feedback';
+import { Dialog, DialogFooter } from '@/src/components/feedback';
 import { Input } from '@/src/components/controls';
 import { Money, Text } from '@/src/components/data';
 import { cn } from '@/src/design-system/utils/cn';
@@ -194,9 +194,33 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
         )}
       </div>
 
-      <Dialog open={managerOpen} onClose={() => setManagerOpen(false)} size="lg">
-        <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-          <h3 className="text-lg font-semibold">Variation Manager</h3>
+      {/*
+        `title` and `footer`, not a hand-rolled body.
+
+        Dialog gates its header row — heading, subtitle, close button — on
+        `title || subtitle`, and wires aria-labelledby to the title it renders.
+        With a bare <h3> in the body this had no accessible name and no way to
+        close it but the one button at the bottom. It also set its own
+        `max-h-[70vh] overflow-y-auto` INSIDE Dialog's already-scrolling body,
+        so a long variation list had two nested scrollers fighting each other.
+      */}
+      <Dialog
+        open={managerOpen}
+        onClose={() => setManagerOpen(false)}
+        size="lg"
+        title="Variation Manager"
+        subtitle={
+          selectedSizes.length > 0
+            ? 'Per-size stock is set in the grid below this panel.'
+            : undefined
+        }
+        footer={
+          <DialogFooter>
+            <Button onClick={() => setManagerOpen(false)}>Done</Button>
+          </DialogFooter>
+        }
+      >
+        <div className="space-y-4">
           {variations.length === 0 ? (
             <Text as="p" variant="secondary">No variations yet. Generate from colors/designs above.</Text>
           ) : (
@@ -270,9 +294,6 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
               ))}
             </div>
           )}
-          <Button variant="outline" onClick={() => setManagerOpen(false)}>
-            Done
-          </Button>
         </div>
       </Dialog>
     </div>

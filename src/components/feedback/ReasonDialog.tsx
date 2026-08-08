@@ -29,9 +29,30 @@ interface ReasonDialogProps {
  * the previous reason on screen for a frame the next time the dialog opened.
  */
 export function ReasonDialog({ open, onClose, ...props }: ReasonDialogProps) {
+  /*
+   * Whether the operator has typed a reason yet.
+   *
+   * This dialog inherited `closeOnBackdrop`'s default of `true` and had no
+   * dirty guard, so a stray click on the backdrop threw away a rejection reason
+   * mid-sentence with no warning — on the one dialog in the app whose entire
+   * purpose is a piece of writing the supplier will read.
+   *
+   * Held here rather than in the body because Dialog needs it, and the body is
+   * deliberately remounted per open (see above) so its own state cannot be
+   * lifted without reintroducing the stale-frame bug that remount fixes.
+   */
+  const [dirty, setDirty] = useState(false);
+
   return (
-    <Dialog open={open} onClose={onClose} size="sm">
-      {open && <ReasonDialogBody onClose={onClose} {...props} />}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      size="sm"
+      title={props.title}
+      isDirty={dirty}
+      discardMessage="The reason you have written will be lost."
+    >
+      {open && <ReasonDialogBody onClose={onClose} onDirtyChange={setDirty} {...props} />}
     </Dialog>
   );
 }
@@ -39,12 +60,12 @@ export function ReasonDialog({ open, onClose, ...props }: ReasonDialogProps) {
 function ReasonDialogBody({
   onClose,
   onConfirm,
-  title,
+  onDirtyChange,
   message,
   confirmLabel = 'Confirm',
   variant = 'danger',
   loading = false,
-}: Omit<ReasonDialogProps, 'open'>) {
+}: Omit<ReasonDialogProps, 'open' | 'title'> & { onDirtyChange: (dirty: boolean) => void }) {
   const [reason, setReason] = useState('');
   const [localError, setLocalError] = useState<string | null>(null);
 
@@ -76,17 +97,21 @@ function ReasonDialogBody({
         >
           <AlertTriangle className="w-5 h-5" aria-hidden="true" />
         </div>
-        <div>
-          <h3 className="text-lg font-bold text-ink">{title}</h3>
-          <Text as="p" variant="secondary" className="mt-1">{message}</Text>
-        </div>
+        {/* The heading moved to Dialog's `title`, which is what wires
+            aria-labelledby and renders the close button — with it in the body
+            this dialog had neither. `font-bold` went with it: the type scale
+            deliberately stops at semibold. */}
+        <Text as="p" variant="secondary">{message}</Text>
       </div>
 
       <Textarea
         label="Reason"
         required
         value={reason}
-        onChange={(e) => setReason(e.target.value)}
+        onChange={(e) => {
+          setReason(e.target.value);
+          onDirtyChange(e.target.value.trim().length > 0);
+        }}
         rows={4}
         maxLength={MAX_REASON_LENGTH}
         placeholder="Enter the reason for this action…"

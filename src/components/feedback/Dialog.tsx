@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useId, useRef } from 'react';
+import React, { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { AlertTriangle, X, type LucideIcon } from 'lucide-react';
 import { cn } from '@/src/design-system/utils/cn';
@@ -35,6 +35,22 @@ export interface DialogProps {
   footer?: React.ReactNode;
   closeOnBackdrop?: boolean;
   className?: string;
+  /*
+   * True when the dialog holds input the operator would lose by dismissing it.
+   *
+   * Escape and a backdrop click then raise a discard confirmation instead of
+   * closing. It lives HERE rather than in each caller because the failure it
+   * prevents — a stray backdrop click throwing away a typed rejection reason —
+   * is one every hand-rolled modal would get wrong differently, and six of the
+   * ones in this app did not consider it at all.
+   *
+   * Leave it false for a dialog that holds no input: a confirmation the
+   * operator must answer already uses `closeOnBackdrop`, and asking "discard?"
+   * about a question is nonsense.
+   */
+  isDirty?: boolean;
+  /** Shown in the discard confirmation, so it can name what is being lost. */
+  discardMessage?: string;
 }
 
 /**
@@ -60,11 +76,27 @@ export function Dialog({
   footer,
   closeOnBackdrop = true,
   className,
+  isDirty = false,
+  discardMessage = 'Anything typed here will be lost.',
 }: DialogProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const restoreFocusTo = useRef<HTMLElement | null>(null);
   const titleId = useId();
   const subtitleId = useId();
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+
+  /*
+   * The single door out for both dismissal gestures.
+   *
+   * Escape and the backdrop used to call `onClose` directly, so a dialog
+   * holding a half-typed rejection reason discarded it on a misclick with no
+   * warning. Routing both through here means a caller cannot opt one of them
+   * into the guard and forget the other.
+   */
+  const requestClose = useCallback(() => {
+    if (isDirty) setConfirmingDiscard(true);
+    else onClose();
+  }, [isDirty, onClose]);
 
   // Bound to the document, not the panel, so Escape works wherever focus sits —
   // including after a backdrop click has moved it out.
@@ -73,12 +105,12 @@ export function Dialog({
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        requestClose();
       }
     };
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
-  }, [open, onClose]);
+  }, [open, requestClose]);
 
   // Focus trap: cycle Tab within the panel.
   useEffect(() => {
@@ -140,9 +172,9 @@ export function Dialog({
 
   const onBackdropClick = useCallback(
     (e: React.MouseEvent) => {
-      if (closeOnBackdrop && e.target === e.currentTarget) onClose();
+      if (closeOnBackdrop && e.target === e.currentTarget) requestClose();
     },
-    [closeOnBackdrop, onClose],
+    [closeOnBackdrop, requestClose],
   );
 
   if (!open || typeof document === 'undefined') return null;
@@ -211,13 +243,82 @@ export function Dialog({
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
 
         {footer && (
-          <div className="flex shrink-0 items-center justify-end gap-2 border-t border-rule-subtle px-5 py-3">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2 border-t border-rule-subtle px-5 py-3">
             {footer}
+          </div>
+        )}
+
+        {/*
+          The discard guard, rendered INSIDE the panel rather than as a second
+          Dialog.
+
+          A nested portal would put a dialog on top of a dialog, and the focus
+          trap of the one underneath would still be live — Tab would cycle
+          through the form the operator is being asked about. Covering the panel
+          keeps one trap, one Escape handler and one scroll lock.
+        */}
+        {confirmingDiscard && (
+          <div className="absolute inset-0 z-(--z-raised) flex items-center justify-center rounded-lg bg-sheet/95 p-5">
+            <div className="max-w-xs text-center">
+              <p className="text-md font-semibold text-ink">Discard your changes?</p>
+              <p className="mt-1 text-sm text-ink-2">{discardMessage}</p>
+              <div className="mt-4 flex justify-center gap-2">
+                <Button variant="secondary" onClick={() => setConfirmingDiscard(false)}>
+                  Keep editing
+                </Button>
+                <Button
+                  variant="danger"
+                  onClick={() => {
+                    setConfirmingDiscard(false);
+                    onClose();
+                  }}
+                >
+                  Discard
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>
     </div>,
     document.body,
+  );
+}
+
+/**
+ * The standard dialog action row.
+ *
+ * `DialogProps.footer` has told callers to "use `DialogFooter`" since the
+ * primitive was written, and it did not exist — that string's only other
+ * occurrence in the tree was the docstring itself. So six callers invented six
+ * footers, and "Cancel" acquired three different spellings across them
+ * (`ghost`, `secondary`, `outline`).
+ *
+ * Cancel FIRST in source order and therefore first in the tab order, primary
+ * last: the destructive or committing action should not be the thing a hurried
+ * operator reaches by muscle memory. Four dialogs in the wizard had it the
+ * other way round.
+ */
+export function DialogFooter({
+  cancelLabel = 'Cancel',
+  onCancel,
+  children,
+}: {
+  cancelLabel?: string;
+  /** Omit to render no cancel — for a dialog whose only exit is the primary. */
+  onCancel?: () => void;
+  /** The primary action, and any secondary ones, in order. */
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      {onCancel && (
+        <Button variant="secondary" onClick={onCancel}>
+          {cancelLabel}
+        </Button>
+      )}
+      {children}
+    </>
   );
 }
 

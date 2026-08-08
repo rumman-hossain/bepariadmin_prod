@@ -24,6 +24,7 @@ export {
 } from './States';
 export {
   Dialog,
+  DialogFooter,
   ConfirmDialog,
   type DialogProps,
   type DialogSize,
