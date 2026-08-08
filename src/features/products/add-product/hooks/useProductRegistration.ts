@@ -140,7 +140,18 @@ export function useProductRegistration(editingProductId?: string | null) {
         return;
       }
 
-      const hasNewMedia = s.draftId !== editingProductId;
+      /*
+       * A draft EXISTS only because something was uploaded this session.
+       *
+       * This was `s.draftId !== editingProductId`, which worked by seeding
+       * `draftId` with the product id on hydrate — and that seed was itself
+       * sent to `POST /uploads/drafts?draftId=…`, where it 404'd, so no image
+       * could be added to an existing product at all. With the seed gone the
+       * question answers itself: null means nothing was uploaded, so there is
+       * nothing to publish. Creating a product starts null too, so this reads
+       * the same on both paths.
+       */
+      const hasNewMedia = s.draftId !== null;
       let publishRes: PublishDraftResponse = {
         success: true,
         state: 'PUBLISHED',

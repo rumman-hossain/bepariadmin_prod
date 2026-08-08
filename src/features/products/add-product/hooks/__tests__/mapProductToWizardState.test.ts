@@ -165,3 +165,32 @@ describe('a product that already has media', () => {
     expect(m.poster.uploadedUrl).toBe('');
   });
 });
+
+/**
+ * `draftId` IS AN UPLOAD DRAFT, NOT THE PRODUCT.
+ *
+ * Hydrate used to seed it with `p.id`, purely so submit could compute
+ * `hasNewMedia = draftId !== editingProductId` — "unchanged" falling out of an
+ * inequality. But `uploadSlot` hands the same field to `createDraft` as the
+ * draft to append a file to:
+ *
+ *   POST /api/v1/uploads/drafts?draftId=5e993cca-…  → 404
+ *
+ * No upload draft carries a product's id, so EVERY image added or replaced
+ * during an edit failed. The only product whose photographs could be changed
+ * was one that had none. Found on dev by adding a detail shot to a real
+ * product — the new readiness banner reported "1 upload failed" immediately,
+ * which is how it surfaced at all.
+ *
+ * An edit has no upload draft until the operator uploads something. That is
+ * what null means, and submit now reads it directly.
+ */
+describe('hydrating does not invent an upload draft', () => {
+  it('leaves draftId null for a product being edited', () => {
+    const mapped = mapProductToWizardState({ id: 'prod-1', name: 'X' } as unknown as Product);
+
+    expect(mapped.draftId).toBeNull();
+    // Specifically NOT the product id: that value gets sent to the uploads API.
+    expect(mapped.draftId).not.toBe('prod-1');
+  });
+});

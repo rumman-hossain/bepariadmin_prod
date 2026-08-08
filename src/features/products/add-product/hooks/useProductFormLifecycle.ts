@@ -162,7 +162,27 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
     variationDesigns: (p as Product & { variationDesigns?: string[] }).variationDesigns || [],
     variations,
     productMedia,
-    draftId: p.id,
+    /*
+     * NULL, NOT THE PRODUCT ID.
+     *
+     * This was `p.id`, used as a sentinel: submit computed
+     * `hasNewMedia = draftId !== editingProductId`, so seeding it with the
+     * product id made "unchanged" fall out of an inequality. But `draftId` is
+     * an UPLOAD DRAFT id — `uploadSlot` passes it to `createDraft` as the draft
+     * to append this file to:
+     *
+     *   POST /api/v1/uploads/drafts?draftId=5e993cca-…   → 404
+     *
+     * …because no upload draft has a product's id. So every image added or
+     * replaced during an edit failed, and the only way to change a product's
+     * photographs was not to have any yet. Found on dev by adding a detail shot
+     * to an existing product.
+     *
+     * An edit genuinely has no upload draft until the operator uploads
+     * something, which is what `null` says. Submit now reads that directly —
+     * see `hasNewMedia` in useProductRegistration.
+     */
+    draftId: null,
     wholesalerId: p.wholesalerId,
   };
 }
