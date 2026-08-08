@@ -66,8 +66,6 @@ export function collectProductMedia(
     media.poster,
     media.front,
     media.back,
-    media.left,
-    media.right,
     ...media.more,
   ];
 

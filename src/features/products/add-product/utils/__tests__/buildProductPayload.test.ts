@@ -119,33 +119,26 @@ describe('collectProductMedia', () => {
     // the slot's identity, and the storefront orders by it.
     const media = emptyProductMedia();
     media.front = uploaded('https://cdn/front.jpg');
-    media.right = uploaded('https://cdn/right.jpg');
+    media.more = [uploaded('https://cdn/detail.jpg')];
 
     expect(collectProductMedia(media, false)).toEqual([
       { url: 'https://cdn/front.jpg', mediaType: 'image', position: 1 },
-      { url: 'https://cdn/right.jpg', mediaType: 'image', position: 4 },
+      { url: 'https://cdn/detail.jpg', mediaType: 'image', position: 3 },
     ]);
   });
 
-  it('orders poster, front, back, left, right, then extras', () => {
+  it('orders poster, front, back, then the detail shots', () => {
+    // `left` and `right` are gone — a wholesale listing wants a poster, two
+    // views and a few details, not six orthographic sides. Positions close up
+    // behind them, so a detail shot is 3 rather than 5.
     const media = emptyProductMedia();
     media.poster = uploaded('p');
     media.front = uploaded('f');
     media.back = uploaded('b');
-    media.left = uploaded('l');
-    media.right = uploaded('r');
     media.more = [uploaded('m0'), uploaded('m1')];
 
-    expect(collectProductMedia(media, false).map((m) => m.url)).toEqual([
-      'p',
-      'f',
-      'b',
-      'l',
-      'r',
-      'm0',
-      'm1',
-    ]);
-    expect(collectProductMedia(media, false).map((m) => m.position)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+    expect(collectProductMedia(media, false).map((m) => m.url)).toEqual(['p', 'f', 'b', 'm0', 'm1']);
+    expect(collectProductMedia(media, false).map((m) => m.position)).toEqual([0, 1, 2, 3, 4]);
   });
 
   it('sends only the poster when the product has variants', () => {

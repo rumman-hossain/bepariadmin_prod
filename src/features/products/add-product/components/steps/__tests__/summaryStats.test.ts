@@ -30,8 +30,6 @@ const media = (over: Partial<ProductMediaState> = {}): ProductMediaState => ({
   poster: slot(),
   front: slot(),
   back: slot(),
-  left: slot(),
-  right: slot(),
   more: [],
   video: { ...slot(), thumbnail: '' },
   ...over,
@@ -82,10 +80,10 @@ describe('countProductMedia', () => {
      * while they watch the thumbnails on screen.
      */
     const c = countProductMedia(
-      media({ front: local(), back: remote(), left: local(), right: remote(), poster: local() }),
+      media({ front: local(), back: remote(), poster: local() }),
       [],
     );
-    expect(c.mainCount).toBe(5);
+    expect(c.mainCount).toBe(3);
   });
 
   it('counts the extra slots separately from the five named ones', () => {

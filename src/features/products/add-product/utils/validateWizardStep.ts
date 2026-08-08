@@ -359,8 +359,6 @@ export function validateStep4(state: WizardState): ValidationResult {
       media.poster,
       media.front,
       media.back,
-      media.left,
-      media.right,
       ...media.more,
       media.video,
     ].filter(slotActive);

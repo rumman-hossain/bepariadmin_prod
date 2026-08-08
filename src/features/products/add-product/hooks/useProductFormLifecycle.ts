@@ -47,11 +47,15 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
   if (media) {
     media.forEach((m) => {
       const slot = { localUri: m.url, uploadedUrl: m.url, uploadStatus: 'done' as const };
+      /*
+       * Positions 3 and 4 were `left` and `right`, which no longer exist as
+       * slots. They fold into the gallery rather than being dropped: every
+       * product created before this change has them, and silently losing two
+       * images on open would be a far worse bug than the slots were.
+       */
       if (m.position === 0) productMedia.poster = slot;
       else if (m.position === 1) productMedia.front = slot;
       else if (m.position === 2) productMedia.back = slot;
-      else if (m.position === 3) productMedia.left = slot;
-      else if (m.position === 4) productMedia.right = slot;
       else productMedia.more.push(slot);
     });
   }

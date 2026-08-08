@@ -137,15 +137,32 @@ function MediaSlotInput({
 }
 
 /** The five named product slots, in the order the storefront reads them. */
-const PRODUCT_SLOTS = [
-  { key: 'poster', label: 'Poster', position: 0 },
-  { key: 'front', label: 'Front', position: 1 },
-  { key: 'back', label: 'Back', position: 2 },
-  { key: 'left', label: 'Left', position: 3 },
-  { key: 'right', label: 'Right', position: 4 },
+/*
+ * Three named shots, then a short gallery.
+ *
+ * `left` and `right` are gone. A wholesale catalogue is not an orthographic
+ * drawing — a buyer wants the poster, the front, the back and a couple of
+ * detail shots, and five fixed squares of equal weight said nothing about
+ * which of them mattered. Existing side shots fold into the gallery on
+ * hydrate, so nothing is lost from a product that already has them.
+ */
+const NAMED_SLOTS = [
+  {
+    key: 'front',
+    label: 'Front',
+    hint: 'The main product shot',
+    position: 1,
+  },
+  {
+    key: 'back',
+    label: 'Back',
+    hint: 'Reverse side',
+    position: 2,
+  },
 ] as const;
 
-const MAX_GALLERY = 5;
+/** Three, not five — see NAMED_SLOTS. */
+const MAX_GALLERY = 3;
 
 /**
  * Media for ONE variation — front, back, a small gallery and a video.
@@ -294,56 +311,108 @@ export function Step4Media() {
   }
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-      {PRODUCT_SLOTS.map(({ key, label, position }) => (
-        <MediaSlotInput
-          key={key}
-          label={label}
-          slot={productMedia[key]}
-          purpose={`product:${key}`}
-          position={position}
-          mediaType="image"
-          onUpdate={(p) => setProductMediaSlot(key, p)}
-          onClear={() => setProductMediaSlot(key, { localUri: '', uploadedUrl: '' })}
-        />
-      ))}
+    <div className="space-y-6">
+      {/*
+        THE POSTER IS NOT ONE OF FIVE EQUAL SQUARES.
 
-      {/* The extra gallery, which also had no UI: five more slots the model,
-          the payload and the summary all already accounted for, capping a new
-          product at six images instead of eleven. */}
-      {productMedia.more.map((slot, i) => (
-        <MediaSlotInput
-          key={i}
-          label={`More ${i + 1}`}
-          slot={slot}
-          purpose="product:more"
-          position={5 + i}
-          mediaType="image"
-          onUpdate={(p) => setProductMoreSlot(i, p)}
-          onClear={() => removeProductMoreSlot(i)}
-        />
-      ))}
+        This was a flat `grid-cols-3` of five identical tiles — poster, front,
+        back, left, right — which told the operator nothing about which image
+        does the work. The poster is the catalogue thumbnail: it is the only one
+        a retailer sees before deciding to open the product at all. It gets the
+        size and the sentence; the rest are supporting shots.
+      */}
+      <section className="grid gap-4 sm:grid-cols-[13rem_minmax(0,1fr)]">
+        <div>
+          <MediaSlotInput
+            label="Poster"
+            slot={productMedia.poster}
+            purpose="product:poster"
+            position={0}
+            mediaType="image"
+            onUpdate={(p) => setProductMediaSlot('poster', p)}
+            onClear={() => setProductMediaSlot('poster', { localUri: '', uploadedUrl: '' })}
+          />
+        </div>
 
-      {productMedia.more.length < MAX_GALLERY && (
-        <button
-          type="button"
-          onClick={() => addProductMoreSlots([emptySlot()])}
-          className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-rule text-ink-3 hover:bg-sheet-2"
-        >
-          <ImagePlus className="h-6 w-6" aria-hidden="true" />
-          <Text variant="caption">Add image</Text>
-        </button>
-      )}
+        <div className="space-y-3">
+          <div>
+            <Text as="p" variant="strong">Catalogue thumbnail</Text>
+            <Text as="p" variant="secondary">
+              The one image a retailer sees before they open the product. Everything else
+              here is seen only after they have.
+            </Text>
+          </div>
 
-      <MediaSlotInput
-        label="Video"
-        slot={productMedia.video}
-        purpose="product:video"
-        position={0}
-        mediaType="video"
-        onUpdate={(p) => setProductVideoSlot(p)}
-        onClear={() => setProductVideoSlot({ localUri: '', uploadedUrl: '' })}
-      />
+          <div className="grid grid-cols-2 gap-3">
+            {NAMED_SLOTS.map(({ key, label, hint, position }) => (
+              <div key={key} className="space-y-1">
+                <MediaSlotInput
+                  label={label}
+                  slot={productMedia[key]}
+                  purpose={`product:${key}`}
+                  position={position}
+                  mediaType="image"
+                  onUpdate={(p) => setProductMediaSlot(key, p)}
+                  onClear={() => setProductMediaSlot(key, { localUri: '', uploadedUrl: '' })}
+                />
+                <Text as="p" variant="caption">{hint}</Text>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Detail shots — optional, capped, and counted so the cap is visible
+          before the operator hits it rather than as a control that vanishes. */}
+      <section className="space-y-2">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <Text as="p" variant="strong">Detail shots</Text>
+          <Text variant="caption">
+            {productMedia.more.length} of {MAX_GALLERY} · optional
+          </Text>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {productMedia.more.map((slot, i) => (
+            <MediaSlotInput
+              key={i}
+              label={`Detail ${i + 1}`}
+              slot={slot}
+              purpose="product:more"
+              position={3 + i}
+              mediaType="image"
+              onUpdate={(p) => setProductMoreSlot(i, p)}
+              onClear={() => removeProductMoreSlot(i)}
+            />
+          ))}
+
+          {productMedia.more.length < MAX_GALLERY && (
+            <button
+              type="button"
+              onClick={() => addProductMoreSlots([emptySlot()])}
+              className="flex aspect-square w-full flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-rule text-ink-3 hover:border-brass hover:bg-sheet-2 hover:text-ink"
+            >
+              <ImagePlus className="h-6 w-6" aria-hidden="true" />
+              <Text variant="caption">Add image</Text>
+            </button>
+          )}
+        </div>
+      </section>
+
+      <section className="space-y-2">
+        <Text as="p" variant="strong">Video</Text>
+        <div className="max-w-3xs">
+          <MediaSlotInput
+            label="Video"
+            slot={productMedia.video}
+            purpose="product:video"
+            position={0}
+            mediaType="video"
+            onUpdate={(p) => setProductVideoSlot(p)}
+            onClear={() => setProductVideoSlot({ localUri: '', uploadedUrl: '' })}
+          />
+        </div>
+      </section>
     </div>
   );
 }

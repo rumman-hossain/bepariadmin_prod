@@ -22,8 +22,6 @@ export const emptyProductMedia = (): ProductMediaState => ({
   poster: emptySlot(),
   front: emptySlot(),
   back: emptySlot(),
-  left: emptySlot(),
-  right: emptySlot(),
   more: [],
   video: { ...emptySlot(), thumbnail: '' },
 });

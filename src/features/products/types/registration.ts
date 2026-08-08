@@ -11,7 +11,7 @@ export interface MediaSlot {
    * A stable identity for a "more"-gallery slot, so background upload progress
    * lands on the right one.
    *
-   * The named slots — poster, front, back, left, right, video — are addressed
+   * The named slots — poster, front, back, video — are addressed
    * by key and need none. The gallery is an ARRAY, and an index is not an
    * identity: remove slot 1 while slot 2 is still uploading and the in-flight
    * progress for the old index 2 arrives at what is now a different image.
@@ -34,8 +34,14 @@ export interface ProductMediaState {
   poster: MediaSlot;
   front: MediaSlot;
   back: MediaSlot;
-  left: MediaSlot;
-  right: MediaSlot;
+  /*
+   * `left` and `right` are GONE.
+   *
+   * Two fixed side-shot slots that a wholesale catalogue does not need — a
+   * shirt has a front, a back and a few detail shots, not six orthographic
+   * views. They are folded into `more` on hydrate so no existing product loses
+   * an image, and the gallery is capped at three.
+   */
   more: MediaSlot[];
   video: MediaSlot & { thumbnail: string };
 }

@@ -72,3 +72,39 @@ describe('hydrating a product for edit', () => {
     expect(v.sizeStock).toBeUndefined();
   });
 });
+
+/**
+ * REMOVING THE SIDE SLOTS MUST NOT REMOVE THE IMAGES.
+ *
+ * `left` and `right` were positions 3 and 4, and every product created before
+ * they were dropped still has media there. Hydrate folds anything past position
+ * 2 into the gallery — silently losing two images on open would be a worse bug
+ * than the slots ever were.
+ */
+describe('media hydrated from a product that predates the slot change', () => {
+  const withMedia = (positions: number[]): Product =>
+    ({
+      id: 'p1',
+      name: 'Old Product',
+      sku: 'WHL-1',
+      basePrice: 100,
+      media: positions.map((position) => ({ url: `img-${position}`, position })),
+    }) as unknown as Product;
+
+  it('keeps the old left and right shots as detail images', () => {
+    const m = mapProductToWizardState(withMedia([0, 1, 2, 3, 4])).productMedia!;
+
+    expect(m.poster.uploadedUrl).toBe('img-0');
+    expect(m.front.uploadedUrl).toBe('img-1');
+    expect(m.back.uploadedUrl).toBe('img-2');
+    // The two that no longer have a slot of their own.
+    expect(m.more.map((s) => s.uploadedUrl)).toEqual(['img-3', 'img-4']);
+  });
+
+  it('loses nothing from a product with more images than the new cap', () => {
+    // The cap limits ADDING. A product that already carries more must still
+    // show all of them, or opening it to edit one field discards the rest.
+    const m = mapProductToWizardState(withMedia([0, 1, 2, 3, 4, 5, 6])).productMedia!;
+    expect(m.more).toHaveLength(4);
+  });
+});

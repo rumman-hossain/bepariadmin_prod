@@ -48,8 +48,6 @@ export function countProductMedia(
   const mainCount = [
     productMedia.front.localUri || productMedia.front.uploadedUrl,
     productMedia.back.localUri || productMedia.back.uploadedUrl,
-    productMedia.left.localUri || productMedia.left.uploadedUrl,
-    productMedia.right.localUri || productMedia.right.uploadedUrl,
     productMedia.poster.localUri || productMedia.poster.uploadedUrl,
   ].filter(Boolean).length;
 
@@ -71,7 +69,7 @@ export function countProductMedia(
     });
 
   const pendingCount =
-    [productMedia.front, productMedia.back, productMedia.poster, productMedia.left, productMedia.right, productMedia.video, ...productMedia.more].filter(
+    [productMedia.front, productMedia.back, productMedia.poster, productMedia.video, ...productMedia.more].filter(
       (s) => s.uploadStatus === 'uploading',
     ).length +
     variations.reduce((acc, v) => {
