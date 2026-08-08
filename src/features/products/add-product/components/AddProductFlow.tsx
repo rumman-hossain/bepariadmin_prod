@@ -184,6 +184,19 @@ export function AddProductFlow({ onBack }: Props) {
   const errorList = Object.values(visibleErrors);
 
   /*
+   * `max-w-4xl` is the reading measure, and it is right for five of the six
+   * steps: a form column wider than that makes the eye travel from a label on
+   * the left to its field on the right.
+   *
+   * Media is not a form column. It is a grid of thumbnails, and the same
+   * measure that keeps a form legible squeezed it into two tiles per row with
+   * the page's whole right-hand side left empty — which is most of why that
+   * step read as cramped no matter how the tiles themselves were arranged. It
+   * gets the window.
+   */
+  const contentWidth = currentStep === 4 ? 'max-w-7xl' : 'max-w-4xl';
+
+  /*
    * FOUR REGIONS, ONE SCROLLER — the wholesale app's shape, in a browser.
    *
    *   header    back │ title + "Step N of 6" │ Reset      shrink-0
@@ -280,7 +293,7 @@ export function AddProductFlow({ onBack }: Props) {
           footer below stops being pinned. The wholesale app carries the same
           warning for the same reason. */}
       <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 md:px-6">
-        <div className="mx-auto w-full max-w-4xl space-y-4">
+        <div className={cn('mx-auto w-full space-y-4', contentWidth)}>
           {errorList.length > 0 && (
             <div
               role="alert"
@@ -308,7 +321,9 @@ export function AddProductFlow({ onBack }: Props) {
 
       {/* ── Footer ─────────────────────────────────────────────── */}
       <div className="shrink-0 border-t border-rule bg-sheet px-4 py-3 md:px-6">
-        <div className="mx-auto flex w-full max-w-4xl items-center gap-3">
+        {/* Same measure as the content above it, or Continue sits under the
+            middle of a full-width step instead of under its right edge. */}
+        <div className={cn('mx-auto flex w-full items-center gap-3', contentWidth)}>
           <Button variant="outline" iconLeft={ChevronLeft} onClick={goPrev}>
             {currentStep === 1 ? 'Cancel' : 'Back'}
           </Button>

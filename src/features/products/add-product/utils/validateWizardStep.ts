@@ -297,7 +297,14 @@ export function validateStep3(state: WizardState): ValidationResult {
   return ok(errors);
 }
 
-const slotActive = (slot?: MediaSlot) => Boolean(slot?.localUri || slot?.uploadedUrl);
+/*
+ * Exported so Step 4 counts a filled slot the same way the validator does.
+ * The step now states its requirement up front and counts down as the operator
+ * works, which is only worth anything if "filled" means one thing — a second
+ * copy of this predicate in the component is the drift that produces a screen
+ * saying "3 images ready" above a footer refusing to continue.
+ */
+export const slotActive = (slot?: MediaSlot) => Boolean(slot?.localUri || slot?.uploadedUrl);
 
 /** Reports whichever upload problem the operator must act on first. */
 function describeUploadState(slots: MediaSlot[]): string | null {

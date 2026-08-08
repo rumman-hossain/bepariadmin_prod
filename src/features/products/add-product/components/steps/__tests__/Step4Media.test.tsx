@@ -26,13 +26,15 @@ import type { VariationMediaState } from '../../../../types/registration';
 // The uploader talks to GCS. What matters here is that a pick reaches the slot
 // the component pointed it at, so the transport is replaced by something that
 // reports a finished upload immediately.
-const uploadSlot = vi.fn(async ({ onSlotUpdate }: { onSlotUpdate: (s: object) => void }) => {
+const uploadSlot = vi.fn(
+  async ({ onSlotUpdate }: { onSlotUpdate: (s: object) => void; purpose: string }) => {
   onSlotUpdate({
-    localUri: 'blob:picked',
-    uploadedUrl: 'gs://bucket/picked.jpg',
-    uploadStatus: 'done',
-  });
-});
+      localUri: 'blob:picked',
+      uploadedUrl: 'gs://bucket/picked.jpg',
+      uploadStatus: 'done',
+    });
+  },
+);
 
 vi.mock('@/src/services/upload/useUpload', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/services/upload/useUpload')>()),
@@ -58,11 +60,20 @@ function twoVariations() {
   });
 }
 
-/** The hidden file input belonging to a labelled slot. */
+/**
+ * The hidden file input belonging to a labelled slot.
+ *
+ * Addressed through the slot's GROUP rather than its button. A tile's buttons
+ * change with its state — an empty one offers "Front", a filled one offers
+ * "Replace Front" and "Remove Front" — so indexing a list of buttons named
+ * /^front/ meant the list got shorter as the test filled slots, and picking the
+ * second variation's front after filling the first read past the end of it. The
+ * group is what stays put.
+ */
 function fileInputFor(label: string, nth = 0): HTMLInputElement {
-  const buttons = screen.getAllByRole('button', { name: new RegExp(`^${label}`, 'i') });
-  const input = buttons[nth].parentElement?.querySelector('input[type="file"]');
-  if (!input) throw new Error(`no file input beside the ${label} slot #${nth}`);
+  const groups = screen.getAllByRole('group', { name: new RegExp(`^${label}`, 'i') });
+  const input = groups[nth]?.querySelector('input[type="file"]');
+  if (!input) throw new Error(`no file input inside the ${label} slot #${nth}`);
   return input as HTMLInputElement;
 }
 
@@ -163,5 +174,70 @@ describe('the picker offers exactly what the validator accepts', () => {
     const accept = fileInputFor('Poster').accept;
     expect(accept).not.toContain('image/*');
     expect(accept).toBe(ALLOWED_IMAGE_TYPES.join(','));
+  });
+});
+
+/**
+ * THE STEP SAYS WHAT IT WANTS, BEFORE THE FOOTER REFUSES.
+ *
+ * The requirement used to exist in exactly one place the operator could read
+ * it: a validation error under the Continue button, after they had pressed it.
+ * The banner states it up front — which is only an improvement while the two
+ * agree. A screen reading "1 image ready" above a footer refusing to continue
+ * is worse than no banner, so these assert BOTH.
+ */
+describe('the readiness banner and the validator tell the same story', () => {
+  const plain = () => useAddProductStore.setState({ hasVariant: false, variations: [] });
+
+  it('asks for one image while the validator has nothing to accept', () => {
+    plain();
+    render(<Step4Media />);
+    expect(screen.getByRole('status').textContent).toMatch(/at least one image is required/i);
+    expect(validateWizardStep(4, store()).isValid).toBe(false);
+  });
+
+  it('turns over on the same picture that makes the step valid', () => {
+    plain();
+    const { rerender } = render(<Step4Media />);
+    fireEvent.change(fileInputFor('Poster'), { target: { files: [pngFile()] } });
+    rerender(<Step4Media />);
+
+    expect(screen.getByRole('status').textContent).toMatch(/1 image ready/i);
+    expect(validateWizardStep(4, store()).isValid).toBe(true);
+  });
+
+  it('counts the variants still missing a mandatory shot, as the validator does', () => {
+    twoVariations();
+    render(<Step4Media />);
+
+    expect(screen.getByRole('status').textContent).toMatch(/2 of 2 variants/i);
+    expect(validateWizardStep(4, store()).errors.variations).toMatch(/2 variation/);
+  });
+});
+
+/**
+ * A photo screen that cannot accept a photo you drag onto it.
+ *
+ * The drop target is not a second, laxer way in: it hands the file to the same
+ * `uploadSlot`, which runs the same `rejectionReason` gate as the picker.
+ */
+describe('dropping a file on a slot', () => {
+  it('uploads it against that slot, not some other one', () => {
+    useAddProductStore.setState({ hasVariant: false, variations: [] });
+    render(<Step4Media />);
+
+    const tile = screen.getAllByRole('group', { name: /^poster/i })[0];
+    fireEvent.drop(tile, { dataTransfer: { files: [pngFile()] } });
+
+    expect(uploadSlot).toHaveBeenCalledTimes(1);
+    expect(uploadSlot.mock.calls[0][0].purpose).toBe('product:poster');
+  });
+});
+
+describe('the video slot', () => {
+  it('is named once, not once by its heading and again by itself', () => {
+    useAddProductStore.setState({ hasVariant: false, variations: [] });
+    render(<Step4Media />);
+    expect(screen.getAllByText('Video')).toHaveLength(1);
   });
 });
