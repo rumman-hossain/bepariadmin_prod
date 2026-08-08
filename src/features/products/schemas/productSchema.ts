@@ -215,6 +215,30 @@ export const productResponseSchema = z.object({
   status: z.string(),
   imageUrl: z.string().optional().nullable(),
   imageUrls: z.array(z.string()).optional().nullable(),
+  /**
+   * The media rows with their POSITIONS, not just their URLs.
+   *
+   * `imageUrls` is this list flattened, which is all the catalogue grid and the
+   * detail page ever needed — so the normaliser read `raw.media`, derived
+   * `imageUrls` from it and dropped the rest. The Add/Edit wizard needs the
+   * positions: 0 is the poster, 1 the front, 2 the back, the rest the gallery,
+   * and they can be sparse. A product with a poster and one detail shot is
+   * positions 0 and 3, which a flat array cannot express — rebuilt from
+   * `imageUrls` the detail shot would slide into the front slot.
+   *
+   * Absent it, every edit opened with six empty media tiles and step 4 refused
+   * to advance, on a product that already had photographs.
+   */
+  media: z
+    .array(
+      z.object({
+        url: z.string(),
+        mediaType: z.string().optional().nullable(),
+        position: z.number().optional().nullable(),
+      }),
+    )
+    .optional()
+    .nullable(),
   rejectionReason: z.string().optional().nullable(),
   createdAt: z.string().optional().nullable(),
   updatedAt: z.string().optional().nullable(),

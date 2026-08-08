@@ -332,3 +332,40 @@ describe('normalizeProductListResponse', () => {
     expect(result.products[0]!.category).toBe('Menswear');
   });
 });
+
+/**
+ * THE FIELD THE NORMALISER DELETED.
+ *
+ * `normalizeBackendProduct` builds an explicit object. It read `raw.media` to
+ * derive `imageUrls` and then did not carry it, so `Product.media` was
+ * `undefined` for every product in the console. The Add/Edit wizard hydrates
+ * its six media slots from exactly that field — it needs `position` to know
+ * which URL is the poster and which is the back — so opening ANY product with
+ * photographs for edit showed six empty tiles, and step 4 then refused to
+ * advance with "Upload at least one product image".
+ *
+ * Nothing caught it because the wizard's own tests build state directly, and
+ * the hydrate read the field through a cast (`p as Product & { media?: ... }`)
+ * that made the compiler accept a field the type did not have.
+ */
+describe('normalizeBackendProduct carries the media rows, not only their urls', () => {
+  const rows = [
+    { url: 'https://x/poster.jpg', mediaType: 'image', position: 0 },
+    { url: 'https://x/detail.jpg', mediaType: 'image', position: 3 },
+  ];
+
+  it('keeps position, which imageUrls cannot express', () => {
+    const p = normalizeBackendProduct(backend({ media: rows } as Partial<BackendProduct>));
+
+    expect(p.media).toHaveLength(2);
+    // Sparse on purpose: a poster and one detail shot are positions 0 and 3.
+    // Flattened to `imageUrls` they are indices 0 and 1, and rebuilding slots
+    // from that slides the detail shot into the FRONT.
+    expect(p.media?.map((m) => m.position)).toEqual([0, 3]);
+  });
+
+  it('still derives imageUrls from them, as the catalogue expects', () => {
+    const p = normalizeBackendProduct(backend({ media: rows } as Partial<BackendProduct>));
+    expect(p.imageUrls).toEqual(['https://x/poster.jpg', 'https://x/detail.jpg']);
+  });
+});

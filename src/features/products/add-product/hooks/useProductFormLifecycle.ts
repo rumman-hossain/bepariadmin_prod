@@ -43,21 +43,41 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
   }
 
   const productMedia = emptyProductMedia();
-  const media = (p as Product & { media?: Array<{ url: string; position: number }> }).media;
+  /*
+   * `p.media`, not a cast onto `p`.
+   *
+   * This read used to be `(p as Product & { media?: ... }).media` — a local
+   * widening that made the compiler accept a field `Product` did not have and
+   * `normalizeBackendProduct` did not emit. It was always `undefined`, so every
+   * edit opened with six empty slots, and the cast is what stopped anyone
+   * finding out: with `media` on the type, this line would not have compiled.
+   */
+  const media = p.media;
   if (media) {
-    media.forEach((m) => {
-      const slot = { localUri: m.url, uploadedUrl: m.url, uploadStatus: 'done' as const };
+    /*
+     * Images only. A clip is a `product_media` row like any other, and it
+     * carries a position — so an unfiltered pass can drop an mp4 into the
+     * poster slot and show a broken thumbnail where the catalogue image
+     * belongs. Video reaches the wizard through `videoUrl`, below.
+     * `normalizeBackendProduct` filters the same way, for the same reason, when
+     * it derives `imageUrls`; absent mediaType is an image, which is what the
+     * column defaults to.
+     */
+    media
+      .filter((m) => (m.mediaType ?? 'image') === 'image')
+      .forEach((m) => {
+        const slot = { localUri: m.url, uploadedUrl: m.url, uploadStatus: 'done' as const };
       /*
        * Positions 3 and 4 were `left` and `right`, which no longer exist as
        * slots. They fold into the gallery rather than being dropped: every
        * product created before this change has them, and silently losing two
        * images on open would be a far worse bug than the slots were.
        */
-      if (m.position === 0) productMedia.poster = slot;
-      else if (m.position === 1) productMedia.front = slot;
-      else if (m.position === 2) productMedia.back = slot;
-      else productMedia.more.push(slot);
-    });
+        if (m.position === 0) productMedia.poster = slot;
+        else if (m.position === 1) productMedia.front = slot;
+        else if (m.position === 2) productMedia.back = slot;
+        else productMedia.more.push(slot);
+      });
   }
   if (p.videoUrl) {
     productMedia.video = {

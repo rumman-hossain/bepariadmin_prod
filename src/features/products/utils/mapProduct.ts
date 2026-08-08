@@ -225,6 +225,23 @@ export function normalizeBackendProduct(
     imageUrl,
     imageUrls,
     /*
+     * THE ROWS THEMSELVES, NOT ONLY THEIR URLS.
+     *
+     * `raw.media` was read here to DERIVE `imageUrls` and then discarded. The
+     * Add/Edit wizard hydrates its media slots from `product.media` — it needs
+     * `position` to know which URL is the poster and which is the back — so on
+     * every edit it found `undefined`, left all six slots empty, and step 4
+     * then refused to advance with "Upload at least one product image" on a
+     * product that already had three.
+     *
+     * That made the edit path unusable for any product with photographs, and
+     * it was invisible because nothing on the old step said what it had: the
+     * empty tiles looked the same as a new product's. It is the normaliser's
+     * explicit field list that loses it — a field absent from this object does
+     * not exist downstream, however faithfully the API sent it.
+     */
+    media: mediaItems as Product['media'],
+    /*
      * Three facts the server sends and this mapper dropped on the floor.
      *
      * `inventory` is the per-size breakdown for a product with no variants —

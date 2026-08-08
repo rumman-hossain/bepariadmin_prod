@@ -108,3 +108,60 @@ describe('media hydrated from a product that predates the slot change', () => {
     expect(m.more).toHaveLength(4);
   });
 });
+
+/**
+ * EDITING A PRODUCT THAT HAS PHOTOGRAPHS MUST NOT ASK FOR PHOTOGRAPHS.
+ *
+ * Found on dev by opening a real product: three stored images, six empty
+ * tiles, and Continue refusing with "Upload at least one product image". The
+ * hydrate was correct; `normalizeBackendProduct` had dropped `media` on the way
+ * in, so the mapper was handed a product with no media at all.
+ *
+ * The assertion is on the VALIDATOR as well as the slots, because that is what
+ * the operator actually hit: a step that would not let them past.
+ */
+describe('a product that already has media', () => {
+  const withMedia = () =>
+    ({
+      id: 'p2',
+      name: 'Somsher',
+      sku: 'WHL-00001-H&-S&-P/-084',
+      basePrice: 1000,
+      hasVariant: false,
+      availableSizes: ['Free Size'],
+      sizeType: 'UNIQUE',
+      inventory: [{ size: 'Free Size', stock: 100, moq: 24, lowStockAlert: 32 }],
+      media: [
+        { url: 'https://x/a.jpg', mediaType: 'image', position: 0 },
+        { url: 'https://x/b.jpg', mediaType: 'image', position: 1 },
+        { url: 'https://x/c.jpg', mediaType: 'image', position: 2 },
+      ],
+    }) as unknown as Product;
+
+  it('lands each stored image in the slot its position names', () => {
+    const m = mapProductToWizardState(withMedia()).productMedia!;
+    expect(m.poster.uploadedUrl).toBe('https://x/a.jpg');
+    expect(m.front.uploadedUrl).toBe('https://x/b.jpg');
+    expect(m.back.uploadedUrl).toBe('https://x/c.jpg');
+    expect(m.more).toHaveLength(0);
+  });
+
+  it('opens with step 4 already satisfied', () => {
+    useAddProductStore.getState().reset();
+    useAddProductStore.getState().hydrate(mapProductToWizardState(withMedia()));
+
+    const result = validateWizardStep(4, useAddProductStore.getState());
+    expect(result.errors.productMedia).toBeUndefined();
+    expect(result.isValid).toBe(true);
+  });
+
+  it('does not put a video row into an image slot', () => {
+    const p = withMedia() as unknown as { media: Array<Record<string, unknown>> };
+    p.media = [{ url: 'https://x/clip.mp4', mediaType: 'video', position: 0 }];
+
+    const m = mapProductToWizardState(p as unknown as Product).productMedia!;
+    // The clip reaches the wizard through `videoUrl`. Placed by position it
+    // would become the catalogue thumbnail.
+    expect(m.poster.uploadedUrl).toBe('');
+  });
+});
