@@ -263,3 +263,4 @@ describe('errors do not survive a reset or a change of product', () => {
     expect(screen.queryAllByText(/product name is required/i)).toHaveLength(0);
   });
 });
+

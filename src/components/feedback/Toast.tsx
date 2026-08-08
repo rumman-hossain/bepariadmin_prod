@@ -81,7 +81,11 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 function ToastContainer({ toasts, onRemove }: { toasts: Toast[]; onRemove: (id: string) => void }) {
   return (
     <div
-      className="fixed bottom-6 right-6 z-[100] flex flex-col gap-2 max-w-sm w-full pointer-events-none"
+      /* `z-(--z-toast)`, not `z-[100]`. The scale documents toast as the last
+           step at 70; an arbitrary 100 sat above it for no stated reason and
+           the arbitrary-value guard does not match `z-[`, so nothing caught it.
+           A toast still renders above every modal — that is what 70 is for. */
+        className="pointer-events-none fixed bottom-6 right-6 z-(--z-toast) flex w-full max-w-sm flex-col gap-2"
       aria-live="polite"
       aria-relevant="additions removals"
     >
@@ -110,7 +114,7 @@ function ToastItem({ toast, onRemove }: { toast: Toast; onRemove: (id: string) =
       className={cn(
         'pointer-events-auto flex items-start gap-3',
         'px-4 py-3 rounded-2xl border',
-        'shadow-lg backdrop-blur-xl',
+        'shadow-overlay backdrop-blur-xl',
         'animate-slide-up',
         toBgClass(toast.type),
       )}

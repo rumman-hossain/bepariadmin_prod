@@ -227,7 +227,17 @@ describe('the z-scale in practice', () => {
      * `elementFromPoint` in a real browser. What IS checkable here is the
      * invariant that failed — the two siblings' steps, in order.
      */
-    const backdrop = /className="absolute inset-0 z-\(--z-[a-z]+\)/.exec(dialogSource)?.[0];
+    /*
+     * Matched on the class string, not on `className="…`.
+     *
+     * The backdrop moved into a `cn()` call when it gained an exit animation,
+     * and this regex — which required the attribute syntax — silently stopped
+     * matching it and locked on to the next `absolute inset-0 z-(…)` in the
+     * file instead. It then compared that element against the panel and failed
+     * on an invariant that was still perfectly intact. A source-shape assertion
+     * has to be anchored to something the source is actually about.
+     */
+    const backdrop = /'?absolute inset-0 z-\(--z-[a-z]+\)/.exec(dialogSource)?.[0];
     const panel = /'relative z-\(--z-[a-z]+\)/.exec(dialogSource)?.[0];
 
     expect(backdrop, 'dialog backdrop should declare a z step').toBeTruthy();

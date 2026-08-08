@@ -30,7 +30,7 @@ export function BlockingOverlay({ open, title, detail }: BlockingOverlayProps) {
       aria-live="polite"
       className="fixed inset-0 z-(--z-modal) flex items-center justify-center bg-sheet-inverse/50 backdrop-blur-sm"
     >
-      <div className="mx-4 flex max-w-sm flex-col items-center gap-3 rounded-lg border border-rule bg-sheet px-8 py-7 text-center shadow-lg">
+      <div className="mx-4 flex max-w-sm flex-col items-center gap-3 rounded-lg border border-rule bg-sheet px-8 py-7 text-center shadow-modal">
         <Loader2 className="h-8 w-8 animate-spin text-brass" aria-hidden="true" />
         <p className="text-md font-semibold text-ink">{title}</p>
         {detail && <Text as="p" variant="secondary">{detail}</Text>}

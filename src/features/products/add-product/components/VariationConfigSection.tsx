@@ -122,6 +122,25 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
     setAlert('');
   };
 
+  /*
+   * `Number(v) || fallback` SWALLOWS A TYPED ZERO, because 0 is falsy.
+   *
+   * MOQ coerced `0` to `1` and price coerced `0` to `undefined`, so the box
+   * showed a number the operator had not entered and the store held a different
+   * one again. Clearing a field was equally impossible: an empty string is also
+   * falsy, so it became the fallback rather than staying empty.
+   *
+   * A blank field is genuinely absent; a typed 0 is a deliberate 0. The
+   * validator distinguishes them — that is the whole point of the
+   * "not filled in" versus "filled in as zero" split in isVariationStocked —
+   * and this collapsed both before it ever got there.
+   */
+  const numberOrUndefined = (raw: string): number | undefined => {
+    if (raw.trim() === '') return undefined;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : undefined;
+  };
+
   const updateVariation = (index: number, updates: Partial<ProductVariation>) => {
     const next = [...variations];
     next[index] = { ...next[index], ...updates };
@@ -260,14 +279,14 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
                       label="Base Price"
                       type="number"
                       value={v.price != null ? String(v.price) : ''}
-                      onChange={(e) => updateVariation(idx, { price: Number(e.target.value) || undefined })}
+                      onChange={(e) => updateVariation(idx, { price: numberOrUndefined(e.target.value) })}
                       error={fieldIssue(v.id, 'price')}
                     />
                     <Input
                       label="Stock"
                       type="number"
                       value={v.stock != null ? String(v.stock) : ''}
-                      onChange={(e) => updateVariation(idx, { stock: Number(e.target.value) || 0 })}
+                      onChange={(e) => updateVariation(idx, { stock: numberOrUndefined(e.target.value) })}
                       error={fieldIssue(v.id, 'stock')}
                       hint={sizedHint}
                     />
@@ -275,7 +294,7 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
                       label="MOQ"
                       type="number"
                       value={v.moq != null ? String(v.moq) : ''}
-                      onChange={(e) => updateVariation(idx, { moq: Number(e.target.value) || 1 })}
+                      onChange={(e) => updateVariation(idx, { moq: numberOrUndefined(e.target.value) })}
                       error={fieldIssue(v.id, 'moq')}
                       hint={sizedHint}
                     />
@@ -284,7 +303,7 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
                       type="number"
                       value={v.lowStockAlert != null ? String(v.lowStockAlert) : ''}
                       onChange={(e) =>
-                        updateVariation(idx, { lowStockAlert: Number(e.target.value) || 0 })
+                        updateVariation(idx, { lowStockAlert: numberOrUndefined(e.target.value) })
                       }
                       error={fieldIssue(v.id, 'lowStockAlert')}
                       hint={sizedHint}

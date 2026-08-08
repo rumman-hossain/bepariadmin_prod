@@ -86,6 +86,21 @@ export function Dialog({
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
 
   /*
+   * NO EXIT ANIMATION, DELIBERATELY.
+   *
+   * `--ease-exit` and the fade-out/scale-out keyframes exist, and this is where
+   * they would be used: keep the panel mounted for ~100ms after `open` goes
+   * false, then unmount. Every implementation of that needs the previous value
+   * of `open`, and this project's React Compiler lint refuses all three ways of
+   * getting it — setState synchronously in an effect, adjusting state during
+   * render, and reading a ref during render.
+   *
+   * It is cosmetic, and it sits in the component every modal in the app depends
+   * on, so it is not worth an eslint-disable here. Doing it properly means a
+   * <ViewTransition> or an animation library, which is a decision of its own.
+   */
+
+  /*
    * The single door out for both dismissal gestures.
    *
    * Escape and the backdrop used to call `onClose` directly, so a dialog
@@ -256,9 +271,14 @@ export function Dialog({
           trap of the one underneath would still be live — Tab would cycle
           through the form the operator is being asked about. Covering the panel
           keeps one trap, one Escape handler and one scroll lock.
+
+          It carries NO z step. It is a CHILD of the panel, not a sibling of the
+          backdrop, so painting order inside this stacking context is settled by
+          DOM order — and a second `absolute inset-0 z-(…)` in this file is
+          exactly the ambiguity the note above is about.
         */}
         {confirmingDiscard && (
-          <div className="absolute inset-0 z-(--z-raised) flex items-center justify-center rounded-lg bg-sheet/95 p-5">
+          <div className="absolute inset-0 flex items-center justify-center rounded-lg bg-sheet/95 p-5">
             <div className="max-w-xs text-center">
               <p className="text-md font-semibold text-ink">Discard your changes?</p>
               <p className="mt-1 text-sm text-ink-2">{discardMessage}</p>

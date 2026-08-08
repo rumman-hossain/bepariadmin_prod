@@ -56,6 +56,8 @@ export function useWizardNavigation({
   const [currentStep, setCurrentStep] = useState<WizardStep>(1);
   const [prompt, setPrompt] = useState<WizardPrompt>('none');
   const [pendingVariantChoice, setPendingVariantChoice] = useState<boolean | null>(null);
+  /** Which step the discard prompt is standing in the way of. */
+  const [pendingBackStep, setPendingBackStep] = useState<WizardStep>(2);
 
   const closePrompt = useCallback(() => setPrompt('none'), []);
 
@@ -121,10 +123,23 @@ export function useWizardNavigation({
         return;
       }
 
-      // Leaving pricing backwards discards it, so confirm first.
-      if (currentStep === 3 && nextStep === 2) {
-        if (isEditMode) setCurrentStep(2);
-        else setPrompt('discard-pricing');
+      /*
+       * Leaving pricing backwards discards it, so confirm first.
+       *
+       * `nextStep < 3`, not `nextStep === 2`. The step bar lets an operator
+       * click any completed step, so 3 → 1 was a legal move that fell straight
+       * through to setCurrentStep and skipped this prompt entirely — the
+       * pricing was discarded later, silently, by whatever ran next. The exact
+       * warning the operator gets for one backward step was absent for the
+       * other, which is worse than not having it: it teaches them the wizard
+       * asks before losing work.
+       */
+      if (currentStep === 3 && nextStep < 3) {
+        if (isEditMode) setCurrentStep(nextStep as WizardStep);
+        else {
+          setPendingBackStep(nextStep as WizardStep);
+          setPrompt('discard-pricing');
+        }
         return;
       }
 
@@ -191,8 +206,12 @@ export function useWizardNavigation({
   const confirmDiscardPricing = useCallback(() => {
     resetPricing();
     setPrompt('none');
-    setCurrentStep(2);
-  }, [resetPricing]);
+    // Where they actually asked to go. Hardcoding 2 sent an operator who
+    // clicked step 1 in the bar to step 2 instead — a confirmation that
+    // performs a different navigation than the one it was asked about.
+    setCurrentStep(pendingBackStep);
+    setPendingBackStep(2);
+  }, [resetPricing, pendingBackStep]);
 
   const confirmReset = useCallback(() => {
     resetForm();

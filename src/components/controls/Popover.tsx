@@ -129,7 +129,7 @@ export function Popover({ trigger, children, align = 'end', label, className }: 
               maxHeight: `calc(100vh - ${rect.bottom + GUTTER * 2}px)`,
             }}
             className={cn(
-              'z-(--z-dropdown) overflow-auto rounded-lg border border-rule bg-sheet shadow-lg',
+              'z-(--z-dropdown) overflow-auto rounded-lg border border-rule bg-sheet shadow-overlay',
               className,
             )}
           >

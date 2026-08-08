@@ -127,7 +127,7 @@ export const NotificationsPopover: React.FC<NotificationsPopoverProps> = ({
           aria-label="Notifications"
           className={cn(
             'absolute right-0 z-(--z-dropdown) mt-2 w-80 overflow-hidden sm:w-96',
-            'rounded-lg border border-rule bg-sheet shadow-lg',
+            'rounded-lg border border-rule bg-sheet shadow-overlay',
           )}
         >
           <div className="flex items-center justify-between border-b border-rule-subtle px-4 py-2.5">
