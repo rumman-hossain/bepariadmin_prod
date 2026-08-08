@@ -246,7 +246,21 @@ export function AddProductFlow({ onBack }: Props) {
       {/* ── Step bar ───────────────────────────────────────────── */}
       <div className="flex shrink-0 flex-wrap items-center gap-x-1.5 gap-y-2 border-b border-rule-subtle px-4 py-2.5 md:px-6">
         {STEPS.map(({ num, label }, i) => {
-          const done = num < currentStep;
+          /*
+           * EVERY STEP OF AN EXISTING PRODUCT IS ALREADY COMPLETE.
+           *
+           * `num < currentStep` is right while CREATING — a step you have not
+           * reached has nothing in it. On an EDIT the product is whole: all six
+           * steps are filled from the server before the operator sees any of
+           * them, and gating them behind "have you walked past this yet" made
+           * changing an image cost three presses of Continue through pages the
+           * operator had no interest in.
+           *
+           * That is the same "editing costs six steps" the comment below was
+           * written to fix; it fixed the backward direction and left the
+           * forward one.
+           */
+          const done = isEditMode ? num !== currentStep : num < currentStep;
           const active = num === currentStep;
           return (
             <div key={num} className="flex items-center gap-1.5">

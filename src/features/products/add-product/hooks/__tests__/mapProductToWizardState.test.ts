@@ -313,3 +313,32 @@ type WizardStateForTest = {
   sizeType: string;
   lowStockAlert: string;
 };
+
+/**
+ * THE SIZE VOCABULARY, WHICH IS NOT COSMETIC.
+ *
+ * `sizeType` is derived — `useAddProductLogic` recomputes it from `sizeMode`
+ * every render — so hydrating it alone is overwritten a tick later from a mode
+ * that stayed at its initial 'AUTO'. A product stored UNIQUE opened with the
+ * toggle on AUTO, measured on dev.
+ *
+ * It matters because the vocabulary decides which size KEYS are legal, and the
+ * wizard prunes `sizeStock`/`sizeMoq`/`sizeAlert` against it: reopening under
+ * the wrong vocabulary discards the per-size figures.
+ */
+describe('the size vocabulary survives a reopen', () => {
+  const stored = (sizeType: string) =>
+    mapProductToWizardState({ id: 'p5', name: 'X', sizeType } as unknown as Product);
+
+  it.each(['LETTER', 'NUMBER', 'UNIQUE'])('restores the toggle to %s', (t) => {
+    expect((stored(t) as { sizeMode?: string }).sizeMode).toBe(t);
+  });
+
+  it('leaves a type the toggle cannot express on AUTO', () => {
+    // FOOTWEAR is not one of the four modes. AUTO resolves to exactly that type
+    // from the product group's config, which is the same answer by another
+    // route — forcing it into the toggle would render a selected option that
+    // does not exist.
+    expect((stored('FOOTWEAR') as { sizeMode?: string }).sizeMode).toBeUndefined();
+  });
+});

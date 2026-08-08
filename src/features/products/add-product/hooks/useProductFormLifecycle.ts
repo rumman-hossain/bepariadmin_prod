@@ -230,6 +230,27 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
     sku: p.sku || '',
     hasVariant,
     sizeType: p.sizeType || 'UNIQUE',
+    /*
+     * THE MODE, NOT ONLY THE RESOLVED TYPE.
+     *
+     * `sizeType` is DERIVED: `useAddProductLogic` recomputes it from `sizeMode`
+     * on every render — AUTO means "whatever the product group declares",
+     * anything else is the operator's override. So hydrating `sizeType` alone
+     * achieves nothing; the effect overwrites it a tick later from a `sizeMode`
+     * that hydrate never set, which stays at its initial 'AUTO'.
+     *
+     * Measured on dev: a product stored `UNIQUE` opened with the toggle on AUTO.
+     * That is not cosmetic — the size VOCABULARY comes from this, and the
+     * wizard prunes `sizeStock`/`sizeMoq`/`sizeAlert` against it. A product
+     * reopened under the wrong vocabulary has its per-size figures thrown away.
+     *
+     * Only the three explicit modes map back. A stored FOOTWEAR (or anything
+     * else the toggle cannot express) stays AUTO, which resolves to exactly
+     * that type from the group config — the right answer by a different route.
+     */
+    ...(p.sizeType && ['LETTER', 'NUMBER', 'UNIQUE'].includes(p.sizeType)
+      ? { sizeMode: p.sizeType as WizardState['sizeMode'] }
+      : {}),
     sizeStockSet,
     moqSet,
     sizeLowStockAlertSet,
@@ -266,8 +287,11 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
 
 export function useProductFormLifecycle() {
   const { productId: routeProductId } = useParams<{ productId?: string }>();
+  // Actions only. Subscribing to the whole store here is what made `refetch`
+  // change identity on every keystroke, and the effect below pins the first
+  // instance deliberately — so the subscription bought nothing and cost a stale
+  // `wholesalerCode` that silently disabled the template fetch.
   const { reset, hydrate } = useAddProductStore();
-  const store = useAddProductStore();
 
   const [state, setState] = useState<LifecycleState>({
     editingProductId: null,
@@ -285,10 +309,34 @@ export function useProductFormLifecycle() {
       if (res.ok && res.data?.data) {
         const mapped = mapProductToWizardState(res.data.data);
         hydrate(mapped);
-        if (res.data.data.classificationId && store.wholesalerCode) {
+        /*
+         * THE CLASSIFICATION TEMPLATES, WHICH NEVER LOADED ON AN EDIT.
+         *
+         * The guard here was `store.wholesalerCode`, read from the closure this
+         * callback was created in — and on the render that matters that is `''`,
+         * because the supplier is fetched later. The effect below deliberately
+         * depends on `routeProductId` alone, so the FIRST closure is the one
+         * that runs, and this block was therefore dead on every edit.
+         * `ClassificationTemplates` renders nothing when the list is empty, so
+         * the whole section was simply absent — confirmed on dev after a
+         * twelve-second wait, so not a race.
+         *
+         * The supplier code is in the response we are already holding. Taking it
+         * from there removes the dependency on store timing altogether, which is
+         * the actual defect — a live `getState()` read would fix the symptom and
+         * leave the ordering trap for the next person.
+         *
+         * `skuRes.data.sku` is DELIBERATELY IGNORED. This endpoint reserves a new
+         * SKU as a side effect of answering; writing it here would renumber a
+         * product that already has one, and the wholesaler code is embedded in
+         * that string. Only `details` is wanted.
+         */
+        const supplierCode =
+          res.data.data.supplierCode || useAddProductStore.getState().wholesalerCode;
+        if (res.data.data.classificationId && supplierCode) {
           try {
             const skuRes = await getReservedSku({
-              wholesalerCode: store.wholesalerCode,
+              wholesalerCode: supplierCode,
               categoryId: mapped.categoryId || '',
               subCategoryId: mapped.subCategoryId || '',
               productGroupId: mapped.productGroupId || '',
@@ -313,7 +361,10 @@ export function useProductFormLifecycle() {
     } catch {
       setState((prev) => ({ ...prev, isHydrating: false }));
     }
-  }, [routeProductId, reset, hydrate, store.wholesalerCode]);
+    // `store.wholesalerCode` is NOT a dependency any more: the supplier code now
+    // comes from the response, so this callback no longer changes identity every
+    // time the store does — which is what let the effect below hold a stale one.
+  }, [routeProductId, reset, hydrate]);
 
   /*
    * The one remaining `set-state-in-effect` in the app, and it is deliberate.

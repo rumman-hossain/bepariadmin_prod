@@ -126,8 +126,21 @@ export function useAddProductLogic() {
     if (store.sizeType !== resolvedSizeType) setField('sizeType', resolvedSizeType);
   }, [resolvedSizeType, store.sizeType, setField]);
 
-  // An existing product has no stored answer to "does this have variants?" —
-  // infer it from whether it actually has any.
+  /*
+   * The fallback, now that the stored answer actually arrives.
+   *
+   * This comment used to say "an existing product has no stored answer to 'does
+   * this have variants?'". It does — `products.has_variant` — and the reason
+   * the wizard never saw it was that `normalizeBackendProduct` dropped the
+   * field, so `hasVariant` was always null here and this inference ran every
+   * time. It is carried now, and hydrate sets a real boolean, so this fires
+   * only where there genuinely is no answer: a product predating the column, or
+   * a fetch that returned it null.
+   *
+   * Worth keeping rather than deleting — inferring from the variation count is
+   * right when nothing else is known, and wrong only when it contradicts a
+   * stored value, which it can no longer do.
+   */
   useEffect(() => {
     if (isEditMode && store.hasVariant === null) {
       setField('hasVariant', resolveHasVariant(null, store.variations));
