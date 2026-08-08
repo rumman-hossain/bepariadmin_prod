@@ -369,3 +369,47 @@ describe('normalizeBackendProduct carries the media rows, not only their urls', 
     expect(p.imageUrls).toEqual(['https://x/poster.jpg', 'https://x/detail.jpg']);
   });
 });
+
+/**
+ * FIVE MORE FIELDS THIS FUNCTION DELETED.
+ *
+ * Same shape as the `media` case above: an explicit field list, and anything
+ * absent from it does not exist downstream. The Add/Edit wizard reads all of
+ * these, through casts that hid their absence from the compiler.
+ *
+ * One assertion per field, by name, so a future drop says which one.
+ */
+describe('normalizeBackendProduct carries the fields the wizard edits', () => {
+  const raw = () =>
+    backend({
+      hasVariant: true,
+      sizeType: 'LETTER',
+      variationColors: ['Red', 'Blue'],
+      variationDesigns: ['Matte'],
+      productTags: ['new'],
+      lowStockAlert: 12,
+    } as Partial<BackendProduct>);
+
+  it.each([
+    ['hasVariant', true],
+    ['sizeType', 'LETTER'],
+    ['lowStockAlert', 12],
+  ])('carries %s', (field, expected) => {
+    expect(normalizeBackendProduct(raw())[field as 'sizeType']).toEqual(expected);
+  });
+
+  it('carries the variant axes', () => {
+    const p = normalizeBackendProduct(raw());
+    expect(p.variationColors).toEqual(['Red', 'Blue']);
+    expect(p.variationDesigns).toEqual(['Matte']);
+  });
+
+  it('carries productTags AND keeps trendTags', () => {
+    // The catalogue reads `trendTags`; the wizard reads `productTags`. Renaming
+    // one into the other is what lost tags on every edit, so both are emitted
+    // rather than one being renamed out from under its reader.
+    const p = normalizeBackendProduct(raw());
+    expect(p.productTags).toEqual(['new']);
+    expect(p.trendTags).toEqual(['new']);
+  });
+});

@@ -8,11 +8,7 @@ import {
 import { resolveHasVariant } from '../../utils/resolveHasVariant';
 import { slotActive } from '../../utils/validateWizardStep';
 import { acceptAttribute, useUpload } from '@/src/services/upload/useUpload';
-import type {
-  MediaSlot,
-  ProductVariation,
-  VariationMediaState,
-} from '../../../types/registration';
+import type { MediaSlot, ProductVariation } from '../../../types/registration';
 import { Text } from '@/src/components/data';
 import { cn } from '@/src/design-system/utils/cn';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
@@ -443,7 +439,14 @@ function VariationCard({ variation, index }: { variation: ProductVariation; inde
   } = useAddProductStore();
 
   const id = variation.id ?? '';
-  const media = (variation.media as VariationMediaState | undefined) ?? emptyVariationMedia();
+  /*
+   * No cast. `ProductVariation.media` is `VariationMediaState | undefined` now
+   * that hydrate folds the server's rows into slots — this line used to read
+   * `(variation.media as VariationMediaState) ?? emptyVariationMedia()`, and
+   * `??` does not fire for a non-empty ARRAY, which is what the server sends.
+   * `media.more` was then undefined and the step threw on `.map`.
+   */
+  const media = variation.media ?? emptyVariationMedia();
   const label =
     [variation.color, variation.design].filter(Boolean).join(' · ') ||
     variation.subName ||
@@ -569,13 +572,13 @@ export function Step4Media() {
      * operator and the next step.
      */
     const incomplete = variations.filter((v) => {
-      const media = v.media as VariationMediaState | undefined;
+      const media = v.media;
       return !media || !slotActive(media.front) || !slotActive(media.back);
     }).length;
 
     const counts = countSlots(
       variations.flatMap((v) => {
-        const media = v.media as VariationMediaState | undefined;
+        const media = v.media;
         return media ? [media.front, media.back, ...(media.more ?? []), media.video] : [];
       }),
     );

@@ -3,17 +3,73 @@ import { useParams } from 'react-router-dom';
 import {
   useAddProductStore,
   emptyProductMedia,
+  emptyVariationMedia,
   type WizardState,
 } from '../store/useAddProductStore';
 import { getProductById, getReservedSku } from '@/src/api/products';
 import type { Product } from '@/src/features/products/types';
-import type { ProductInventoryItem } from '../../types/registration';
+import type { MediaSlot, ProductInventoryItem } from '../../types/registration';
 
 export interface LifecycleState {
   editingProductId: string | null;
   isHydrating: boolean;
   isEditMode: boolean;
   productStatus: string | null;
+}
+
+/**
+ * A media row as the SERVER sends it — looser than `ProductMediaItem`.
+ *
+ * `mediaType` and `position` are both nullable over the wire, and pretending
+ * otherwise is how a null position ends up indexing an array. Written out here
+ * rather than cast away at each call site.
+ */
+type ServerMediaRow = { url: string; mediaType?: string | null; position?: number | null };
+
+/**
+ * The server's media rows, folded into the wizard's slots.
+ *
+ * ONE function, called for the product and for every variation, because the
+ * position rules are the same fact and having them written twice is how they
+ * drift. The named slots are given in position order; everything past them is
+ * the gallery. A variation has no poster, so its position 0 is the front —
+ * that is the only difference between the two callers, and it is the argument.
+ *
+ * Images only. A clip is a `product_media` row like any other and it carries a
+ * position, so an unfiltered pass can drop an mp4 into the poster slot and show
+ * a broken thumbnail where the catalogue image belongs. Video arrives
+ * separately, through `videoUrl`. `normalizeBackendProduct` filters the same
+ * way, for the same reason, when it derives `imageUrls`; an absent `mediaType`
+ * is an image, which is what the column defaults to.
+ */
+function foldMediaRows<T extends { more: MediaSlot[] }>(
+  target: T,
+  rows: ServerMediaRow[] | null | undefined,
+  named: Array<keyof T & string>,
+): T {
+  if (!rows) return target;
+
+  rows
+    .filter((m) => (m.mediaType ?? 'image') === 'image')
+    .forEach((m) => {
+      const slot: MediaSlot = {
+        localUri: m.url,
+        uploadedUrl: m.url,
+        uploadStatus: 'done',
+      };
+      const key = named[m.position ?? -1];
+      /*
+       * Anything past the named slots joins the gallery rather than being
+       * dropped. Product positions 3 and 4 were `left` and `right`, which no
+       * longer exist as slots; every product created before that change still
+       * has them, and silently losing two images on open would be a worse bug
+       * than the slots ever were.
+       */
+      if (key) (target as Record<string, unknown>)[key] = slot;
+      else target.more.push(slot);
+    });
+
+  return target;
 }
 
 /**
@@ -32,7 +88,7 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
   const sizeLowStockAlertSet: Record<string, string> = {};
   const stockedOutSizes: string[] = [];
 
-  const inv = (p as Product & { inventory?: Array<{ size: string; stock: number; moq: number; lowStockAlert: number }> }).inventory;
+  const inv = p.inventory;
   if (inv?.length) {
     inv.forEach((item) => {
       sizeStockSet[item.size] = String(item.stock);
@@ -42,7 +98,6 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
     });
   }
 
-  const productMedia = emptyProductMedia();
   /*
    * `p.media`, not a cast onto `p`.
    *
@@ -52,33 +107,11 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
    * edit opened with six empty slots, and the cast is what stopped anyone
    * finding out: with `media` on the type, this line would not have compiled.
    */
-  const media = p.media;
-  if (media) {
-    /*
-     * Images only. A clip is a `product_media` row like any other, and it
-     * carries a position — so an unfiltered pass can drop an mp4 into the
-     * poster slot and show a broken thumbnail where the catalogue image
-     * belongs. Video reaches the wizard through `videoUrl`, below.
-     * `normalizeBackendProduct` filters the same way, for the same reason, when
-     * it derives `imageUrls`; absent mediaType is an image, which is what the
-     * column defaults to.
-     */
-    media
-      .filter((m) => (m.mediaType ?? 'image') === 'image')
-      .forEach((m) => {
-        const slot = { localUri: m.url, uploadedUrl: m.url, uploadStatus: 'done' as const };
-      /*
-       * Positions 3 and 4 were `left` and `right`, which no longer exist as
-       * slots. They fold into the gallery rather than being dropped: every
-       * product created before this change has them, and silently losing two
-       * images on open would be a far worse bug than the slots were.
-       */
-        if (m.position === 0) productMedia.poster = slot;
-        else if (m.position === 1) productMedia.front = slot;
-        else if (m.position === 2) productMedia.back = slot;
-        else productMedia.more.push(slot);
-      });
-  }
+  const productMedia = foldMediaRows(emptyProductMedia(), p.media, [
+    'poster',
+    'front',
+    'back',
+  ]);
   if (p.videoUrl) {
     productMedia.video = {
       localUri: p.videoUrl,
@@ -105,24 +138,68 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
    * Found by opening a real product on dev; no unit test would have caught it,
    * because they all build wizard state directly rather than hydrating it.
    */
-  const rawVariations = ((p as Product & { variations?: unknown[] }).variations ||
-    []) as WizardState['variations'];
+  const rawVariations = (p.variations || []) as unknown as WizardState['variations'];
   const variations = rawVariations.map((v) => {
+    /*
+     * THE SERVER'S ARRAY BECOMES THE WIZARD'S OBJECT, HERE AND NOWHERE ELSE.
+     *
+     * `ProductVariation.media` used to be `VariationMediaState |
+     * ProductMediaItem[]`, because the server sends rows and the wizard holds
+     * slots and nobody converted between them. Step 4 then did
+     *
+     *     const media = (v.media as VariationMediaState) ?? emptyVariationMedia();
+     *     media.more.map(…)
+     *
+     * and `??` does not fire for a non-empty array, so `.more` was `undefined`
+     * and the whole screen threw `Cannot read properties of undefined (reading
+     * 'map')`. Every variant product with variation images was uneditable — you
+     * could not reach Step 4 at all.
+     *
+     * I wrote that guard, and left a test comment saying the union "carries
+     * real ambiguity — Round 2 splits the two". This is that split. The union
+     * is gone from the type, so the array shape no longer exists inside the
+     * wizard and the crash is not expressible rather than merely handled.
+     *
+     * A variation has no poster: its position 0 is the front.
+     */
+    const media = foldMediaRows(
+      emptyVariationMedia(),
+      v.media as ServerMediaRow[] | undefined,
+      ['front', 'back'],
+    );
+    const withMedia = {
+      ...v,
+      media,
+      ...(v.videoUrl
+        ? {
+            media: {
+              ...media,
+              video: {
+                localUri: v.videoUrl,
+                uploadedUrl: v.videoUrl,
+                uploadStatus: 'done' as const,
+                thumbnail: '',
+              },
+            },
+          }
+        : {}),
+    };
+
     const rows = v.inventory ?? [];
-    if (rows.length === 0) return v;
+    if (rows.length === 0) return withMedia;
     const from = (pick: (r: ProductInventoryItem) => number | undefined) =>
       Object.fromEntries(
         rows.map((r) => [r.size, String(pick(r) ?? '')]).filter(([, value]) => value !== ''),
       );
     return {
-      ...v,
+      ...withMedia,
       // The operator's own edits win if hydrate ever runs over a dirty form.
       sizeStock: { ...from((r) => r.stock), ...(v.sizeStock ?? {}) },
       sizeMoq: { ...from((r) => r.moq), ...(v.sizeMoq ?? {}) },
       sizeAlert: { ...from((r) => r.lowStockAlert), ...(v.sizeAlert ?? {}) },
     };
   });
-  const rawHasVariant = (p as Product & { hasVariant?: boolean }).hasVariant;
+  const rawHasVariant = p.hasVariant;
   const hasVariant =
     rawHasVariant === true || rawHasVariant === false
       ? rawHasVariant
@@ -140,11 +217,11 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
     classificationId: p.classificationId || '',
     productDetailId: p.productDetailId || '',
     description: p.description || '',
-    material: (p as Product & { material?: string }).material || '',
-    weight: String((p as Product & { weight?: number }).weight || ''),
-    volume: String((p as Product & { volume?: number }).volume || ''),
+    material: p.material || '',
+    weight: String(p.weight || ''),
+    volume: String(p.volume || ''),
     selectedSizes,
-    tags: (p as Product & { productTags?: string[] }).productTags || [],
+    tags: p.productTags || [],
     basePrice: String(p.basePrice || ''),
     margin: String(p.margin || ''),
     stock: String(p.stock || ''),
@@ -152,14 +229,14 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
     dispatchTime: p.dispatchTime || '',
     sku: p.sku || '',
     hasVariant,
-    sizeType: (p as Product & { sizeType?: string }).sizeType || 'UNIQUE',
+    sizeType: p.sizeType || 'UNIQUE',
     sizeStockSet,
     moqSet,
     sizeLowStockAlertSet,
     stockedOutSizes,
-    lowStockAlert: String((p as Product & { lowStockAlert?: number }).lowStockAlert ?? ''),
-    variationColors: (p as Product & { variationColors?: string[] }).variationColors || [],
-    variationDesigns: (p as Product & { variationDesigns?: string[] }).variationDesigns || [],
+    lowStockAlert: String(p.lowStockAlert ?? ''),
+    variationColors: p.variationColors || [],
+    variationDesigns: p.variationDesigns || [],
     variations,
     productMedia,
     /*

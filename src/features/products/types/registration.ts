@@ -93,7 +93,23 @@ export interface ProductVariation {
    */
   sellingPrice?: number;
   inventory?: ProductInventoryItem[];
-  media?: VariationMediaState | ProductMediaItem[];
+  /**
+   * The wizard's slots — NOT the server's rows.
+   *
+   * This was `VariationMediaState | ProductMediaItem[]`, a union that existed
+   * because the server sends `{url, mediaType, position}[]` and the wizard edits
+   * named slots, and nothing converted between them. Every consumer then had to
+   * narrow, and the narrowing in Step 4 was `?? emptyVariationMedia()`, which
+   * does not fire for a non-empty array — so `media.more` was `undefined` and
+   * the step threw on `.map`. A variant product with variation images could not
+   * be opened for editing at all.
+   *
+   * `mapProductToWizardState` folds the rows into slots at hydrate, so by the
+   * time anything in the wizard sees a variation this is the only shape it can
+   * have. The union is not narrowed here; it is removed, which is what makes
+   * the crash unrepresentable rather than guarded against.
+   */
+  media?: VariationMediaState;
   videoUrl?: string;
   sizeStock?: Record<string, string>;
   sizeMoq?: Record<string, string>;

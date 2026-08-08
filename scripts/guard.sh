@@ -485,5 +485,41 @@ badbase=$(grep -rn --include='*.ts' --include='*.tsx' -E "^const BASE = '/" "$SR
 # not having the guard at all.
 report "versioned-api-path" "build paths from API_V1 — an unprefixed path silently returns index.html" "$badbase"
 
+# G21 — a field is read off `Product` only if `Product` actually has it.
+#
+# THREE OCCURRENCES OF ONE BUG, all found by an operator rather than by a test.
+#
+# `normalizeBackendProduct` builds its result from an explicit field list, so a
+# field missing from that list does not exist downstream however faithfully the
+# API sent it. Readers reached for the missing fields anyway, through
+#
+#     (p as Product & { sizeType?: string }).sizeType
+#
+# — a cast that ASSERTS a field the type does not have, so `undefined`
+# type-checks clean and the compiler, which knew, was told to be quiet.
+#
+# What it cost:
+#   media             every edit opened with six empty media tiles, on products
+#                     with photographs, and step 4 refused to advance
+#   variationColors   colour and design chips empty on a product with two of
+#   variationDesigns  each
+#   hasVariant        guessed from `variations.length` instead of read
+#   sizeType          every edit reset the size vocabulary to UNIQUE
+#   productTags       renamed `trendTags` for the catalogue, then not carried
+#                     under its own name, so tags were lost on save
+#   lowStockAlert     the product-level alert, dropped
+#
+# The cast is the tell, and it is greppable. There is exactly one situation that
+# looks like a legitimate use — a field genuinely absent from the API — and the
+# answer there is to add it to `productResponseSchema`, which is what makes the
+# next reader's mistake a compile error instead of a blank field.
+#
+# Comment lines are stripped so the prose describing this bug does not trip it.
+prodcast=$(grep -rnE --include='*.ts' --include='*.tsx' 'as Product & \{' "$SRC" 2>/dev/null \
+  | grep -vE ':[0-9]+:[[:space:]]*([*]|//|/[*])' || true)
+report "product-field-via-cast" \
+  "declare the field on productResponseSchema and emit it from normalizeBackendProduct — a cast here asserts a field that does not exist" \
+  "$prodcast"
+
 [ "$FAIL" -eq 0 ] && echo "✓ all design-system guards pass"
 exit "$FAIL"

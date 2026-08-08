@@ -239,6 +239,30 @@ export const productResponseSchema = z.object({
     )
     .optional()
     .nullable(),
+  /*
+   * THE FIELDS THE ADD/EDIT WIZARD HYDRATES FROM, declared so the compiler can
+   * see them.
+   *
+   * `normalizeBackendProduct` builds its result from an explicit field list, so
+   * anything absent from that list does not exist downstream however faithfully
+   * the API sent it. These six were absent, and the wizard read them anyway —
+   * through `(p as Product & { sizeType?: string })` casts, which assert a field
+   * the type does not have and make `undefined` type-check clean.
+   *
+   * The result, on every edit: colour and design chips empty on a product with
+   * two of each, the Size Type toggle reset to UNIQUE, tags gone, the
+   * product-level low-stock alert gone, and `hasVariant` guessed from
+   * `variations.length` instead of read.
+   *
+   * Declared here rather than cast at the call site so that dropping one from
+   * the normaliser again is a compile error, not a blank field.
+   */
+  hasVariant: z.boolean().optional().nullable(),
+  sizeType: z.string().optional().nullable(),
+  variationColors: z.array(z.string()).optional().nullable(),
+  variationDesigns: z.array(z.string()).optional().nullable(),
+  productTags: z.array(z.string()).optional().nullable(),
+  lowStockAlert: z.number().optional().nullable(),
   rejectionReason: z.string().optional().nullable(),
   createdAt: z.string().optional().nullable(),
   updatedAt: z.string().optional().nullable(),

@@ -217,6 +217,35 @@ export function normalizeBackendProduct(
     moq: Number(raw.moq) || 1,
     dispatchTime: raw.dispatchTime ?? '',
     trendTags: Array.isArray(raw.productTags) ? (raw.productTags as string[]) : [],
+    /*
+     * THE WIZARD'S FIELDS, WHICH THIS FUNCTION USED TO DROP.
+     *
+     * This builds an explicit object, so a field absent from it does not exist
+     * downstream however faithfully the API sent it — the same way `media` was
+     * lost until this morning. Six more went the same way, and the Add/Edit
+     * wizard hydrates from every one:
+     *
+     *   variationColors / variationDesigns  the colour × design axes; a product
+     *                                       with two of each opened with none
+     *   hasVariant                          guessed from `variations.length`
+     *                                       instead of read
+     *   sizeType                            every edit reset the toggle to UNIQUE
+     *   productTags                         renamed to `trendTags` above for the
+     *                                       catalogue and then not carried under
+     *                                       its own name, so tags were lost
+     *   lowStockAlert                       the product-level alert
+     *
+     * `trendTags` stays: the list and detail screens read it. `productTags` is
+     * the same data under the name the API and the wizard both use, so both
+     * readers get what they ask for rather than one being renamed out from
+     * under the other.
+     */
+    hasVariant: typeof raw.hasVariant === 'boolean' ? raw.hasVariant : undefined,
+    sizeType: typeof raw.sizeType === 'string' ? raw.sizeType : undefined,
+    variationColors: Array.isArray(raw.variationColors) ? (raw.variationColors as string[]) : [],
+    variationDesigns: Array.isArray(raw.variationDesigns) ? (raw.variationDesigns as string[]) : [],
+    productTags: Array.isArray(raw.productTags) ? (raw.productTags as string[]) : [],
+    lowStockAlert: raw.lowStockAlert != null ? Number(raw.lowStockAlert) : undefined,
     visibility: mapVisibility(raw.visibility),
     wholesalerId: raw.wholesalerId ?? '',
     supplierName: typeof raw.supplierName === 'string' ? raw.supplierName : '',

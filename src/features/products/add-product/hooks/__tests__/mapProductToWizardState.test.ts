@@ -194,3 +194,122 @@ describe('hydrating does not invent an upload draft', () => {
     expect(mapped.draftId).not.toBe('prod-1');
   });
 });
+
+/**
+ * THE CRASH: A VARIANT PRODUCT'S MEDIA ARRIVES AS ROWS, NOT AS SLOTS.
+ *
+ * `ProductVariation.media` was `VariationMediaState | ProductMediaItem[]` — the
+ * server sends rows, the wizard edits named slots, and nothing converted
+ * between them. Step 4 narrowed with
+ *
+ *     const media = (v.media as VariationMediaState) ?? emptyVariationMedia();
+ *     media.more.map(…)
+ *
+ * and `??` does not fire for a non-EMPTY array, so `.more` was `undefined` and
+ * the step threw "Cannot read properties of undefined (reading 'map')". Every
+ * variant product with variation images was uneditable: Step 4 was unreachable.
+ *
+ * Reproduced on dev with `Lipstick` (4 variations, 4 images). The union is gone
+ * from the type now, so the array shape cannot exist inside the wizard — these
+ * assert the conversion that makes that true.
+ */
+describe('a variation whose media arrives as server rows', () => {
+  const serverVariant = () =>
+    ({
+      id: 'p3',
+      name: 'Lipstick',
+      hasVariant: true,
+      variations: [
+        {
+          id: 'v1',
+          color: 'Red',
+          media: [
+            { url: 'https://x/front.jpg', mediaType: 'image', position: 0 },
+            { url: 'https://x/back.jpg', mediaType: 'image', position: 1 },
+            { url: 'https://x/detail.jpg', mediaType: 'image', position: 2 },
+          ],
+        },
+      ],
+    }) as unknown as Product;
+
+  it('folds the rows into slots, so `.more` is an array', () => {
+    const v = mapProductToWizardState(serverVariant()).variations![0];
+
+    expect(v.media?.front?.uploadedUrl).toBe('https://x/front.jpg');
+    expect(v.media?.back?.uploadedUrl).toBe('https://x/back.jpg');
+    // The one that threw. A variation has no poster, so position 2 is already
+    // the gallery — its numbering starts one earlier than the product's.
+    expect(Array.isArray(v.media?.more)).toBe(true);
+    expect(v.media?.more).toHaveLength(1);
+    expect(v.media?.more[0].uploadedUrl).toBe('https://x/detail.jpg');
+  });
+
+  it('gives a variation with no media an empty slot set, not undefined', () => {
+    const p = serverVariant() as unknown as { variations: Array<Record<string, unknown>> };
+    delete p.variations[0].media;
+
+    const v = mapProductToWizardState(p as unknown as Product).variations![0];
+    expect(v.media?.more).toEqual([]);
+    expect(v.media?.front.uploadedUrl).toBe('');
+  });
+
+  it('keeps a variation clip out of the image slots', () => {
+    const p = serverVariant() as unknown as { variations: Array<Record<string, unknown>> };
+    p.variations[0].media = [{ url: 'https://x/clip.mp4', mediaType: 'video', position: 0 }];
+
+    const v = mapProductToWizardState(p as unknown as Product).variations![0];
+    expect(v.media?.front.uploadedUrl).toBe('');
+  });
+});
+
+/**
+ * THE SIX FIELDS THE NORMALISER DROPPED.
+ *
+ * Each was read through `(p as Product & { … })`, a cast asserting a field the
+ * type did not have — so `undefined` type-checked clean and the form arrived
+ * empty. Asserted one per field, by name, so dropping one again says which.
+ */
+describe('hydrating carries every field the wizard edits', () => {
+  const full = () =>
+    ({
+      id: 'p4',
+      name: 'Lipstick',
+      hasVariant: true,
+      sizeType: 'LETTER',
+      variationColors: ['Red', 'Blue'],
+      variationDesigns: ['Matte', 'Gloss'],
+      productTags: ['new', 'trending'],
+      lowStockAlert: 12,
+    }) as unknown as Product;
+
+  it.each([
+    ['hasVariant', (s: Partial<WizardStateForTest>) => s.hasVariant, true],
+    ['sizeType', (s: Partial<WizardStateForTest>) => s.sizeType, 'LETTER'],
+    ['lowStockAlert', (s: Partial<WizardStateForTest>) => s.lowStockAlert, '12'],
+  ])('carries %s', (_name, read, expected) => {
+    expect(read(mapProductToWizardState(full()) as WizardStateForTest)).toEqual(expected);
+  });
+
+  it('carries the colour and design axes, which drove the empty chips', () => {
+    const s = mapProductToWizardState(full());
+    expect(s.variationColors).toEqual(['Red', 'Blue']);
+    expect(s.variationDesigns).toEqual(['Matte', 'Gloss']);
+  });
+
+  it('carries tags, which the normaliser renamed to trendTags and lost', () => {
+    expect(mapProductToWizardState(full()).tags).toEqual(['new', 'trending']);
+  });
+
+  it('reads hasVariant rather than guessing it from the variation count', () => {
+    // A variant product mid-setup has no variations yet. Guessing said "plain",
+    // and the wizard then hid the colour axis it needs to generate them.
+    const p = { ...full(), variations: [] } as unknown as Product;
+    expect(mapProductToWizardState(p).hasVariant).toBe(true);
+  });
+});
+
+type WizardStateForTest = {
+  hasVariant: boolean | null;
+  sizeType: string;
+  lowStockAlert: string;
+};
