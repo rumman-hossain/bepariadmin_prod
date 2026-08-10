@@ -121,6 +121,71 @@ export async function deleteProduct(id: string): Promise<ApiResponse<{ data: str
   return request<{ data: string }>('DELETE', `/api/v1/products/${id}`, { auth: true });
 }
 
+/**
+ * Edit a CLASSIFICATION TEMPLATE — the shared catalogue wording, not one
+ * product's copy of it.
+ *
+ * `catalog.product_details` rows are what `/catalog/sku` returns as `details`
+ * and what ClassificationTemplates offers on step 2. The endpoint has always
+ * existed and the console has never called it: `PATCH /catalog/edit/{id}`
+ * dispatches on a `level` query parameter, and `LevelDetail` maps to this
+ * table (internal/product/catalog_repository.go). It is AdminOnly server-side.
+ *
+ * The repository uses COALESCE(NULLIF($n, ''), column), so an empty string
+ * means "leave this alone" rather than "clear it". A field cannot be emptied
+ * through here, which is why the console does not offer to.
+ */
+export async function updateClassificationTemplate(
+  detailId: string,
+  input: { name?: string; description?: string },
+): Promise<ApiResponse<{ data: unknown }>> {
+  return request<{ data: unknown }>(
+    'PATCH',
+    `/api/v1/catalog/edit/${encodeURIComponent(detailId)}?level=detail`,
+    { auth: true, body: input as unknown as Record<string, unknown> },
+  );
+}
+
+/**
+ * What a variant's figures can be changed to after registration.
+ *
+ * `sellingPrice` IS ABSENT ON PURPOSE, and must stay absent. The server derives
+ * it — `ROUND(base_price * (1 + COALESCE(w.margin, 9.50) / 100), 2)` — and
+ * `internal/product/model.go` records what happened the last time the two were
+ * confused: there was ONE field, the derived selling price landed in it, the
+ * base price was silently discarded, and `v.Price` then meant a cost on some
+ * paths and a selling price on others. Order pricing read it.
+ *
+ * So this sends the cost and lets the server say what it sells for.
+ */
+export interface UpdateVariationInput {
+  /** The SUPPLIER's cost. Maps to `price` on the wire, which is that column. */
+  price?: number;
+  stock?: number;
+  moq?: number;
+  lowStockAlert?: number;
+}
+
+/**
+ * Change one variant of a product.
+ *
+ * The endpoint has existed since before the console had any way to reach it:
+ * `PATCH /{id}/variations/{varId}` in internal/product/handler.go decodes a
+ * whole ProductVariation. Nothing in the UI called it, so a price set during
+ * registration could never be corrected.
+ */
+export async function updateVariation(
+  productId: string,
+  variationId: string,
+  input: UpdateVariationInput,
+): Promise<ApiResponse<{ data: unknown }>> {
+  return request<{ data: unknown }>(
+    'PATCH',
+    `/api/v1/products/${encodeURIComponent(productId)}/variations/${encodeURIComponent(variationId)}`,
+    { auth: true, body: input as unknown as Record<string, unknown> },
+  );
+}
+
 /*
  * `updateProductStatus` USED TO LIVE HERE, and it is gone.
  *

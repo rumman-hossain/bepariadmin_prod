@@ -5,6 +5,7 @@ import { Input } from '@/src/components/controls';
 import type { SelectionType } from '../hooks/useAddProductLogic';
 import type { CatalogNode } from '../../types/registration';
 import { useAddProductStore } from '../store/useAddProductStore';
+import { supplierLabel } from '@/src/features/wholesalers/utils/supplierLabel';
 import { useSupplierPickerQuery } from '@/src/features/wholesalers/queries';
 import type { Wholesaler } from '@/src/types/domain';
 import { Text } from '@/src/components/data';
@@ -186,8 +187,18 @@ export function SelectionModal({
           {selectionType === 'wholesaler'
             ? wholesalerItems.map((w) => (
                 <li key={w.id}>
+                  {/*
+                    The name and code are two spans separated by an `ml-2` and
+                    nothing else, so the row reads correctly on screen and
+                    concatenates to "mohanWHL-00007" wherever the text is taken
+                    rather than the pixels — the accessibility tree included.
+                    The visual layout is worth keeping; the accessible name is
+                    not worth leaving wrong, and `supplierLabel` is the same
+                    wording the product-list filter gives the same supplier.
+                  */}
                   <button
                     type="button"
+                    aria-label={supplierLabel(w)}
                     className="w-full text-left px-3 py-3 hover:bg-sheet-2 text-sm text-ink"
                     onClick={() => handleSelectWholesaler(w)}
                   >

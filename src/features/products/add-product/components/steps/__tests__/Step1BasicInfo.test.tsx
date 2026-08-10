@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, cleanup } from '@testing-library/react';
 import { Step1BasicInfo } from '../Step1BasicInfo';
 import { useAddProductStore } from '../../../store/useAddProductStore';
@@ -20,7 +22,8 @@ import { validateStep1 } from '../../../utils/validateWizardStep';
  * never see.
  */
 
-vi.mock('@/src/features/wholesalers/api/wholesalerApi', () => ({
+vi.mock('@/src/features/wholesalers/api/wholesalerApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/features/wholesalers/api/wholesalerApi')>()),
   listSuppliersForPicker: vi.fn(async () => []),
 }));
 
@@ -33,7 +36,17 @@ beforeEach(() => store().reset());
 afterEach(cleanup);
 
 const renderStep = (errors?: Record<string, string>) =>
-  render(<Step1BasicInfo onSelect={() => {}} generatedSku="" errors={errors} />);
+  render(withQueryClient(<Step1BasicInfo onSelect={() => {}} generatedSku="" errors={errors} />));
+
+/*
+ * Step 1 reads the supplier list through `useSupplierPickerQuery` now, so it
+ * needs a client. `retry: false` keeps a failed fetch from stalling the test,
+ * and a fresh client per render keeps one test's cache out of the next.
+ */
+function withQueryClient(ui: React.ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return <QueryClientProvider client={client}>{ui}</QueryClientProvider>;
+}
 
 describe('step 1 shows which field is wrong', () => {
   it('renders every message validateStep1 produced', () => {
@@ -105,7 +118,7 @@ describe('step 1 shows which field is wrong', () => {
   it('defaults to no errors when the prop is omitted entirely', () => {
     // Step 6 and the summary render this component's siblings without an
     // errors map; an undefined prop must read as "nothing wrong", not crash.
-    render(<Step1BasicInfo onSelect={() => {}} generatedSku="" />);
+    render(withQueryClient(<Step1BasicInfo onSelect={() => {}} generatedSku="" />));
     expect(screen.queryByText('Product name is required')).toBeNull();
   });
 });

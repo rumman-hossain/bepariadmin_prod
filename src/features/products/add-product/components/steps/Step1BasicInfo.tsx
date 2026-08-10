@@ -1,9 +1,9 @@
-import { useEffect, useId, useState } from 'react';
+import { useId } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Input } from '@/src/components/controls';
 import { cn } from '@/src/design-system/utils/cn';
 import { useAddProductStore } from '../../store/useAddProductStore';
-import { listSuppliersForPicker } from '@/src/features/wholesalers/api/wholesalerApi';
+import { useSupplierPickerQuery } from '@/src/features/wholesalers/queries';
 import { TagInput } from '../TagInput';
 import type { SelectionType } from '../../hooks/useAddProductLogic';
 import { Text } from '@/src/components/data';
@@ -90,28 +90,26 @@ function Selector({
 export function Step1BasicInfo({ onSelect, generatedSku, isGeneratingSku, errors = {} }: Props) {
   const store = useAddProductStore();
   const { setField } = store;
-  const [wholesalerLabel, setWholesalerLabel] = useState('');
-
-  useEffect(() => {
-    if (!store.wholesalerId) return;
-    let cancelled = false;
-    listSuppliersForPicker()
-      .then((data) => {
-        // Guard against a stale response overwriting a newer selection, and
-        // against setting state after unmount.
-        if (cancelled) return;
-        const match = data.find((w) => w.id === store.wholesalerId);
-        if (match) setWholesalerLabel(match.companyName || match.id);
-      })
-      // Previously a floating promise: a network failure here was an unhandled
-      // rejection with no user-visible effect at all.
-      .catch(() => {
-        if (!cancelled) setWholesalerLabel('');
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [store.wholesalerId]);
+  /*
+   * ONE CACHED LIST, NOT A FETCH PER SUPPLIER CHANGE.
+   *
+   * This was a `useEffect` keyed on `store.wholesalerId` calling
+   * listSuppliersForPicker() directly — 200 supplier rows over the wire every
+   * time the operator changed supplier, to display one name, with its own
+   * cancelled-flag and catch because it had no cache to lean on. Step 6 and the
+   * product list each had their own copy of the same effect. Measured on dev:
+   * five calls to /admin/wholesalers?limit=200 in a single pass through the
+   * wizard.
+   *
+   * `useSupplierPickerQuery` is that list, fetched once and shared. The stale
+   * response guard and the floating-promise catch go with it: React Query
+   * discards out-of-order responses and keeps the error in `isError`.
+   */
+  const { data: suppliers } = useSupplierPickerQuery();
+  const wholesalerLabel =
+    (store.wholesalerId &&
+      suppliers?.find((w) => w.id === store.wholesalerId)?.companyName) ||
+    '';
 
   return (
     <div className="space-y-4">

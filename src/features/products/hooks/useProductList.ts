@@ -1,8 +1,9 @@
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo } from 'react';
 import { useDebouncedValue } from '@/src/hooks/useDebouncedValue';
 import { useProductStore } from '../store';
 import { useCategoryNamesQuery, useAdminProductsQuery } from '../queries';
-import { listSuppliersForPicker } from '@/src/features/wholesalers/api/wholesalerApi';
+import { useSupplierPickerQuery } from '@/src/features/wholesalers/queries';
+import { supplierLabel } from '@/src/features/wholesalers/utils/supplierLabel';
 import { isProductState, type AdminProductListParams } from '../types/adminProduct';
 import type { ProductFilters } from '../types';
 
@@ -78,34 +79,24 @@ export function useProductList() {
 
   const products = useMemo(() => data?.products ?? [], [data]);
 
-  // Supplier names for the filter dropdown. Still a whole-table fetch — it is
-  // the endpoint that needs pagination, not this call site.
-  const [wholesalerOptions, setWholesalerOptions] = useState<FilterOption[]>([
-    { label: 'All suppliers', value: 'All' },
-  ]);
-
-  useEffect(() => {
-    let cancelled = false;
-    listSuppliersForPicker()
-      .then((items) => {
-        if (cancelled) return;
-        setWholesalerOptions([
-          { label: 'All suppliers', value: 'All' },
-          ...items.map((w) => ({
-            // The code first, because it is what the SKU carries and what an
-            // operator matches a row against.
-            label: w.code ? `${w.code} · ${w.companyName || w.id}` : w.companyName || w.id,
-            value: w.id,
-          })),
-        ]);
-      })
-      .catch(() => {
-        if (!cancelled) setWholesalerOptions([{ label: 'All suppliers', value: 'All' }]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  /*
+   * Supplier names for the filter dropdown, from the SHARED picker query.
+   *
+   * This was a fourth private `useEffect` over the same endpoint, with its own
+   * cancelled flag, its own catch, and its own copy of the label format. On a
+   * failure it reset the options to just "All suppliers", silently narrowing the
+   * filter to nothing without saying so; React Query keeps the last good list
+   * instead. Still a whole-table fetch — that is the endpoint needing
+   * pagination, not this call site — but now it is fetched once for the app.
+   */
+  const { data: suppliers } = useSupplierPickerQuery();
+  const wholesalerOptions: FilterOption[] = useMemo(
+    () => [
+      { label: 'All suppliers', value: 'All' },
+      ...(suppliers ?? []).map((w) => ({ label: supplierLabel(w), value: w.id })),
+    ],
+    [suppliers],
+  );
 
   const categoryOptions: FilterOption[] = useMemo(
     () => [

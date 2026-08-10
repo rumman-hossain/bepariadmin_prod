@@ -1,8 +1,22 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import type React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render as rtlRender, screen, cleanup, fireEvent } from '@testing-library/react';
 import { Step2Details } from '../Step2Details';
 import { useAddProductStore } from '../../../store/useAddProductStore';
+
+/*
+ * Step 2 renders ClassificationTemplates, which now reads the signed-in role
+ * and holds a mutation for the admin-only catalogue-template editor. Neither is
+ * the subject here.
+ */
+vi.mock('@/src/hooks/useAuth', () => ({ useAuth: () => ({ user: { role: 'super_admin' } }) }));
+
+function render(ui: React.ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 /**
  * "Why is add product missing and not editable" — Edit Product · Details.

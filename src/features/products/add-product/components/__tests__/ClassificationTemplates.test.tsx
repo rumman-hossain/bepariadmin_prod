@@ -1,8 +1,31 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { render, screen, cleanup, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render as rtlRender, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { ClassificationTemplates } from '../ClassificationTemplates';
 import { useAddProductStore } from '../../store/useAddProductStore';
+
+/*
+ * The component now offers an admin-only "Edit catalogue template" action, so
+ * it reads the signed-in role and holds a mutation. Neither is what these tests
+ * are about; they are stubbed so the description rules stay the subject.
+ */
+const updateClassificationTemplate = vi.fn();
+vi.mock('@/src/api/products', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/api/products')>()),
+  updateClassificationTemplate: (...a: unknown[]) => updateClassificationTemplate(...a),
+}));
+
+vi.mock('@/src/hooks/useAuth', () => ({
+  useAuth: () => ({ user: { role: 'super_admin' } }),
+}));
+
+/** A client per render — the mutation hook needs one, and sharing leaks state. */
+function render(ui: React.ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return rtlRender(<QueryClientProvider client={client}>{ui}</QueryClientProvider>);
+}
 
 /**
  * A TEMPLATE MAY FILL AN EMPTY DESCRIPTION. IT MAY NOT REPLACE ONE.
@@ -26,6 +49,8 @@ const TEMPLATES = [
 beforeEach(() => {
   store().reset();
   useAddProductStore.setState({ classificationDetails: TEMPLATES });
+  updateClassificationTemplate.mockReset();
+  updateClassificationTemplate.mockResolvedValue({ ok: true, status: 200, data: { data: {} } });
 });
 afterEach(cleanup);
 
@@ -107,5 +132,79 @@ describe('the template text can be edited and added to', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add template text' }));
 
     expect(store().description).toBe(`My own words.\n\n${TEMPLATES[0].details}`);
+  });
+});
+
+describe('editing the SHARED catalogue template', () => {
+  /*
+   * A different act from editing the description above, and the two boxes look
+   * alike — one changes this product, the other changes the wording every
+   * future product of this classification is seeded with.
+   *
+   * The endpoint was there the whole time. `PATCH /catalog/edit/{id}` dispatches
+   * on a `level` query parameter and `LevelDetail` maps to
+   * catalog.product_details; the console had simply never called it, which is
+   * why "make the templates editable" looked like it needed backend work.
+   */
+  const openEditor = () =>
+    fireEvent.click(screen.getByRole('button', { name: /edit catalogue template/i }));
+
+  it('sends the new wording to the catalogue endpoint', async () => {
+    render(<ClassificationTemplates />);
+    openEditor();
+    fireEvent.change(screen.getByLabelText('Template text'), {
+      target: { value: 'Rewritten catalogue wording.' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Save template' }));
+
+    await waitFor(() => expect(updateClassificationTemplate).toHaveBeenCalled());
+    expect(updateClassificationTemplate).toHaveBeenCalledWith('d1', {
+      name: 'Oversized Tee',
+      description: 'Rewritten catalogue wording.',
+    });
+  });
+
+  it('warns that this is not the product being registered', () => {
+    render(<ClassificationTemplates />);
+    openEditor();
+    expect(screen.getByText(/changes the catalogue for everyone/i)).toBeTruthy();
+  });
+
+  it('does NOT touch this product’s own description', async () => {
+    useAddProductStore.setState({ description: 'My own words.', productDetailId: 'd1' });
+    render(<ClassificationTemplates />);
+    openEditor();
+    fireEvent.change(screen.getByLabelText('Template text'), { target: { value: 'New shared text.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save template' }));
+
+    await waitFor(() => expect(updateClassificationTemplate).toHaveBeenCalled());
+    expect(store().description).toBe('My own words.');
+  });
+
+  it('shows the saved wording on the card, without a refetch to lean on', async () => {
+    // `classificationDetails` is store state seeded once from /catalog/sku, not
+    // a query. Without writing it back the card keeps the old text and the save
+    // reads as having failed.
+    render(<ClassificationTemplates />);
+    openEditor();
+    fireEvent.change(screen.getByLabelText('Template text'), { target: { value: 'Fresh wording.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save template' }));
+
+    await waitFor(() =>
+      expect((store().classificationDetails as Array<{ details?: string }>)[0].details).toBe(
+        'Fresh wording.',
+      ),
+    );
+  });
+
+  it('reports a refusal instead of closing as though it saved', async () => {
+    updateClassificationTemplate.mockResolvedValue({ ok: false, status: 403, data: null });
+    render(<ClassificationTemplates />);
+    openEditor();
+    fireEvent.change(screen.getByLabelText('Template text'), { target: { value: 'Nope.' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save template' }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toBeTruthy());
+    expect(screen.getByRole('alert').textContent).toMatch(/only an admin/i);
   });
 });

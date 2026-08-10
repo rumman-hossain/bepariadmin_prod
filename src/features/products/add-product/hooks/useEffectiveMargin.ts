@@ -1,6 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
-import { listSuppliersForPicker } from '@/src/features/wholesalers/api/wholesalerApi';
-import { queryKeys } from '@/src/app/queryClient';
+import { useSupplierPickerQuery } from '@/src/features/wholesalers/queries';
 
 /*
  * THE MARGIN THAT ACTUALLY PRICES THIS PRODUCT — WHICH IS THE SUPPLIER'S, NOT
@@ -38,17 +36,15 @@ import { queryKeys } from '@/src/app/queryClient';
  */
 export function useEffectiveMargin(wholesalerId: string, platformMargin: number): number {
   /*
-   * Shares `queryKeys.wholesalers.list()` with the picker in Step 1, which is
-   * fetching this exact list anyway. The wizard already asked
-   * /admin/wholesalers?limit=200 five times in a single run — a sixth request
-   * for a number that is sitting in the cache would be worse than the bug.
+   * The shared picker query, which the rest of the wizard also reads.
+   *
+   * This declared its own useQuery on `queryKeys.wholesalers.list()` at first —
+   * one segment short of the picker's `[...list(), 'picker']`. A different key
+   * is a different cache entry, so it did not reuse anything: it added a SIXTH
+   * request for a number already in memory, while the comment above it claimed
+   * the opposite. Calling the existing hook makes that unrepresentable.
    */
-  const suppliers = useQuery({
-    queryKey: queryKeys.wholesalers.list(),
-    queryFn: listSuppliersForPicker,
-    staleTime: 10 * 60_000,
-    enabled: Boolean(wholesalerId),
-  });
+  const suppliers = useSupplierPickerQuery();
 
   if (!wholesalerId) return platformMargin;
 

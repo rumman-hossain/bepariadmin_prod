@@ -103,6 +103,29 @@ function MediaTile({
   const failed = slot.uploadStatus === 'error';
 
   /*
+   * A CLIP THAT UPLOADED PERFECTLY AND CANNOT BE PLAYED.
+   *
+   * `uploadStatus` only ever describes the transfer. Measured on dev with a
+   * structurally valid MP4 the browser could not decode: draft 201, PUT 200,
+   * complete 200, the step reported success — and the preview `<video>` sat
+   * there black with `error.code === 4` (MEDIA_ERR_SRC_NOT_SUPPORTED) and
+   * nothing anywhere saying so. The file is stored, the listing ships, and the
+   * first person to find out is a retailer.
+   *
+   * The `<video>` element is the only thing that knows. Nothing listened to it.
+   *
+   * Reset on a new file, because the slot is reused: without this, replacing a
+   * broken clip with a good one leaves the warning up.
+   */
+  const [undecodable, setUndecodable] = useState(false);
+  const previewSrc = slot.localUri || slot.uploadedUrl;
+  const lastSrc = useRef(previewSrc);
+  if (lastSrc.current !== previewSrc) {
+    lastSrc.current = previewSrc;
+    if (undecodable) setUndecodable(false);
+  }
+
+  /*
     `localUri` is a blob: URL for something just picked, but on an EDIT it is
     whatever the product had stored — a `gs://` reference, which is not loadable
     and which the CSP blocks. `mediaDisplayUrl` passes blob: and data: through
@@ -204,7 +227,13 @@ function MediaTile({
       >
         {previewUrl ? (
           mediaType === 'video' ? (
-            <video src={previewUrl} className="absolute inset-0 h-full w-full object-cover" />
+            <video
+              src={previewUrl}
+              // The element is the only thing that can tell us the codec is
+              // unplayable, and it fires this exactly once per source.
+              onError={() => setUndecodable(true)}
+              className="absolute inset-0 h-full w-full object-cover"
+            />
           ) : (
             <img
               src={previewUrl}
@@ -262,6 +291,27 @@ function MediaTile({
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-sheet-inverse/60">
             <Loader2 className="h-5 w-5 animate-spin text-ink-inverse" aria-hidden="true" />
             <span className="text-2xs font-medium text-ink-inverse">Uploading…</span>
+          </div>
+        )}
+
+        {/*
+          Covers the tile, because a black rectangle is exactly what an
+          undecodable clip looks like and the operator has no reason to read
+          that as a fault. `role="alert"` so it is announced rather than only
+          seen — the tile is a thumbnail, and this is the one thing about it
+          worth saying out loud.
+        */}
+        {undecodable && !uploading && (
+          <div
+            role="alert"
+            className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-bad-wash/95 px-2 text-center"
+          >
+            <AlertTriangle className="h-4 w-4 text-bad" aria-hidden="true" />
+            <span className="text-2xs font-semibold text-bad">This clip will not play</span>
+            <span className="text-2xs leading-tight text-ink-2">
+              It uploaded, but the browser cannot decode it. Retailers will see the same. Replace
+              it with an MP4 (H.264), or remove it.
+            </span>
           </div>
         )}
 

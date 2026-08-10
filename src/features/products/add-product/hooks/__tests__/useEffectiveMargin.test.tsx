@@ -20,7 +20,13 @@ import type { ReactNode } from 'react';
  */
 
 const listSuppliersForPicker = vi.fn();
-vi.mock('@/src/features/wholesalers/api/wholesalerApi', () => ({
+/*
+ * `importOriginal` rather than a bare factory: the hook now goes through
+ * `useSupplierPickerQuery`, and that module imports fifteen other functions
+ * from here. Replacing the whole module with one export made it fail to load.
+ */
+vi.mock('@/src/features/wholesalers/api/wholesalerApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/features/wholesalers/api/wholesalerApi')>()),
   listSuppliersForPicker: () => listSuppliersForPicker(),
 }));
 
@@ -84,9 +90,20 @@ describe('falling back', () => {
     expect(result.current).toBe(PLATFORM);
   });
 
-  it('does not fetch the supplier list until there is a supplier to look up', () => {
-    render('');
-    expect(listSuppliersForPicker).not.toHaveBeenCalled();
+  it('answers without waiting for the supplier list', () => {
+    /*
+     * This asserted `not.toHaveBeenCalled()` while the hook ran its own query
+     * with `enabled: Boolean(wholesalerId)`. That private query was the bug —
+     * it keyed on `wholesalers.list()` rather than the picker's
+     * `[...list(), 'picker']`, so it fetched a SIXTH copy of a list already in
+     * the cache. Sharing the picker's query means the request is no longer this
+     * hook's to withhold, and withholding it would buy nothing: Step 1's
+     * supplier picker fetches the same list regardless.
+     *
+     * What still matters is the answer, immediately and without a round trip.
+     */
+    const { result } = render('');
+    expect(result.current).toBe(PLATFORM);
   });
 
   it('matches the server’s COALESCE when a supplier carries no margin', async () => {

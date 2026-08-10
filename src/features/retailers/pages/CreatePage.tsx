@@ -131,26 +131,52 @@ export function CreatePage() {
         </Alert>
       )}
 
-      <RetailerForm
-        mode="create"
-        values={values}
-        errors={errors}
-        onChange={setField}
-        pendingDocs={pendingDocs}
-        onDocSelected={onFileSelected}
-        missingRequired={missingRequired}
-        showMissingDocs={showSummary}
-      />
+      {/*
+        A REAL <form>, because there is a password inside it.
 
-      <div className="flex flex-wrap gap-3">
-        <Button onClick={handleSubmit} loading={create.isPending}>
-          Onboard retailer
-        </Button>
-        <Button variant="secondary" onClick={goToList} disabled={create.isPending}>
-          Cancel
-        </Button>
-      </div>
+        The fields sat in bare divs with the submit wired to an onClick, and
+        Chrome says so on every visit: "Password field is not contained in a
+        form". That warning is about behaviour, not tidiness — outside a form a
+        browser cannot tell which fields belong to the credential, so password
+        managers neither offer to generate one nor save what was set, and
+        pressing Enter in any field does nothing at all.
+
+        `noValidate` because `handleSubmit` already reports EVERY problem at
+        once, deliberately. Native validation would pre-empt it with a bubble on
+        the first invalid field and undo that.
+      */}
+      <form
+        noValidate
+        onSubmit={(e) => {
+          e.preventDefault();
+          void handleSubmit();
+        }}
+        className="contents"
+      >
+        <RetailerForm
+          mode="create"
+          values={values}
+          errors={errors}
+          onChange={setField}
+          pendingDocs={pendingDocs}
+          onDocSelected={onFileSelected}
+          missingRequired={missingRequired}
+          showMissingDocs={showSummary}
+        />
+
+        <div className="flex flex-wrap gap-3">
+          <Button type="submit" loading={create.isPending}>
+            Onboard retailer
+          </Button>
+          {/*
+            Explicitly `type="button"`. Inside a form the default is `submit`,
+            so Cancel would create the retailer it was pressed to avoid.
+          */}
+          <Button type="button" variant="secondary" onClick={goToList} disabled={create.isPending}>
+            Cancel
+          </Button>
+        </div>
+      </form>
     </Page>
-    
   );
 }

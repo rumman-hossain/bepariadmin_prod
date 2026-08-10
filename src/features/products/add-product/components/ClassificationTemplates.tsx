@@ -1,8 +1,13 @@
-import { useEffect, useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { cn } from '@/src/design-system/utils/cn';
 import { useAddProductStore } from '../store/useAddProductStore';
 import { Text } from '@/src/components/data';
-import { Button, Textarea } from '@/src/components/controls';
+import { Button, Input, Textarea } from '@/src/components/controls';
+import { Dialog, DialogFooter } from '@/src/components/feedback';
+import { Pencil } from 'lucide-react';
+import { useAuth } from '@/src/hooks/useAuth';
+import { hasRole, ADMIN_WRITE } from '@/src/auth/roles';
+import { useUpdateClassificationTemplate } from '../../queries';
 
 interface CatalogDetail {
   id: string;
@@ -15,6 +20,20 @@ export function ClassificationTemplates() {
   const productDetailId = useAddProductStore((s) => s.productDetailId);
   const description = useAddProductStore((s) => s.description);
   const setField = useAddProductStore((s) => s.setField);
+
+  /*
+   * Editing the shared catalogue template is a separate, admin-only act — see
+   * the dialog below. `ADMIN_WRITE` mirrors the backend's AdminOnly on
+   * PATCH /catalog/edit/{id}, so the button is not offered to somebody the
+   * server would refuse.
+   */
+  const { user } = useAuth();
+  const canEditCatalogue = hasRole(user?.role, ADMIN_WRITE);
+  const saveTemplate = useUpdateClassificationTemplate();
+  const [editingTemplate, setEditingTemplate] = useState(false);
+  const [templateName, setTemplateName] = useState('');
+  const [templateText, setTemplateText] = useState('');
+  const [templateError, setTemplateError] = useState<string | null>(null);
 
   /*
    * `?? []` produces a NEW array every render, so the effect below re-ran on
@@ -82,6 +101,43 @@ export function ClassificationTemplates() {
     setField('description', current ? `${current}\n\n${selected.details}` : selected.details);
   };
 
+  const openTemplateEditor = () => {
+    if (!selected) return;
+    setTemplateName(selected.name);
+    setTemplateText(selected.details ?? '');
+    setTemplateError(null);
+    setEditingTemplate(true);
+  };
+
+  const submitTemplate = async () => {
+    if (!selected) return;
+    setTemplateError(null);
+    try {
+      await saveTemplate.mutateAsync({
+        detailId: selected.id,
+        name: templateName,
+        description: templateText,
+      });
+      /*
+       * Write the saved wording back into the store by hand.
+       *
+       * `classificationDetails` is not a query — it is seeded once from
+       * /catalog/sku when the classification is chosen, so there is nothing to
+       * invalidate. Without this the dialog closes and the card underneath
+       * still shows the old text, which reads as the save having failed.
+       */
+      setField(
+        'classificationDetails',
+        details.map((d) =>
+          d.id === selected.id ? { ...d, name: templateName, details: templateText } : d,
+        ) as never,
+      );
+      setEditingTemplate(false);
+    } catch (e) {
+      setTemplateError((e as Error).message);
+    }
+  };
+
   return (
     <div className="sm:col-span-2 space-y-3">
       <div>
@@ -145,11 +201,81 @@ export function ClassificationTemplates() {
         hint="Filled from the template above. Edit it or add your own lines — this is what is saved."
       />
 
-      {selected?.details && !templateTextPresent && (
-        <Button type="button" variant="outline" onClick={insertTemplateText}>
-          {description.trim() ? 'Add template text' : 'Use template text'}
-        </Button>
-      )}
+      <div className="flex flex-wrap gap-2">
+        {selected?.details && !templateTextPresent && (
+          <Button type="button" variant="outline" onClick={insertTemplateText}>
+            {description.trim() ? 'Add template text' : 'Use template text'}
+          </Button>
+        )}
+
+        {/*
+          Editing the CATALOGUE template, which is a different act from editing
+          this product's description above — and the dialog says so, because the
+          two boxes look alike and only one of them changes other people's
+          products.
+
+          Admin-gated to match the server: `PATCH /catalog/edit/{id}` sits behind
+          AdminOnly, so for anyone else this button could only produce a 403.
+        */}
+        {canEditCatalogue && selected && (
+          <Button type="button" variant="ghost" iconLeft={Pencil} onClick={openTemplateEditor}>
+            Edit catalogue template
+          </Button>
+        )}
+      </div>
+
+      <Dialog
+        open={editingTemplate}
+        onClose={() => setEditingTemplate(false)}
+        size="md"
+        title="Edit the catalogue template"
+        subtitle="Shared wording — this is not the description of the product you are registering."
+        footer={
+          <DialogFooter>
+            <Button
+              variant="secondary"
+              onClick={() => setEditingTemplate(false)}
+              disabled={saveTemplate.isPending}
+            >
+              Cancel
+            </Button>
+            <Button onClick={submitTemplate} loading={saveTemplate.isPending}>
+              Save template
+            </Button>
+          </DialogFooter>
+        }
+      >
+        <div className="space-y-3">
+          <p className="flex gap-2 rounded-md border border-warn-border bg-warn-wash px-2.5 py-2 text-xs text-warn">
+            <span aria-hidden="true">⚠</span>
+            <span>
+              <b className="font-semibold">This changes the catalogue for everyone.</b> Every
+              product registered under <b className="font-semibold">{selected?.name}</b> from now
+              on is seeded with this wording. Products already registered keep the description
+              they were saved with.
+            </span>
+          </p>
+
+          <Input
+            label="Template name"
+            value={templateName}
+            onChange={(e) => setTemplateName(e.target.value)}
+          />
+          <Textarea
+            label="Template text"
+            value={templateText}
+            onChange={(e) => setTemplateText(e.target.value)}
+            rows={8}
+            hint="Leave a field unchanged to keep it. The server ignores an empty one rather than clearing it."
+          />
+
+          {templateError && (
+            <p role="alert" className="text-sm text-bad">
+              {templateError}
+            </p>
+          )}
+        </div>
+      </Dialog>
     </div>
   );
 }

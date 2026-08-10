@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   ChevronDown,
   ChevronUp,
@@ -11,7 +11,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { cn } from '@/src/design-system/utils/cn';
-import { listSuppliersForPicker } from '@/src/features/wholesalers/api/wholesalerApi';
+import { useSupplierPickerQuery } from '@/src/features/wholesalers/queries';
 import { useAddProductStore } from '../../store/useAddProductStore';
 import { summaryMoney, countProductMedia } from './summaryStats';
 
@@ -191,15 +191,17 @@ function PolicyBlock({
 
 export function Step6Summary({ sellPrice, effectiveMargin }: Props) {
   const s = useAddProductStore();
-  const [wholesalerLabel, setWholesalerLabel] = useState('');
-
-  useEffect(() => {
-    if (!s.wholesalerId) return;
-    void listSuppliersForPicker().then((data) => {
-      const match = data.find((w) => w.id === s.wholesalerId);
-      if (match) setWholesalerLabel(match.companyName || match.id);
-    });
-  }, [s.wholesalerId]);
+  /*
+   * The shared picker list, not a third private fetch of it.
+   *
+   * This ran its own effect, so the summary rendered the supplier's raw UUID
+   * until its copy of /admin/wholesalers?limit=200 came back — a uuid where the
+   * shop name belongs, on the screen the operator reads immediately before
+   * pressing Register. Reading the shared cache, the name is already there.
+   */
+  const { data: suppliers } = useSupplierPickerQuery();
+  const wholesalerLabel =
+    (s.wholesalerId && suppliers?.find((w) => w.id === s.wholesalerId)?.companyName) || '';
 
   const marginValue = parseFloat(s.margin) || effectiveMargin;
   const basePriceValue = parseFloat(s.basePrice) || 0;

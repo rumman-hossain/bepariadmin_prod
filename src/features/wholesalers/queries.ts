@@ -61,6 +61,21 @@ export function useSupplierPickerQuery() {
   return useQuery({
     queryKey: [...queryKeys.wholesalers.list(), 'picker'],
     queryFn: () => listSuppliersForPicker(),
+    /*
+     * THE ONE PLACE THIS LIST IS FETCHED. Measured on dev: a single pass through
+     * the add-product wizard issued /admin/wholesalers?limit=200 FIVE times —
+     * 200 supplier rows, five times, to render one name.
+     *
+     * Three callers each ran their own `useEffect` + listSuppliersForPicker()
+     * with no cache between them: Step1BasicInfo (keyed on wholesalerId, so it
+     * refetched on every change of supplier), Step6Summary, and useProductList.
+     * They all route through here now.
+     *
+     * The staleTime is what stops a remount refetching. Without it the shared
+     * key dedupes concurrent calls but not sequential ones, and stepping 1 → 6 →
+     * 1 would fetch again — which is most of what the five were.
+     */
+    staleTime: 10 * 60_000,
   });
 }
 

@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import type React from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import { AddProductFlow } from '../AddProductFlow';
 import { useAddProductStore } from '../../store/useAddProductStore';
@@ -90,7 +92,8 @@ vi.mock('../../hooks/useAddProductLogic', () => ({
   },
 }));
 
-vi.mock('@/src/features/wholesalers/api/wholesalerApi', () => ({
+vi.mock('@/src/features/wholesalers/api/wholesalerApi', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/src/features/wholesalers/api/wholesalerApi')>()),
   listSuppliersForPicker: vi.fn(async () => []),
 }));
 
@@ -104,9 +107,19 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
+/*
+ * Step 1 reads the supplier list through `useSupplierPickerQuery` now, so it
+ * needs a client. `retry: false` keeps a failed fetch from stalling the test,
+ * and a fresh client per render keeps one test's cache out of the next.
+ */
+function withQueryClient(ui: React.ReactNode) {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return <QueryClientProvider client={client}>{ui}</QueryClientProvider>;
+}
+
 describe('step 1 errors wait for an attempt to advance', () => {
   it('opens a blank form with nothing marked wrong', () => {
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
 
     expect(screen.queryByText('Supplier is required')).toBeNull();
     expect(screen.queryByText('Product name is required')).toBeNull();
@@ -114,7 +127,7 @@ describe('step 1 errors wait for an attempt to advance', () => {
   });
 
   it('marks the fields once Continue is pressed', () => {
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
     fireEvent.click(continueButton());
 
     expect(screen.getAllByText('Supplier is required').length).toBeGreaterThan(0);
@@ -127,18 +140,18 @@ describe('step 1 errors wait for an attempt to advance', () => {
   it('leaves Continue pressable while the step is invalid', () => {
     // A disabled button fires no click, so there would be no attempt to
     // observe — and it refuses without saying what is missing.
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
     expect((continueButton() as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('does not advance on that press', () => {
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
     fireEvent.click(continueButton());
     expect(handleStepChange).not.toHaveBeenCalled();
   });
 
   it('clears a field message as soon as that field is filled', () => {
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
     fireEvent.click(continueButton());
 
     fireEvent.change(screen.getByLabelText(/product name/i), {
@@ -162,7 +175,7 @@ describe('step 1 errors wait for an attempt to advance', () => {
       classificationId: 'cl1',
       sku: 'SHIRT-0001',
     });
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
 
     fireEvent.click(continueButton());
     expect(handleStepChange).toHaveBeenCalledWith(2);
@@ -187,7 +200,7 @@ describe('a dismissed prompt makes no decision', () => {
     const cancelPrompt = vi.fn();
     const handleVariantChoice = vi.fn();
     overrides = { showVariantPrompt: true, cancelPrompt, handleVariantChoice };
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
 
     fireEvent.keyDown(document, { key: 'Escape' });
 
@@ -199,7 +212,7 @@ describe('a dismissed prompt makes no decision', () => {
     const cancelPrompt = vi.fn();
     const handlePricingReuseChoice = vi.fn();
     overrides = { showPricingReusePrompt: true, cancelPrompt, handlePricingReuseChoice };
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
 
     fireEvent.keyDown(document, { key: 'Escape' });
 
@@ -210,7 +223,7 @@ describe('a dismissed prompt makes no decision', () => {
   it('still answers when a button is actually pressed', () => {
     const handleVariantChoice = vi.fn();
     overrides = { showVariantPrompt: true, handleVariantChoice };
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
 
     fireEvent.click(screen.getByRole('button', { name: /yes, has variants/i }));
     expect(handleVariantChoice).toHaveBeenCalledWith(true);
@@ -229,7 +242,7 @@ describe('a dismissed prompt makes no decision', () => {
 describe('errors do not survive a reset or a change of product', () => {
   it('clears the red when the wizard switches to another product', () => {
     overrides = { routeProductId: 'p1' };
-    const { rerender } = render(<AddProductFlow onBack={() => {}} />);
+    const { rerender } = render(withQueryClient(<AddProductFlow onBack={() => {}} />));
 
     fireEvent.click(continueButton());
     // Twice: inline on the field and again in the summary banner.
@@ -237,7 +250,7 @@ describe('errors do not survive a reset or a change of product', () => {
 
     // The same component, now showing a different product.
     overrides = { routeProductId: 'p2' };
-    rerender(<AddProductFlow onBack={() => {}} />);
+    rerender(withQueryClient(<AddProductFlow onBack={() => {}} />));
 
     expect(screen.queryAllByText(/product name is required/i)).toHaveLength(0);
   });
@@ -247,7 +260,7 @@ describe('errors do not survive a reset or a change of product', () => {
     // The prompt is already open: the toolbar's Reset only opens it, and the
     // confirm inside is what clears the form.
     overrides = { showResetPrompt: true, handleResetForm };
-    render(<AddProductFlow onBack={() => {}} />);
+    render(withQueryClient(<AddProductFlow onBack={() => {}} />));
 
     fireEvent.click(continueButton());
     expect(screen.getAllByText(/product name is required/i).length).toBeGreaterThan(0);

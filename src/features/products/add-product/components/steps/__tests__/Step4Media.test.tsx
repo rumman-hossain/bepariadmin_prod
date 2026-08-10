@@ -241,3 +241,74 @@ describe('the video slot', () => {
     expect(screen.getAllByText('Video')).toHaveLength(1);
   });
 });
+
+describe('a clip that uploaded but cannot be played', () => {
+  /*
+   * `uploadStatus` only ever describes the TRANSFER. Measured on dev with a
+   * structurally valid MP4 the browser could not decode: draft 201, PUT 200,
+   * complete 200, the step reported "All variants have their front and back"
+   * — and the preview sat black with `video.error.code === 4`, with nothing
+   * anywhere saying so. The file is stored and the listing ships broken.
+   *
+   * The <video> element is the only thing that knows, and nothing listened.
+   */
+  const videoEl = () => document.querySelector('video') as HTMLVideoElement;
+
+  function withUploadedVideo() {
+    useAddProductStore.setState({
+      hasVariant: false,
+      productMedia: {
+        ...store().productMedia,
+        video: {
+          localUri: 'blob:clip',
+          uploadedUrl: 'gs://bucket/clip.mp4',
+          uploadStatus: 'done',
+          thumbnail: '',
+        },
+      },
+    });
+  }
+
+  it('says nothing while the clip decodes normally', () => {
+    withUploadedVideo();
+    render(<Step4Media />);
+    expect(screen.queryByText(/will not play/i)).toBeNull();
+  });
+
+  it('says so when the element reports it cannot decode the source', () => {
+    withUploadedVideo();
+    render(<Step4Media />);
+    fireEvent.error(videoEl());
+    expect(/will not play/i.test(screen.getByRole('alert').textContent ?? '')).toBe(true);
+  });
+
+  it('explains that the upload itself was fine, so the operator looks at the file', () => {
+    withUploadedVideo();
+    render(<Step4Media />);
+    fireEvent.error(videoEl());
+    expect(/uploaded/i.test(screen.getByRole('alert').textContent ?? '')).toBe(true);
+  });
+
+  it('clears the warning when the clip is replaced', () => {
+    // The slot is reused, so a stale warning would condemn a good file.
+    withUploadedVideo();
+    const { rerender } = render(<Step4Media />);
+    fireEvent.error(videoEl());
+    expect(screen.queryByText(/will not play/i)).not.toBeNull();
+
+    useAddProductStore.setState({
+      productMedia: {
+        ...store().productMedia,
+        video: {
+          localUri: 'blob:another',
+          uploadedUrl: 'gs://bucket/ok.mp4',
+          uploadStatus: 'done',
+          thumbnail: '',
+        },
+      },
+    });
+    rerender(<Step4Media />);
+
+    expect(screen.queryByText(/will not play/i)).toBeNull();
+  });
+});

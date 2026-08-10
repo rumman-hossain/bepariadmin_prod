@@ -62,8 +62,50 @@ function useFullBleed(): boolean {
 
 // ─── Component ───────────────────────────────────────────
 
+/**
+ * The breakpoint Sidebar itself uses in `closeOnMobile`. Below it the sidebar is
+ * a drawer over the page; at or above it, a docked column beside the page.
+ */
+const DOCKED_FROM = 1024;
+
+/**
+ * Whether the sidebar should start open, given the viewport width.
+ *
+ * Exported so the rule can be tested on its own. Rendering AppLayout to assert
+ * one boolean drags in the router's data APIs and the theme provider, and a
+ * test that heavy tends to be deleted the first time it breaks for an unrelated
+ * reason.
+ *
+ * `>=`, matching Sidebar's `closeOnMobile` which closes below 1024. Two
+ * components disagreeing by a pixel is how a drawer ends up open on the one
+ * width nobody checks.
+ */
+export function sidebarStartsOpen(viewportWidth: number): boolean {
+  return viewportWidth >= DOCKED_FROM;
+}
+
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  /*
+   * OPEN MEANS TWO DIFFERENT THINGS, AND THIS STARTED TRUE FOR BOTH.
+   *
+   * Above 1024 "open" is a docked column, which is the right default. Below it
+   * the same state renders a drawer ACROSS the content, with an aria-hidden
+   * backdrop over everything and `document.body.style.overflow = 'hidden'`.
+   *
+   * So on a phone every page loaded with the navigation covering the form and
+   * the page unable to scroll. Measured on dev at a 500px viewport, on
+   * /products/new: the Product Name input was present, and
+   * `document.elementFromPoint` at its centre returned the backdrop, not the
+   * input. The operator had to dismiss the menu before touching anything, on
+   * every single page load.
+   *
+   * Read once, lazily, at first render — this is a browser-only SPA, so
+   * `window` exists and there is no hydration pass to mismatch. Resizing across
+   * the breakpoint afterwards is left alone deliberately: that is a person
+   * dragging a window, and taking their sidebar away mid-drag would be its own
+   * surprise.
+   */
+  const [sidebarOpen, setSidebarOpen] = useState(() => sidebarStartsOpen(window.innerWidth));
   const [searchQuery, setSearchQuery] = useState('');
   const { logout, user } = useAuth();
   const navigate = useNavigate();

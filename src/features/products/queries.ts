@@ -1,7 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/app/queryClient';
 import { useCategoryQuery } from '@/src/hooks/useCategoryOptions';
-import { getProductById, deleteProduct } from '@/src/api/products';
+import {
+  getProductById,
+  deleteProduct,
+  updateVariation,
+  updateClassificationTemplate,
+  type UpdateVariationInput,
+} from '@/src/api/products';
 import {
   listAdminProducts,
   approveProduct,
@@ -192,6 +198,59 @@ export const useTakeDownProduct = () =>
   useLifecycleMutation<{ id: string; reason: string }>(({ id, reason }) =>
     takeDownProduct(id, reason),
   );
+
+/**
+ * Correct one variant's figures after registration.
+ *
+ * Invalidates the DETAIL as well as the list, because the selling price the
+ * screen shows is the SERVER's — changing a cost changes it, and the new figure
+ * only exists once the product is re-read. Recomputing it in the browser is
+ * what `scripts/guard.sh` G12 forbids, and the reason is in
+ * internal/product/model.go.
+ */
+export function useUpdateVariation(productId: string) {
+  const invalidate = useInvalidateProducts();
+  return useMutation({
+    mutationFn: async (vars: { variationId: string; input: UpdateVariationInput }) => {
+      const res = await updateVariation(productId, vars.variationId, vars.input);
+      // `request` resolves for a 4xx too, so an unchecked call would report a
+      // refused edit as a saved one.
+      if (!res.ok) throw new Error(`The variant could not be saved (${res.status}).`);
+      return res.data;
+    },
+    onSuccess: () => invalidate(productId),
+  });
+}
+
+/**
+ * Edit the SHARED classification template.
+ *
+ * Distinct from editing a product's description, which is that product's own
+ * copy. This changes `catalog.product_details` — the wording every future
+ * product of this classification is seeded with.
+ *
+ * No invalidation: the wizard reads templates out of `classificationDetails` on
+ * its own store, seeded once from /catalog/sku. There is no query to expire, so
+ * the caller updates the store with what it saved.
+ */
+export function useUpdateClassificationTemplate() {
+  return useMutation({
+    mutationFn: async (vars: { detailId: string; name?: string; description?: string }) => {
+      const res = await updateClassificationTemplate(vars.detailId, {
+        name: vars.name,
+        description: vars.description,
+      });
+      if (!res.ok) {
+        throw new Error(
+          res.status === 403
+            ? 'Only an admin can change a catalogue template.'
+            : `The template could not be saved (${res.status}).`,
+        );
+      }
+      return res.data;
+    },
+  });
+}
 
 export function useDeleteProduct() {
   const invalidate = useInvalidateProducts();

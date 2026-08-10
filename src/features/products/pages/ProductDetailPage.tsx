@@ -22,6 +22,8 @@ import {
   ErrorState,
   EmptyState,
   ReasonDialog,
+  Dialog,
+  DialogFooter,
   useToast,
 } from '@/src/components/feedback';
 import { StatusBadge } from '@/src/components/data/StatusBadge';
@@ -36,13 +38,14 @@ import {
   useRejectProduct,
   usePublishProduct,
   useTakeDownProduct,
+  useDeleteProduct,
 } from '../queries';
 import { PRODUCT_ROUTES } from '../routes';
 import { formatDispatchDisplay } from '@/src/features/products/utils/dispatchTime';
 import { ProductActionRail } from '../components/ProductActionRail';
 import { ProductReviewChecklist, type ChecklistItem } from '../components/ProductReviewChecklist';
 import { ProductAuditTab } from '../components/ProductAuditTab';
-import { VariantThumb } from '../components/VariantThumb';
+import { VariantEditRow } from '../components/VariantEditRow';
 import {
   deriveProductState,
   PRODUCT_STATE_LABEL,
@@ -75,6 +78,9 @@ export function ProductDetailPage() {
   const reject = useRejectProduct();
   const publish = usePublishProduct();
   const takeDown = useTakeDownProduct();
+  const remove = useDeleteProduct();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const handleBack = useCallback(() => navigate(PRODUCT_ROUTES.LIST), [navigate]);
   const handleEdit = useCallback(() => {
@@ -418,55 +424,20 @@ export function ProductDetailPage() {
                 />
               ) : (
                 <ul className="divide-y divide-rule-subtle">
-                  {variations.map((v, i) => {
-                    const stock = v.stock ?? 0;
-                    return (
-                      <li
-                        key={v.id ?? v.subSku ?? i}
-                        className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2"
-                      >
-                        {/* The variant's own photograph, or the product's
-                            marked as borrowed — see VariantThumb. */}
-                        <VariantThumb variant={v} fallback={storedImages[0]} size="md" />
-
-                        <span className="min-w-0 flex-1 basis-48">
-                          <span className="block truncate text-sm text-ink">
-                            {[v.color, v.design].filter(Boolean).join(' · ') || v.subName || '—'}
-                          </span>
-                          <span className="block truncate font-mono text-2xs text-ink-2">
-                            {v.subSku || 'no sub-SKU'}
-                          </span>
-                        </span>
-                        <span className="flex items-baseline gap-1.5">
-                          <Text variant="label">Stock</Text>
-                          <span
-                            className={
-                              stock === 0
-                                ? 'text-sm font-semibold text-bad'
-                                : stock <= 10
-                                  ? 'text-sm font-semibold text-warn'
-                                  : 'text-sm font-semibold text-ink'
-                            }
-                          >
-                            {stock}
-                          </span>
-                        </span>
-                        {/* Cost and selling price, named. See ProductVariantRows. */}
-                        <span className="flex items-baseline gap-1.5">
-                          <Text variant="label">Cost</Text>
-                          <span className="text-sm text-ink-2">
-                            {v.basePrice ? <Money amount={v.basePrice} /> : '—'}
-                          </span>
-                        </span>
-                        <span className="flex items-baseline gap-1.5">
-                          <Text variant="label">Sells at</Text>
-                          <span className="text-sm font-semibold text-ink">
-                            {v.sellingPrice ? <Money amount={v.sellingPrice} /> : '—'}
-                          </span>
-                        </span>
-                      </li>
-                    );
-                  })}
+                  {/*
+                    Editable now. Every figure here used to be text, so a cost
+                    entered at registration could only be corrected by deleting
+                    the product and creating it again — while
+                    PATCH /{id}/variations/{varId} sat unused on the server.
+                  */}
+                  {variations.map((v, i) => (
+                    <VariantEditRow
+                      key={v.id ?? v.subSku ?? i}
+                      productId={product.id}
+                      variation={v}
+                      fallbackImage={storedImages[0]}
+                    />
+                  ))}
                 </ul>
               ))}
 
@@ -678,8 +649,56 @@ export function ProductDetailPage() {
           }
           onReject={() => setReasonFor('reject')}
           onTakeDown={() => setReasonFor('takeDown')}
+          onDelete={() => setConfirmDelete(true)}
         />
       </div>
+
+      {/*
+        Says what delete ACTUALLY does, which is not what the word implies.
+        `DELETE /products/{id}` soft-deletes: the row moves to the Removed tab
+        and existing orders still resolve it. An operator told only "this cannot
+        be undone" would reasonably assume their order history was about to lose
+        a line item.
+      */}
+      <Dialog
+        open={confirmDelete}
+        onClose={() => setConfirmDelete(false)}
+        size="sm"
+        title="Delete this product?"
+        footer={
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setConfirmDelete(false)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              loading={deleting}
+              className="bg-bad hover:bg-bad"
+              onClick={async () => {
+                setDeleting(true);
+                try {
+                  await remove.mutateAsync(product.id);
+                  toast.success('Product deleted.');
+                  // Back to the list: staying would leave the operator on the
+                  // detail page of something no longer in the catalogue.
+                  navigate(PRODUCT_ROUTES.LIST);
+                } catch (e) {
+                  toast.error('That did not go through', (e as Error).message);
+                  setDeleting(false);
+                }
+              }}
+            >
+              Delete
+            </Button>
+          </DialogFooter>
+        }
+      >
+        <Text as="p" variant="secondary">
+          <b className="font-semibold text-ink">{product.name}</b> moves to Removed and stops
+          appearing in the catalogue. Existing orders that reference it still resolve, which is why
+          it is kept rather than erased.
+        </Text>
+      </Dialog>
 
       <ReasonDialog
         open={reasonFor !== null}

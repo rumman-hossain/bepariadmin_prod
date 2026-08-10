@@ -13,7 +13,7 @@
  * "why can't I publish?" with silence; disabling it answers with the thing to
  * go and fix.
  */
-import { Check, X, Upload, ArrowDownToLine, Pencil } from 'lucide-react';
+import { Check, X, Upload, ArrowDownToLine, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/src/components/controls';
 import { Text } from '@/src/components/data';
 import { cn } from '@/src/design-system/utils/cn';
@@ -30,6 +30,11 @@ interface Props {
   onPublish: () => void;
   onTakeDown: () => void;
   onEdit: () => void;
+  /**
+   * Delete. Optional so a caller that has nowhere to route it simply gets no
+   * button, rather than one that does nothing.
+   */
+  onDelete?: () => void;
 }
 
 /** The heading, in the words of the decision being asked for. */
@@ -65,6 +70,7 @@ export function ProductActionRail({
   onPublish,
   onTakeDown,
   onEdit,
+  onDelete,
 }: Props) {
   const legal = state ? LEGAL_VERBS[state] : [];
   const can = (v: ProductVerb) => legal.includes(v);
@@ -183,6 +189,31 @@ export function ProductActionRail({
       <Button fullWidth variant="secondary" iconLeft={Pencil} onClick={onEdit}>
         Edit product
       </Button>
+
+      {/*
+        DELETE HAD A MUTATION AND NO BUTTON.
+
+        `useDeleteProduct` has existed in queries.ts with no caller anywhere in
+        the app: the bulk bar offers Approve and Reject only, and no row or
+        detail screen offered anything else. Removing a product required calling
+        DELETE /api/v1/products/{id} by hand.
+
+        Hidden on REMOVED, because that is what this button produces — the
+        server soft-deletes, which is why the Removed tab exists and why order
+        history still resolves. Offering "Delete" on an already-deleted product
+        would promise a second, harder deletion that no endpoint performs.
+      */}
+      {onDelete && state !== 'REMOVED' && (
+        <Button
+          fullWidth
+          variant="ghost"
+          iconLeft={Trash2}
+          onClick={onDelete}
+          className="text-bad hover:bg-bad-wash"
+        >
+          Delete product
+        </Button>
+      )}
     </aside>
   );
 }

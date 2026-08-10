@@ -155,3 +155,51 @@ describe('deriving the state from a detail product', () => {
     expect(deriveProductState('teleported', 'Public')).toBe('');
   });
 });
+
+describe('delete, which had a mutation and no button', () => {
+  /*
+   * `useDeleteProduct` sat in queries.ts with no caller anywhere in the app.
+   * The bulk bar offers Approve and Reject only, and nothing else in the
+   * console could remove a product — deleting the two QA products created while
+   * testing required calling DELETE /api/v1/products/{id} by hand.
+   */
+  const withDelete = (state: ProductState | '', onDelete?: () => void) =>
+    render(
+      <ProductActionRail
+        state={state}
+        imageCount={3}
+        onApprove={noop}
+        onReject={noop}
+        onPublish={noop}
+        onTakeDown={noop}
+        onEdit={noop}
+        onDelete={onDelete}
+      />,
+    );
+
+  const deleteButton = () => screen.queryByRole('button', { name: /delete product/i });
+
+  it.each(['DRAFT', 'PENDING', 'APPROVED', 'PUBLIC', 'REJECTED'] as ProductState[])(
+    'offers delete on a %s product',
+    (state) => {
+      withDelete(state, noop);
+      expect(deleteButton()).not.toBeNull();
+    },
+  );
+
+  it('does NOT offer delete on an already-removed product', () => {
+    /*
+     * The endpoint soft-deletes — that is what the Removed tab is, and why
+     * order history still resolves. A Delete button on a removed product would
+     * promise a second, harder deletion that nothing performs.
+     */
+    withDelete('REMOVED', noop);
+    expect(deleteButton()).toBeNull();
+  });
+
+  it('renders no delete button at all when the caller supplies no handler', () => {
+    // A button that does nothing is worse than an absent one.
+    withDelete('PENDING');
+    expect(deleteButton()).toBeNull();
+  });
+});

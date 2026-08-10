@@ -82,6 +82,22 @@ export function PasswordField({
         // because suppressing it would mean fighting the browser over a field
         // the operator has explicitly chosen to reveal.
         type={revealed ? 'text' : 'password'}
+        /*
+         * `new-password` by default — the signal for "a password is being SET
+         * here", not one being recalled.
+         *
+         * It matters more now that these fields sit inside real <form>
+         * elements. Outside one the browser mostly leaves them alone; inside
+         * one it will helpfully autofill the operator's own saved password into
+         * a box where they are setting a RETAILER's, and then offer to update
+         * their own credential with whatever they typed. That is the same
+         * concern the note above raises about revealing the field, and this is
+         * the part of it that can actually be fixed.
+         *
+         * Overridable through `inputProps`, which is how the single field this
+         * is wrong for — "Current password" — asks for `current-password`.
+         */
+        autoComplete="new-password"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         fullWidth
