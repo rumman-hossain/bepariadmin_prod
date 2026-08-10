@@ -6,8 +6,9 @@ import {
   slotKey,
   beautifySlotFromPurpose,
   type BeautifySlot,
+  type SlotState,
 } from '../hooks/useBeautify';
-import { BeautifyStart } from '../components/BeautifyBar';
+import { BeautifyStart, BeautifyStrip } from '../components/BeautifyBar';
 import type { RunBeautifyInput } from '@/src/api/beautify';
 
 /**
@@ -324,5 +325,75 @@ describe('the control that starts a run', () => {
     start({ onRun });
     fireEvent.click(screen.getByRole('button', { name: /without model/i }));
     expect(onRun).toHaveBeenCalledWith('without_model', '');
+  });
+});
+
+describe('watching the run without scrolling', () => {
+  const SLOT_PAIR: BeautifySlot[] = [
+    { variationId: '', side: 'front', label: 'Front', thumbUrl: '/api/v1/file/front-thumb' },
+    { variationId: '', side: 'back', label: 'Back', thumbUrl: '/api/v1/file/back-thumb' },
+  ];
+
+  const strip = (states: Record<string, SlotState>) =>
+    render(<BeautifyStrip slots={SLOT_PAIR} states={states} />);
+
+  it('shows nothing before a run starts', () => {
+    // The control should not carry dead chrome. It appears when there is
+    // something to watch.
+    const { container } = strip({});
+    expect(container.firstChild).toBeNull();
+  });
+
+  it('sweeps the sheen OVER the photograph, not instead of it', () => {
+    // The point of the animation is that it happens to the image the operator
+    // recognises. A shimmer on an empty box says "something is loading"; a
+    // shimmer across the front shot says "your front shot is being worked on".
+    strip({
+      ':front': { status: 'working' },
+      ':back': { status: 'working' },
+    });
+
+    const thumb = document.querySelector('img[src="/api/v1/file/front-thumb"]');
+    expect(thumb).not.toBeNull();
+
+    const sheen = document.querySelector('.beautify-sheen');
+    expect(sheen).not.toBeNull();
+    // Both present in the same tile: the image underneath, the sheen over it.
+    expect(thumb!.parentElement).toBe(sheen!.parentElement);
+  });
+
+  it('says what is happening in words as well as motion', () => {
+    // prefers-reduced-motion flattens every animation in this app to 0.01ms,
+    // so a state that existed only as movement would vanish for exactly the
+    // people who most need it spelled out.
+    strip({ ':front': { status: 'working' }, ':back': { status: 'queued' } });
+    expect(screen.getAllByText(/Beautifying/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/In line/i).length).toBeGreaterThan(0);
+  });
+
+  it('swaps in the generated image when it lands', () => {
+    strip({
+      ':front': {
+        status: 'ready',
+        job: {
+          id: 'j1', side: 'front', mode: 'with_model', status: 'ready',
+          previewUrl: '/api/v1/file/generated-front', model: 'm', estCostUsd: 0.067, reused: false,
+        },
+      },
+      ':back': { status: 'working' },
+    });
+    expect(document.querySelector('img[src="/api/v1/file/generated-front"]')).not.toBeNull();
+    // ...and the original is no longer shown for that slot.
+    expect(document.querySelector('img[src="/api/v1/file/front-thumb"]')).toBeNull();
+  });
+
+  it('marks a failed image without hiding the rest', () => {
+    strip({
+      ':front': { status: 'failed', message: 'The model refused.' },
+      ':back': { status: 'working' },
+    });
+    // The working one still shows its sheen; one failure does not blank the run.
+    expect(document.querySelector('.beautify-sheen')).not.toBeNull();
+    expect(document.querySelectorAll('img').length).toBeGreaterThan(0);
   });
 });

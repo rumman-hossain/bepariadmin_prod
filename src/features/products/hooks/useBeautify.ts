@@ -40,6 +40,13 @@ export interface BeautifySlot {
   side: BeautifySide;
   /** Shown while the tile works: "Front", "Red · back". */
   label: string;
+  /**
+   * The current photograph, so the run can be watched without scrolling to
+   * the tile it belongs to. See BeautifyStrip — the button sits above the
+   * fold and the tiles below it, which made pressing it look like nothing
+   * happened.
+   */
+  thumbUrl?: string;
 }
 
 export type SlotState =

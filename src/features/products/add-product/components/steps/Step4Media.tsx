@@ -22,7 +22,7 @@ import { cn } from '@/src/design-system/utils/cn';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { ProductMediaViewer, type ViewerItem } from '../../../components/ProductMediaViewer';
 import { useParams } from 'react-router-dom';
-import { BeautifyStart, BeautifyReview } from '../../../components/BeautifyBar';
+import { BeautifyStart, BeautifyStrip, BeautifyReview } from '../../../components/BeautifyBar';
 import { BeautifyTileState } from '../../../components/BeautifyTileState';
 import {
   useBeautify,
@@ -722,7 +722,17 @@ export function Step4Media() {
   const beautifySlots = useMemo<BeautifySlot[]>(() => {
     const out: BeautifySlot[] = [];
     const push = (slot: MediaSlot | undefined, variationId: string, side: BeautifySide, label: string) => {
-      if (slotActive(slot)) out.push({ variationId, side, label });
+      // The thumbnail rides along so the run can be watched from the control
+      // itself — see BeautifyStrip. Same resolution the tiles use, because on
+      // an edit the slot holds a gs:// reference no browser can load.
+      if (slotActive(slot)) {
+        out.push({
+          variationId,
+          side,
+          label,
+          thumbUrl: mediaDisplayUrl(slot?.localUri || slot?.uploadedUrl) ?? undefined,
+        });
+      }
     };
     if (!hasVariant) {
       push(productMedia.front, '', 'front', 'Front');
@@ -877,15 +887,20 @@ export function Step4Media() {
    */
   const beautifyPanel =
     productId && beautifySlots.length > 0 ? (
-      <BeautifyStart
-        imageCount={beautifySlots.length}
-        estimatedCost={costFor('with_model')}
-        disabled={beautify.running}
-        onRun={(mode, description) => {
-          setRunOpts({ mode, description });
-          void beautify.run({ productId, mode, modelDescription: description, slots: beautifySlots });
-        }}
-      />
+      <div className="flex flex-col gap-3">
+        <BeautifyStart
+          imageCount={beautifySlots.length}
+          estimatedCost={costFor('with_model')}
+          disabled={beautify.running}
+          onRun={(mode, description) => {
+            setRunOpts({ mode, description });
+            void beautify.run({ productId, mode, modelDescription: description, slots: beautifySlots });
+          }}
+        />
+        {/* Directly beneath the button, so the sheen is where the operator is
+            already looking rather than below the fold. */}
+        <BeautifyStrip slots={beautifySlots} states={beautify.states} />
+      </div>
     ) : null;
 
   const beautifyReview = productId ? (

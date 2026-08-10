@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { Sparkles, Check, Trash2 } from 'lucide-react';
+import { Sparkles, Check, Trash2, AlertTriangle } from 'lucide-react';
 import { Button, Input } from '@/src/components/controls';
 import { Text } from '@/src/components/data';
 import { cn } from '@/src/design-system/utils/cn';
 import type { BeautifyMode } from '@/src/api/beautify';
+import { slotKey, type BeautifySlot, type SlotState } from '../hooks/useBeautify';
 
 /**
  * The control that starts a beautify run, and the bar that ends one.
@@ -91,6 +92,91 @@ export function BeautifyStart({ imageCount, estimatedCost, disabled, onRun }: St
           </Button>
         </div>
       </div>
+    </div>
+  );
+}
+
+interface StripProps {
+  slots: BeautifySlot[];
+  states: Record<string, SlotState>;
+}
+
+/**
+ * THE RUN, WATCHABLE WITHOUT SCROLLING.
+ *
+ * The buttons sit above the tiles they act on. On anything shorter than a
+ * desktop monitor — and on every variant product, where the tiles are spread
+ * down a long page inside variation cards — pressing the button scrolled the
+ * effect out of sight, so the honest report was "it does nothing".
+ *
+ * This is the whole run in one strip, directly under the button: every front
+ * and back being worked on, each with its own sheen, in the place the operator
+ * is already looking. It wraps rather than scrolls sideways, because a strip
+ * you have to drag is the same problem one step smaller.
+ *
+ * The full-size tiles keep their own overlays. This does not replace them — it
+ * answers "is anything happening", which is the question at the moment of the
+ * click. The tiles answer "is this one any good", which is the question after.
+ */
+export function BeautifyStrip({ slots, states }: StripProps) {
+  if (slots.length === 0) return null;
+  const anyActive = slots.some((s) => {
+    const st = states[slotKey(s.variationId, s.side)];
+    return st && st.status !== 'idle';
+  });
+  if (!anyActive) return null;
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {slots.map((slot) => {
+        const state = states[slotKey(slot.variationId, slot.side)];
+        const ready = state?.status === 'ready' ? state.job.previewUrl : undefined;
+        return (
+          <figure key={slotKey(slot.variationId, slot.side)} className="w-[4.5rem]">
+            <div className="relative aspect-square overflow-hidden rounded-lg border border-rule bg-sheet-2">
+              {(ready ?? slot.thumbUrl) && (
+                <img
+                  src={ready ?? slot.thumbUrl}
+                  alt=""
+                  className={cn(
+                    'absolute inset-0 h-full w-full object-cover',
+                    ready && 'animate-fade-in',
+                    state?.status === 'queued' && 'opacity-60',
+                  )}
+                />
+              )}
+
+              {state?.status === 'working' && (
+                <div
+                  aria-hidden="true"
+                  className="beautify-sheen pointer-events-none absolute inset-0"
+                />
+              )}
+
+              {state?.status === 'failed' && (
+                <div className="absolute inset-0 flex items-center justify-center bg-sheet-inverse/70">
+                  <AlertTriangle className="h-4 w-4 text-bad" aria-hidden="true" />
+                </div>
+              )}
+
+              {state?.status === 'ready' && (
+                <span className="absolute bottom-0.5 right-0.5 rounded bg-ok px-1 text-2xs font-semibold text-ink-inverse">
+                  ✓
+                </span>
+              )}
+            </div>
+            {/* The caption is what carries the state under prefers-reduced-motion,
+                where the sheen is flattened to nothing. */}
+            <figcaption className="mt-1 truncate text-2xs text-ink-3" title={slot.label}>
+              {state?.status === 'working'
+                ? 'Beautifying…'
+                : state?.status === 'queued'
+                  ? 'In line'
+                  : slot.label}
+            </figcaption>
+          </figure>
+        );
+      })}
     </div>
   );
 }
