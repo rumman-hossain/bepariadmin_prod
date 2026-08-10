@@ -18,10 +18,10 @@
  * ones that have not been. An unlabelled fallback is a confident lie; a blank
  * box is indistinguishable from a failed load.
  */
-import { useRef, useState } from 'react';
 import { AlertTriangle, ImageOff } from 'lucide-react';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { cn } from '@/src/design-system/utils/cn';
+import { useMediaToken } from '../hooks/useMediaToken';
 
 interface VariantLike {
   subName?: string | null;
@@ -74,11 +74,11 @@ export function VariantThumb({ variant, fallback, size = 'sm' }: Props) {
    * "the photograph will not load" are different problems with different
    * owners, and a shared empty box hides which one you have.
    */
-  const [failed, setFailed] = useState(false);
-  const lastSrc = useRef(src);
-  if (lastSrc.current !== src) {
-    lastSrc.current = src;
-    if (failed) setFailed(false);
+  const { failed, retrying, onError } = useMediaToken(src ?? '');
+
+  // Recovering from an expired link, not an error. See useMediaToken.
+  if (src && retrying) {
+    return <span className={cn(box, 'shrink-0 animate-pulse rounded-sm bg-sheet-2')} />;
   }
 
   if (src && failed) {
@@ -116,7 +116,7 @@ export function VariantThumb({ variant, fallback, size = 'sm' }: Props) {
       <img
         src={src}
         alt={label ? `${label} variant` : ''}
-        onError={() => setFailed(true)}
+        onError={onError}
         loading="lazy"
         className={cn(
           box,
