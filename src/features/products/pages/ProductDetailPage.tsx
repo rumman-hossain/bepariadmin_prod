@@ -44,6 +44,7 @@ import { PRODUCT_ROUTES } from '../routes';
 import { formatDispatchDisplay } from '@/src/features/products/utils/dispatchTime';
 import { ProductActionRail } from '../components/ProductActionRail';
 import { ProductImage } from '../components/ProductImage';
+import { ProductMediaViewer, type ViewerItem } from '../components/ProductMediaViewer';
 import { ProductReviewChecklist, type ChecklistItem } from '../components/ProductReviewChecklist';
 import { ProductAuditTab } from '../components/ProductAuditTab';
 import { VariantEditRow } from '../components/VariantEditRow';
@@ -81,6 +82,15 @@ export function ProductDetailPage() {
   const takeDown = useTakeDownProduct();
   const remove = useDeleteProduct();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  /*
+   * Which slide the overlay is showing, or null when it is shut.
+   *
+   * An index rather than a boolean: every tile opens the SAME viewer at its own
+   * position, so clicking the third thumbnail starts on the third slide instead
+   * of the first and making the operator page back.
+   */
+  const [viewerAt, setViewerAt] = useState<number | null>(null);
+
   const [deleting, setDeleting] = useState(false);
 
   const handleBack = useCallback(() => navigate(PRODUCT_ROUTES.LIST), [navigate]);
@@ -266,6 +276,34 @@ export function ProductDetailPage() {
   const sizeRows = (product.inventory ?? []).filter((row) => !row.variationId);
   const variations = product.variations ?? [];
 
+  /*
+   * WHAT THE OVERLAY PAGES THROUGH, in the order the tiles are laid out: every
+   * still first, then the clip last.
+   *
+   * Built from the SAME `images` and `videoUrl` the tiles render, not from a
+   * second pass over `product.media`. Two derivations of one list is how a
+   * thumbnail ends up opening the slide next to it — and these have already
+   * been through `mediaDisplayUrl`, so a `gs://` reference no browser can load
+   * never reaches a slide.
+   */
+  const viewerItems: ViewerItem[] = [
+    ...images.map((url, i) => ({
+      url,
+      kind: 'image' as const,
+      label: i === 0 ? `${product.name} — main image` : `${product.name} — image ${i + 1}`,
+    })),
+    ...(videoUrl
+      ? [
+          {
+            url: videoUrl,
+            kind: 'video' as const,
+            label: `${product.name} — video`,
+            poster: images[0],
+          },
+        ]
+      : []),
+  ];
+
   return (
     <div className="animate-fade-in space-y-5 pb-8">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -350,13 +388,29 @@ export function ProductDetailPage() {
           <Panel className="p-4">
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-[10.5rem_minmax(0,1fr)]">
               <div>
+                {/*
+                  CLICK ANY OF THESE TO OPEN THEM PROPERLY.
+
+                  A reviewer's question is "does this product look right", and
+                  answering it meant squinting at a 168px hero and a row of
+                  44px thumbnails. Every tile below now opens the same overlay,
+                  at its own index, over this page — no route change, so Back
+                  still means "back to the product list".
+                */}
                 {images.length > 0 ? (
-                  <ProductImage
-                    src={images[0]}
-                    alt={product.name}
-                    className="aspect-square w-full rounded-md border border-rule object-cover"
-                    failedClassName="aspect-square w-full"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setViewerAt(0)}
+                    className="block w-full cursor-zoom-in rounded-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rule-focus"
+                    aria-label={`View ${product.name} full screen`}
+                  >
+                    <ProductImage
+                      src={images[0]}
+                      alt={product.name}
+                      className="aspect-square w-full rounded-md border border-rule object-cover"
+                      failedClassName="aspect-square w-full"
+                    />
+                  </button>
                 ) : (
                   <div className="flex aspect-square w-full flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-warn-border bg-warn-wash text-warn">
                     <ImageOff className="h-7 w-7" aria-hidden="true" />
@@ -365,14 +419,22 @@ export function ProductDetailPage() {
                 )}
                 {images.length > 1 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    {images.slice(1, 6).map((src) => (
-                      <ProductImage
+                    {images.slice(1, 6).map((src, i) => (
+                      <button
                         key={src}
-                        src={src}
-                        alt=""
-                        className="h-11 w-11 rounded-sm border border-rule object-cover"
-                        failedClassName="h-11 w-11"
-                      />
+                        type="button"
+                        // i+1: slide 0 is the hero above.
+                        onClick={() => setViewerAt(i + 1)}
+                        className="cursor-zoom-in rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rule-focus"
+                        aria-label={`View image ${i + 2} of ${images.length} full screen`}
+                      >
+                        <ProductImage
+                          src={src}
+                          alt=""
+                          className="h-11 w-11 rounded-sm border border-rule object-cover"
+                          failedClassName="h-11 w-11"
+                        />
+                      </button>
                     ))}
                   </div>
                 )}
@@ -393,6 +455,22 @@ export function ProductDetailPage() {
                     preload="metadata"
                     className="mt-2 w-full rounded-md border border-rule"
                   />
+                )}
+
+                {/*
+                  The clip is also the LAST slide of the overlay, so a reviewer
+                  paging through the stills reaches it without coming back here.
+                  The inline player above stays: watching it in place is the
+                  quicker path when the video is the only thing being checked.
+                */}
+                {videoUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setViewerAt(images.length)}
+                    className="mt-1.5 text-xs font-medium text-brass hover:underline"
+                  >
+                    Open full screen
+                  </button>
                 )}
               </div>
 
@@ -653,6 +731,12 @@ export function ProductDetailPage() {
           onDelete={() => setConfirmDelete(true)}
         />
       </div>
+
+      <ProductMediaViewer
+        items={viewerItems}
+        openAt={viewerAt}
+        onClose={() => setViewerAt(null)}
+      />
 
       {/*
         Says what delete ACTUALLY does, which is not what the word implies.

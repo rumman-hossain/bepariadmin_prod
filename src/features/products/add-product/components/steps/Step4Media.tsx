@@ -1,5 +1,13 @@
-import { useRef, useState, type DragEvent } from 'react';
-import { AlertTriangle, Check, ImagePlus, Loader2, RefreshCw, X } from 'lucide-react';
+import {
+  createContext,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+  type DragEvent,
+  type ReactNode,
+} from 'react';
+import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RefreshCw, X } from 'lucide-react';
 import {
   useAddProductStore,
   emptySlot,
@@ -12,6 +20,18 @@ import type { MediaSlot, ProductVariation } from '../../../types/registration';
 import { Text } from '@/src/components/data';
 import { cn } from '@/src/design-system/utils/cn';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
+import { ProductMediaViewer, type ViewerItem } from '../../../components/ProductMediaViewer';
+import { useParams } from 'react-router-dom';
+import { BeautifyStart, BeautifyReview } from '../../../components/BeautifyBar';
+import { BeautifyTileState } from '../../../components/BeautifyTileState';
+import {
+  useBeautify,
+  slotKey,
+  beautifySlotFromPurpose,
+  type BeautifySlot,
+  type SlotState,
+} from '../../../hooks/useBeautify';
+import type { BeautifyMode, BeautifySide } from '@/src/api/beautify';
 
 /**
  * WHAT THIS SCREEN IS FOR.
@@ -96,6 +116,10 @@ function MediaTile({
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const { draftId, setField } = useAddProductStore();
+  const openMedia = useContext(OpenMediaContext);
+  const beautify = useContext(BeautifyContext);
+  const beautifySlot = beautifySlotFromPurpose(purpose);
+  const beautifyState = beautifySlot ? beautify?.stateFor(purpose) : undefined;
   const { uploadSlot, releasePreviewUrl } = useUpload();
 
   const name = ariaLabel ?? label;
@@ -266,6 +290,18 @@ function MediaTile({
             height when an image lands in it. */}
         {previewUrl && !uploading && (
           <div className="absolute right-1.5 top-1.5 flex gap-1">
+            {/* First of the three, because looking at a tile is the common act
+                and replacing or removing it is the consequence. */}
+            {openMedia && (
+              <button
+                type="button"
+                onClick={() => openMedia(previewUrl)}
+                aria-label={`View ${name} full screen`}
+                className={CORNER_ACTION}
+              >
+                <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
             <button
               type="button"
               onClick={openPicker}
@@ -292,6 +328,17 @@ function MediaTile({
             <Loader2 className="h-5 w-5 animate-spin text-ink-inverse" aria-hidden="true" />
             <span className="text-2xs font-medium text-ink-inverse">Uploading…</span>
           </div>
+        )}
+
+        {/* Beautification, drawn over the photograph the operator is already
+            looking at. Never while an upload is in flight: the two states
+            would stack, and the tile would claim to be doing both. */}
+        {!uploading && beautify && beautifySlot && (
+          <BeautifyTileState
+            state={beautifyState}
+            label={name}
+            onRedo={(note) => beautify.redo(purpose, note)}
+          />
         )}
 
         {/*
@@ -458,6 +505,38 @@ const NAMED_SLOTS = [
 ] as const;
 
 /** Three, not five — see NAMED_SLOTS. */
+/*
+ * OPENING A TILE FULL SCREEN, from wherever that tile happens to be.
+ *
+ * Tiles are nested inside VariationCard, so passing each one its index in the
+ * viewer's slide list would mean threading a counter through every branch and
+ * keeping it in step with the render order — the kind of bookkeeping that goes
+ * wrong the first time a slot is added. A tile instead says "open ME", by URL,
+ * and the root finds its position in the list it built.
+ *
+ * Undefined outside the provider, so the View action simply does not render
+ * rather than throwing — MediaTile is also used in places that have no viewer.
+ */
+const OpenMediaContext = createContext<((url: string) => void) | undefined>(undefined);
+
+/*
+ * BEAUTIFY STATE, reaching the tiles the same way the viewer does.
+ *
+ * A context for the same reason OpenMediaContext is one: tiles are nested
+ * inside VariationCard, and threading a per-tile status down through every
+ * branch would be bookkeeping that goes wrong the first time a slot is added.
+ *
+ * Keyed by the tile's own `purpose` string, which already encodes which
+ * variation and which side it is — so there is no second identity to keep in
+ * step with the first.
+ */
+interface BeautifyTileAccess {
+  stateFor: (purpose: string) => SlotState | undefined;
+  redo: (purpose: string, note: string) => void;
+}
+const BeautifyContext = createContext<BeautifyTileAccess | undefined>(undefined);
+
+
 const MAX_GALLERY = 3;
 
 /** Every tile grid on the page, so tiles are one size wherever they appear. */
@@ -618,6 +697,209 @@ export function Step4Media() {
   } = store;
   const hasVariant = resolveHasVariant(hasVariantRaw, variations);
 
+  /*
+   * BEAUTIFY IS AN EDIT-MODE FEATURE, and not by preference.
+   *
+   * Committing repoints a products.product_media row. During first
+   * registration the images are already in GCS but the product row does not
+   * exist yet, so there is nothing to repoint. Register, then beautify. The
+   * controls are simply absent before that; there is nothing to explain.
+   *
+   * The route param rather than the store's `productId`, which is typed
+   * `number | null` and never assigned — useAddProductLogic reads the same
+   * param, so this is one source rather than a second.
+   */
+  const { productId } = useParams<{ productId?: string }>();
+  const beautify = useBeautify();
+  const [runOpts, setRunOpts] = useState<{ mode: BeautifyMode; description: string } | null>(null);
+
+  /*
+   * Every front and back in the product, which is exactly the set beautify
+   * acts on: the product's own pair, then each variation's. Built from the
+   * store so it cannot drift from the tiles, and a slot with no image is
+   * skipped — there is nothing to re-render.
+   */
+  const beautifySlots = useMemo<BeautifySlot[]>(() => {
+    const out: BeautifySlot[] = [];
+    const push = (slot: MediaSlot | undefined, variationId: string, side: BeautifySide, label: string) => {
+      if (slotActive(slot)) out.push({ variationId, side, label });
+    };
+    if (!hasVariant) {
+      push(productMedia.front, '', 'front', 'Front');
+      push(productMedia.back, '', 'back', 'Back');
+    }
+    variations.forEach((v) => {
+      const m = v.media;
+      if (!m || !v.id) return;
+      const who = v.subName || v.color || v.subSku || 'Variant';
+      push(m.front, String(v.id), 'front', `${who} · front`);
+      push(m.back, String(v.id), 'back', `${who} · back`);
+    });
+    return out;
+  }, [hasVariant, productMedia, variations]);
+
+  /*
+   * The price BEFORE the button, from the same split the server bills on: the
+   * dearer model composes a person onto a front, the cheap one replaces a
+   * background. Only With Model pays the higher rate, and only on fronts.
+   */
+  const costFor = (mode: BeautifyMode) =>
+    beautifySlots.reduce(
+      (sum, s) => sum + (mode === 'with_model' && s.side === 'front' ? 0.067 : 0.0336),
+      0,
+    );
+
+  const beautifyAccess = useMemo(
+    () => ({
+      stateFor: (purpose: string) => {
+        const slot = beautifySlotFromPurpose(purpose);
+        return slot ? beautify.states[slotKey(slot.variationId, slot.side)] : undefined;
+      },
+      redo: (purpose: string, note: string) => {
+        const slot = beautifySlotFromPurpose(purpose);
+        if (!slot || !productId || !runOpts) return;
+        const known = beautifySlots.find(
+          (s) => s.variationId === slot.variationId && s.side === slot.side,
+        );
+        if (!known) return;
+        /*
+         * The operator's correction is APPENDED to the model description, not
+         * substituted for it. "the hem is cut off" on its own would throw away
+         * who the model is, and they asked for a change, not a restart.
+         *
+         * It also lands in the idempotency key, which is what makes the redo
+         * produce a new picture rather than returning the one being complained
+         * about.
+         */
+        const description = note
+          ? `${runOpts.description}${runOpts.description ? '. ' : ''}${note}`
+          : runOpts.description;
+        void beautify.redo(
+          { productId, mode: runOpts.mode, modelDescription: description, slots: beautifySlots },
+          known,
+        );
+      },
+    }),
+    [beautify, beautifySlots, productId, runOpts],
+  );
+
+  /*
+   * EVERY TILE ON THE SCREEN, in the order they are laid out.
+   *
+   * Built straight from the store rather than from the branch-local JSX, so the
+   * variant and non-variant layouts share one list and neither can drift from
+   * what is on screen. A slot with nothing in it is skipped — an empty tile has
+   * nothing to show full screen.
+   *
+   * `mediaDisplayUrl` for the same reason the tiles use it: on an EDIT a slot
+   * holds a `gs://` reference, which no browser can load and the CSP blocks.
+   */
+  const [viewerAt, setViewerAt] = useState<number | null>(null);
+
+  const viewerItems = useMemo<ViewerItem[]>(() => {
+    const out: ViewerItem[] = [];
+
+    /*
+     * A beautified slot contributes TWO slides, before and after, adjacent.
+     *
+     * That adjacency is the comparison. The two are framed identically, so
+     * paging between them shows exactly what changed — which is cheaper and
+     * clearer than a second modal, and it reuses the viewer instead of
+     * competing with it.
+     */
+    const push = (
+      slot: MediaSlot | undefined,
+      label: string,
+      kind: 'image' | 'video',
+      beautified?: { variationId: string; side: BeautifySide },
+    ) => {
+      const url = mediaDisplayUrl(slot?.localUri || slot?.uploadedUrl);
+      if (!url) return;
+      const state = beautified
+        ? beautify.states[slotKey(beautified.variationId, beautified.side)]
+        : undefined;
+      const preview = state?.status === 'ready' ? state.job.previewUrl : undefined;
+
+      out.push({ url, kind, label: preview ? `${label} · before` : label });
+      if (preview) out.push({ url: preview, kind: 'image', label: `${label} · after` });
+    };
+
+    push(productMedia.poster, 'Poster', 'image');
+    push(productMedia.front, 'Front', 'image', { variationId: '', side: 'front' });
+    push(productMedia.back, 'Back', 'image', { variationId: '', side: 'back' });
+    (productMedia.more ?? []).forEach((slot, i) => push(slot, `Detail ${i + 1}`, 'image'));
+    push(productMedia.video, 'Video', 'video');
+
+    variations.forEach((v) => {
+      const m = v.media;
+      if (!m) return;
+      const who = v.subName || v.color || v.subSku || 'Variant';
+      const id = v.id ? String(v.id) : '';
+      push(m.front, `${who} · front`, 'image', id ? { variationId: id, side: 'front' } : undefined);
+      push(m.back, `${who} · back`, 'image', id ? { variationId: id, side: 'back' } : undefined);
+      (m.more ?? []).forEach((slot, i) => push(slot, `${who} · detail ${i + 1}`, 'image'));
+      push(m.video, `${who} · video`, 'video');
+    });
+
+    return out;
+  }, [productMedia, variations, beautify.states]);
+
+  /* A tile asks to be opened by URL; its position is looked up here. */
+  const openMedia = (url: string) => {
+    const i = viewerItems.findIndex((item) => item.url === url);
+    setViewerAt(i >= 0 ? i : 0);
+  };
+
+  /*
+   * Both layouts — variant and plain — get the provider and the overlay from
+   * one place. Wrapping each return separately would be two copies of the same
+   * three lines, and the second is the one that gets forgotten.
+   */
+  const withViewer = (children: ReactNode) => (
+    <OpenMediaContext.Provider value={openMedia}>
+      <BeautifyContext.Provider value={beautifyAccess}>
+        {children}
+        <ProductMediaViewer
+          items={viewerItems}
+          openAt={viewerAt}
+          onClose={() => setViewerAt(null)}
+        />
+      </BeautifyContext.Provider>
+    </OpenMediaContext.Provider>
+  );
+
+  /*
+   * The controls, rendered by both layouts from one place — a second copy is
+   * the one that gets forgotten when something changes.
+   *
+   * Absent entirely during first registration (no product row to commit to)
+   * and when there is no front or back to work from.
+   */
+  const beautifyPanel =
+    productId && beautifySlots.length > 0 ? (
+      <BeautifyStart
+        imageCount={beautifySlots.length}
+        estimatedCost={costFor('with_model')}
+        disabled={beautify.running}
+        onRun={(mode, description) => {
+          setRunOpts({ mode, description });
+          void beautify.run({ productId, mode, modelDescription: description, slots: beautifySlots });
+        }}
+      />
+    ) : null;
+
+  const beautifyReview = productId ? (
+    <BeautifyReview
+      done={beautify.progress.done}
+      total={beautify.progress.total}
+      readyCount={beautify.readyJobs().length}
+      busy={beautify.running}
+      onApply={() => void beautify.commit(productId)}
+      onDiscard={() => void beautify.discard(productId)}
+    />
+  ) : null;
+
+
   const poster = (
     <MediaTile
       label="Poster"
@@ -661,9 +943,10 @@ export function Step4Media() {
               ? { tone: 'warn' as const, title: `${incomplete} of ${variations.length} variants still need a front and a back`, detail: 'Both are mandatory on every variant.' }
               : { tone: 'ok' as const, title: `All ${variations.length} variants have their front and back`, detail: 'Detail shots and clips are optional.' };
 
-    return (
+    return withViewer(
       <div className="space-y-5">
         <ReadinessBanner {...banner} />
+        {beautifyPanel}
 
         <section className="grid gap-4 lg:grid-cols-[minmax(0,17rem)_minmax(0,1fr)]">
           {poster}
@@ -686,6 +969,7 @@ export function Step4Media() {
             </div>
           </section>
         )}
+        {beautifyReview}
       </div>
     );
   }
@@ -723,9 +1007,10 @@ export function Step4Media() {
                 : 'No poster yet. It is the catalogue thumbnail, so it is worth adding.',
             };
 
-  return (
+  return withViewer(
     <div className="space-y-5">
       <ReadinessBanner {...banner} />
+      {beautifyPanel}
 
       {/*
         THE POSTER IS NOT ONE OF FIVE EQUAL SQUARES.
@@ -814,6 +1099,7 @@ export function Step4Media() {
           </section>
         </div>
       </div>
+      {beautifyReview}
     </div>
   );
 }

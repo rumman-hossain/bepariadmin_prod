@@ -592,6 +592,33 @@
   .table-cards > tbody > tr > td:empty {
     display: none;
   }
+
+  /* A brass sheen crossing a photograph while it is being re-rendered.
+     ────────────────────────────────────────────────────────────────────
+     Deliberately not the purple-gradient AI shimmer every product does. This
+     console is a ledger — paper, ink, brass, lac — and a generic gradient
+     would be the one foreign object on the page. `--color-note` is documented
+     in the tokens as the in-flight colour, and the sweep is brass.
+
+     It uses `--animate-shimmer`, which was defined in the theme block above
+     and had no user until now; the gradient and the 220% background-size are
+     what make that keyframe's -180%..180% travel visible.
+
+     Motion is not the message. The blanket prefers-reduced-motion rule at the
+     bottom of this file flattens every animation to 0.01ms, so this sits
+     behind a caption that states what is happening — the sweep only decorates
+     it. The tint remains either way, which is why the gradient is not
+     transparent at rest. */
+  .beautify-sheen {
+    background-image: linear-gradient(
+      100deg,
+      color-mix(in oklab, var(--color-note) 16%, transparent) 0%,
+      color-mix(in oklab, var(--color-brass) 38%, transparent) 45%,
+      color-mix(in oklab, var(--color-note) 16%, transparent) 90%
+    );
+    background-size: 220% 100%;
+    animation: var(--animate-shimmer);
+  }
 }
 
 @keyframes fade-in {
