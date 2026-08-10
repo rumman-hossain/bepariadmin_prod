@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { AlertTriangle, Eye, RotateCcw, Sparkles } from 'lucide-react';
+import { AlertTriangle, Sparkles } from 'lucide-react';
 import { Text } from '@/src/components/data';
 import { useLongWait, type SlotState } from '../hooks/useBeautify';
 
@@ -11,25 +10,27 @@ import { useLongWait, type SlotState } from '../hooks/useBeautify';
  * seconds each: a blocking dialog would hold the screen for minutes and then
  * present everything at once. Here each tile changes on its own, so there is
  * something to watch from the first result onwards.
+ *
+ * # It draws, and nothing else
+ *
+ * The controls it used to carry — peek at the original, redo — are in the
+ * tile's own menu now. They were a second pair of small round buttons in the
+ * opposite corner from the first four, and on a 75px variant tile there was
+ * never room for either row. Everything a tile can do is in one list, opened by
+ * clicking the picture.
+ *
+ * Which is also why every layer here is `pointer-events-none`: they cover the
+ * tile, and the tile is the button. A failed tile that swallowed clicks was a
+ * failed tile with no way out of it.
  */
 
 interface Props {
   state: SlotState | undefined;
-  /** Announced to a screen reader as part of the redo control's name. */
-  label: string;
-  /**
-   * Opens the tile's own beautify dialog.
-   *
-   * The dialog lives on MediaTile rather than here, because it must also be
-   * reachable when this component renders nothing at all — an untouched tile
-   * has no beautify state, and starting a single image is exactly the case
-   * where there is none yet.
-   */
-  onRedo: (note: string) => void;
+  /** Held down from the menu, to compare against the original. */
+  peeking?: boolean;
 }
 
-export function BeautifyTileState({ state, label, onRedo }: Props) {
-  const [peeking, setPeeking] = useState(false);
+export function BeautifyTileState({ state, peeking = false }: Props) {
   const longWait = useLongWait(state?.status === 'working' ? state.since : undefined);
 
   if (!state || state.status === 'idle') return null;
@@ -99,65 +100,30 @@ export function BeautifyTileState({ state, label, onRedo }: Props) {
     );
   }
 
-  // Ready. The generated image replaces the tile's own preview; these are the
-  // two things the operator can do with it.
+  // Ready. The generated image replaces the tile's own preview, and the menu's
+  // "Show the original" lifts it back off again.
   return (
     <>
       {state.job.previewUrl && !peeking && (
         <img
           src={state.job.previewUrl}
           alt=""
-          className="absolute inset-0 h-full w-full animate-fade-in object-cover"
+          className="pointer-events-none absolute inset-0 h-full w-full animate-fade-in object-cover"
         />
       )}
 
-      <div className="absolute bottom-1.5 left-1.5 flex gap-1">
-        {/*
-          Press and hold to see the original. Cheaper than a second control
-          and it reads as "peek" — the comparison people actually want is
-          "did this change what I think it changed". The full comparison is
-          the tile's existing full-screen action, which pages before and
-          after as adjacent slides.
-
-          Both pointer and keyboard: a hover-only affordance does not exist on
-          a touch screen, and focus/blur gives the same behaviour to somebody
-          tabbing through.
-        */}
-        <button
-          type="button"
-          aria-label={`Show the original ${label}`}
-          className="rounded-md bg-sheet/90 p-1.5 text-ink hover:bg-sheet"
-          onPointerDown={() => setPeeking(true)}
-          onPointerUp={() => setPeeking(false)}
-          onPointerLeave={() => setPeeking(false)}
-          onFocus={() => setPeeking(true)}
-          onBlur={() => setPeeking(false)}
-        >
-          <Eye className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-        <button
-          type="button"
-          aria-label={`Redo ${label}`}
-          className="rounded-md bg-sheet/90 p-1.5 text-ink hover:bg-sheet"
-          onClick={() => onRedo('')}
-        >
-          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
-      </div>
-
       {peeking && (
-        <span className="absolute left-1.5 top-1.5 rounded bg-sheet-inverse/70 px-1.5 py-0.5 text-2xs font-medium text-ink-inverse">
+        <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-sheet-inverse/70 px-1.5 py-0.5 text-2xs font-medium text-ink-inverse">
           Original
         </span>
       )}
-
     </>
   );
 }
 
 function Overlay({ children }: { children: React.ReactNode }) {
   return (
-    <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-sheet-inverse/70">
+    <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-sheet-inverse/70">
       {children}
     </div>
   );

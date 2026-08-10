@@ -241,6 +241,158 @@ describe('Popover', () => {
     open();
     expect(onClick).toHaveBeenCalled();
   });
+
+  /*
+   * THE ANCHOR IS THE WRAPPER, AND SOMETIMES IT IS NOT THE TRIGGER'S OWN BOX.
+   *
+   * A product media tile hands this `absolute inset-0`, so the menu is
+   * positioned against the tile rather than against the invisible full-bleed
+   * button inside it. The default has to stay `inline-flex` or every existing
+   * caller silently moves.
+   */
+  it('wraps the trigger in inline-flex unless told otherwise', () => {
+    harness();
+    const anchor = screen.getByRole('button', { name: 'Open' }).parentElement!;
+    expect(anchor.className).toBe('inline-flex');
+  });
+
+  it('anchors to the box it is given', () => {
+    render(
+      <Popover trigger={<button>Open</button>} label="Menu" anchorClassName="absolute inset-0">
+        <p>x</p>
+      </Popover>,
+    );
+    const anchor = screen.getByRole('button', { name: 'Open' }).parentElement!;
+    expect(anchor.className).toBe('absolute inset-0');
+    expect(anchor.className).not.toContain('inline-flex');
+  });
+
+  /*
+   * OPENING UPWARD WHEN THERE IS NO ROOM BELOW.
+   *
+   * The surface used to be pinned under the trigger unconditionally, with
+   * maxHeight absorbing whatever was left — so a trigger near the foot of the
+   * window got a menu a few pixels tall that scrolled internally. That is
+   * exactly where the media tiles are: the variant cards are the last section
+   * on Step 4 and their menus have five items.
+   */
+  function atViewportY(top: number, height = 40) {
+    return vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top,
+      bottom: top + height,
+      left: 10,
+      right: 90,
+      width: 80,
+      height,
+      x: 10,
+      y: top,
+      toJSON: () => ({}),
+    } as DOMRect);
+  }
+
+  it('flips above the trigger when the surface cannot fit below it', () => {
+    /*
+     * 128px of room below, and a surface that wants 300.
+     *
+     * The geometry has to leave REAL room below, or the test proves nothing
+     * about the measurement: an earlier version put the trigger past the
+     * bottom edge, which made the room negative and therefore flipped for any
+     * height at all — a mutant that always measured zero survived it.
+     */
+    const rect = atViewportY(window.innerHeight - 168);
+    const tall = vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(300);
+
+    harness();
+    open();
+    const surface = screen.getByRole('dialog');
+
+    // Pinned to the trigger's TOP edge, growing upward, with the room above it.
+    expect(surface.style.bottom).toBe(`${168 + 6}px`);
+    expect(surface.style.top).toBe('');
+    expect(surface.style.maxHeight).toBe(`${window.innerHeight - 168 - 12}px`);
+
+    rect.mockRestore();
+    tall.mockRestore();
+  });
+
+  it('stays below when the content is short enough to fit in the same gap', () => {
+    // Same trigger position as the flip above — only the height differs, which
+    // is what makes the pair prove the measurement is doing the work.
+    const rect = atViewportY(window.innerHeight - 168);
+    const short = vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(60);
+
+    harness();
+    open();
+    expect(screen.getByRole('dialog').style.bottom).toBe('');
+
+    rect.mockRestore();
+    short.mockRestore();
+  });
+
+  it('stays below the trigger when it fits there', () => {
+    const rect = atViewportY(10);
+    const short = vi.spyOn(Element.prototype, 'scrollHeight', 'get').mockReturnValue(80);
+
+    harness();
+    open();
+    const surface = screen.getByRole('dialog');
+
+    expect(surface.style.top).toBe('56px'); // 10 + 40 + 6
+    expect(surface.style.bottom).toBe('');
+
+    rect.mockRestore();
+    short.mockRestore();
+  });
+
+  /*
+   * NEITHER EDGE MAY LEAVE THE WINDOW.
+   *
+   * `align: 'end'` pins the surface's right edge to the trigger's, which pushes
+   * its LEFT edge off screen when the trigger sits near the left. Seen on dev
+   * on a variant media tile: a 224px menu anchored 196px from the edge hung
+   * 28px into nowhere with the first characters of every label cut off — the
+   * same "control you cannot properly see" this whole change is about.
+   */
+  it('keeps the whole surface on screen when the trigger is near the left edge', () => {
+    const rect = vi.spyOn(Element.prototype, 'getBoundingClientRect').mockReturnValue({
+      top: 100, bottom: 140, left: 120, right: 196, width: 76, height: 40, x: 120, y: 100,
+      toJSON: () => ({}),
+    } as DOMRect);
+    const wide = vi.spyOn(HTMLElement.prototype, 'offsetWidth', 'get').mockReturnValue(224);
+
+    harness();
+    open();
+    const surface = screen.getByRole('dialog');
+
+    // Unclamped this would be `innerWidth - 196`, putting the left edge at -28.
+    const right = parseFloat(surface.style.right);
+    expect(window.innerWidth - right - 224).toBeGreaterThanOrEqual(0);
+
+    rect.mockRestore();
+    wide.mockRestore();
+  });
+
+  /*
+   * A MENU ITEM IS A CLICK INSIDE THE SURFACE, which is precisely what does
+   * NOT dismiss it. Without a close handle the menu stands open behind
+   * whatever the item just opened.
+   */
+  it('hands its children a close that dismisses it and restores focus', () => {
+    render(
+      <Popover trigger={<button>Open</button>} label="Menu">
+        {(close) => (
+          <button type="button" onClick={close}>
+            Choose
+          </button>
+        )}
+      </Popover>,
+    );
+    open();
+    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
+
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open' }));
+  });
 });
 
 // ─── SegmentedControl ────────────────────────────────────

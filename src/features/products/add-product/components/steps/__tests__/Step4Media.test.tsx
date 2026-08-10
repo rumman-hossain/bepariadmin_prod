@@ -36,9 +36,14 @@ const uploadSlot = vi.fn(
   },
 );
 
+/* Emptying a slot revokes its object URL. The mock was missing this until a
+   test finally used Remove — which is its own small evidence that nothing here
+   had ever exercised a filled tile's controls. */
+const releasePreviewUrl = vi.fn();
+
 vi.mock('@/src/services/upload/useUpload', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/src/services/upload/useUpload')>()),
-  useUpload: () => ({ uploadSlot }),
+  useUpload: () => ({ uploadSlot, releasePreviewUrl }),
 }));
 
 const store = () => useAddProductStore.getState();
@@ -76,6 +81,128 @@ function fileInputFor(label: string, nth = 0): HTMLInputElement {
   if (!input) throw new Error(`no file input inside the ${label} slot #${nth}`);
   return input as HTMLInputElement;
 }
+
+/**
+ * A FILLED TILE'S ACTIONS, WHICH NOTHING HERE USED TO TOUCH.
+ *
+ * This is why the bug shipped. Every test above works an EMPTY slot — pick a
+ * file, check the validator — so the controls that appear once a slot is filled
+ * had no coverage at all, and four 28px buttons in a row inside a 75px tile
+ * went out without anything noticing.
+ *
+ * Measured on dev before the fix: the row needs 124px, so on a variant tile
+ * "View full screen" sat 56px off the tile's left edge and "Beautify" 24px off
+ * it. Both were clipped by the tile's `overflow-hidden`, and
+ * `elementFromPoint` at their centres returned the sidebar. A variant image
+ * could not be opened, and a failed beautify could not be corrected.
+ *
+ * A jsdom test cannot measure that — it has no layout. What it CAN pin down is
+ * the shape that made it impossible: the actions are in a portalled menu opened
+ * by clicking the picture, not in a row that has to fit inside the tile.
+ */
+function fillFront() {
+  fireEvent.change(fileInputFor('Front'), { target: { files: [pngFile()] } });
+}
+
+/** The whole-picture button. The tile's only affordance once it has an image. */
+function openTileMenu(label = 'Front') {
+  const trigger = screen.getByRole('button', { name: new RegExp(`^Options for ${label}`, 'i') });
+  fireEvent.click(trigger);
+  return trigger;
+}
+
+describe('everything a filled tile can do is one click on the picture', () => {
+  it('offers no options on an EMPTY tile — a click there picks a file', () => {
+    render(<Step4Media />);
+    expect(screen.queryByRole('button', { name: /^Options for Front/i })).toBeNull();
+    // The empty tile's own button is the picker, exactly as before.
+    expect(screen.getByRole('button', { name: /^Front$/i })).toBeTruthy();
+  });
+
+  it('opens a menu of every action once the tile has an image', async () => {
+    render(<Step4Media />);
+    fillFront();
+    openTileMenu();
+
+    for (const name of [/view full screen/i, /replace image/i, /^remove$/i]) {
+      expect(screen.getByRole('button', { name })).toBeTruthy();
+    }
+  });
+
+  /*
+   * The point of the whole change. The menu is portalled to document.body, so
+   * it is not inside — and cannot be clipped by — the tile that opened it.
+   * Rendering it in place is what the old corner row did, and a 124px row does
+   * not fit in a 75px `overflow-hidden` box.
+   */
+  it('renders the menu outside the tile, where the tile cannot clip it', () => {
+    render(<Step4Media />);
+    fillFront();
+    const group = screen.getAllByRole('group', { name: /^Front/i })[0];
+    openTileMenu();
+
+    const item = screen.getByRole('button', { name: /view full screen/i });
+    expect(group.contains(item)).toBe(false);
+    expect(document.body.contains(item)).toBe(true);
+  });
+
+  /*
+   * The picture is drawn OVER the button that opens the menu, so if it takes
+   * pointer events the tile stops being clickable and the whole change is
+   * undone — silently, because it still looks identical.
+   */
+  it('lets the click through the picture to the button beneath it', () => {
+    render(<Step4Media />);
+    fillFront();
+    const group = screen.getAllByRole('group', { name: /^Front/i })[0];
+    const img = group.querySelector('img')!;
+    expect(img.classList.contains('pointer-events-none')).toBe(true);
+  });
+
+  it('replaces the image through the menu, against that slot', () => {
+    render(<Step4Media />);
+    fillFront();
+    uploadSlot.mockClear();
+    openTileMenu();
+
+    fireEvent.click(screen.getByRole('button', { name: /replace image/i }));
+    // The menu closes rather than standing open behind the file dialog.
+    expect(screen.queryByRole('button', { name: /replace image/i })).toBeNull();
+
+    fireEvent.change(fileInputFor('Front'), { target: { files: [pngFile()] } });
+    expect(uploadSlot).toHaveBeenCalledTimes(1);
+    expect(uploadSlot.mock.calls[0][0].purpose).toBe('product:front');
+  });
+
+  it('empties the slot through the menu', () => {
+    render(<Step4Media />);
+    fillFront();
+    expect(store().productMedia.front?.uploadedUrl).toBe('gs://bucket/picked.jpg');
+
+    openTileMenu();
+    fireEvent.click(screen.getByRole('button', { name: /^remove$/i }));
+    expect(store().productMedia.front?.uploadedUrl).toBe('');
+  });
+
+  /*
+   * `MediaTile` guards Remove behind its optional `onClear`, and all eight
+   * call sites on this step supply one — so every filled tile offers it.
+   *
+   * Written as "each of them" rather than "only where it is given" because the
+   * second is not testable from here: a mutant that dropped the guard entirely
+   * SURVIVED a test that asserted only the true side, since nothing on the step
+   * exercises the false one.
+   */
+  it('offers Remove on every filled tile', () => {
+    render(<Step4Media />);
+    for (const label of ['Poster', 'Front', 'Back']) {
+      fireEvent.change(fileInputFor(label), { target: { files: [pngFile()] } });
+      openTileMenu(label);
+      expect(screen.getByRole('button', { name: /^remove$/i })).toBeTruthy();
+      fireEvent.keyDown(document, { key: 'Escape' });
+    }
+  });
+});
 
 describe('a variant product can supply per-variation media', () => {
   it('renders a front and a back slot for every variation', () => {

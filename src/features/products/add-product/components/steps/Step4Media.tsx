@@ -7,7 +7,19 @@ import {
   type DragEvent,
   type ReactNode,
 } from 'react';
-import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RefreshCw, Sparkles, X } from 'lucide-react';
+import {
+  AlertTriangle,
+  Check,
+  Eye,
+  ImagePlus,
+  Loader2,
+  Maximize2,
+  MoreHorizontal,
+  RefreshCw,
+  Sparkles,
+  Trash2,
+  type LucideIcon,
+} from 'lucide-react';
 import {
   useAddProductStore,
   emptySlot,
@@ -18,6 +30,7 @@ import { slotActive } from '../../utils/validateWizardStep';
 import { acceptAttribute, useUpload } from '@/src/services/upload/useUpload';
 import type { MediaSlot, ProductVariation } from '../../../types/registration';
 import { Text } from '@/src/components/data';
+import { Popover } from '@/src/components/controls';
 import { cn } from '@/src/design-system/utils/cn';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { ProductMediaViewer, type ViewerItem } from '../../../components/ProductMediaViewer';
@@ -86,9 +99,38 @@ interface TileProps {
   onClear?: () => void;
 }
 
-const CORNER_ACTION =
-  'flex h-7 w-7 items-center justify-center rounded-full border border-rule ' +
-  'bg-sheet text-ink-2 shadow-sm hover:bg-sheet-hover hover:text-ink';
+/**
+ * ONE ROW OF THE TILE'S MENU.
+ *
+ * Full width and 40px tall, because the thing this replaced was a 28px circle
+ * and the operators are half on touch screens. The icon is decoration — the
+ * label is the accessible name, so nothing here depends on recognising a glyph.
+ */
+function MenuItem({
+  icon: Icon,
+  children,
+  onClick,
+  tone = 'normal',
+}: {
+  icon: LucideIcon;
+  children: ReactNode;
+  onClick: () => void;
+  tone?: 'normal' | 'bad';
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        'flex min-h-10 w-full items-center gap-2.5 px-3 py-2 text-left text-sm',
+        tone === 'bad' ? 'text-bad hover:bg-bad-wash' : 'text-ink hover:bg-sheet-hover',
+      )}
+    >
+      <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+      <span className="min-w-0 flex-1">{children}</span>
+    </button>
+  );
+}
 
 /**
  * One upload slot.
@@ -122,6 +164,9 @@ function MediaTile({
   const beautifySlot = beautifySlotFromPurpose(purpose);
   const beautifyState = beautifySlot ? beautify?.stateFor(purpose) : undefined;
   const [beautifyOpen, setBeautifyOpen] = useState(false);
+  /* Lives here rather than in BeautifyTileState because the control that sets
+     it is in this tile's menu, and the thing it hides is drawn by that. */
+  const [peeking, setPeeking] = useState(false);
 
   const { uploadSlot, releasePreviewUrl } = useUpload();
 
@@ -260,19 +305,22 @@ function MediaTile({
         )}
       >
         {previewUrl ? (
+          /* `pointer-events-none` on both: the picture is not the control, the
+             invisible button over it is. Without this the media element eats
+             the click and the tile stops being clickable. */
           mediaType === 'video' ? (
             <video
               src={previewUrl}
               // The element is the only thing that can tell us the codec is
               // unplayable, and it fires this exactly once per source.
               onError={() => setUndecodable(true)}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="pointer-events-none absolute inset-0 h-full w-full object-cover"
             />
           ) : (
             <img
               src={previewUrl}
               alt={label}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="pointer-events-none absolute inset-0 h-full w-full object-cover"
             />
           )
         ) : (
@@ -295,59 +343,124 @@ function MediaTile({
           </button>
         )}
 
-        {/* Corner actions, not a link underneath. Always visible: they must
-            work on a touch screen, and they must not change the tile's
-            height when an image lands in it. */}
+        {/*
+          THE PICTURE IS THE BUTTON.
+
+          This was four 28px circles in a row anchored to the top-right corner.
+          Measured on dev: the row needs 124px and a variant tile is 75px wide,
+          inside `overflow-hidden` — so on every variant tile "View full screen"
+          sat 56px OFF the left edge and "Beautify" 24px off it. Both were
+          clipped away entirely, and `elementFromPoint` at their centres
+          returned the sidebar. The poster is 272px, which is why it looked
+          fine everywhere anyone checked.
+
+          The consequence was not cosmetic. A variant image could not be opened
+          full screen at all, and a FAILED beautify had no way out of it —
+          Correct was one of the two clipped buttons.
+
+          So nothing has to fit in 75px any more. One chip marks the tile as
+          having actions, clicking anywhere on the picture opens them, and the
+          list is portalled to the body where the tile's overflow cannot reach
+          it.
+        */}
         {previewUrl && !uploading && (
-          <div className="absolute right-1.5 top-1.5 flex gap-1">
-            {/* First of the three, because looking at a tile is the common act
-                and replacing or removing it is the consequence. */}
-            {openMedia && (
+          <Popover
+            label={`Options for ${name}`}
+            anchorClassName="absolute inset-0"
+            className="w-56 py-1"
+            trigger={
               <button
                 type="button"
-                onClick={() => openMedia(previewUrl)}
-                aria-label={`View ${name} full screen`}
-                className={CORNER_ACTION}
+                aria-label={`Options for ${name}`}
+                className="relative h-full w-full cursor-pointer rounded-xl focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-rule-focus"
               >
-                <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
+                {/*
+                  Always visible, never on hover: half the operators are on a
+                  touch screen, where a hover affordance does not exist. One
+                  control at this size clears a 75px tile with room to spare.
+                */}
+                <span className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-rule bg-sheet text-ink-2 shadow-sm">
+                  <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                </span>
               </button>
+            }
+          >
+            {(close) => (
+              <>
+                {/* First, because looking at a tile is the common act and
+                    changing it is the consequence. */}
+                {openMedia && (
+                  <MenuItem
+                    icon={Maximize2}
+                    onClick={() => {
+                      close();
+                      openMedia(previewUrl);
+                    }}
+                  >
+                    View full screen
+                  </MenuItem>
+                )}
+
+                {/* Compare against what the supplier sent. A toggle rather than
+                    the press-and-hold it replaced: a hold has no menu
+                    equivalent, and a toggle says plainly what it does. */}
+                {beautifyState?.status === 'ready' && (
+                  <MenuItem
+                    icon={Eye}
+                    onClick={() => {
+                      close();
+                      setPeeking((v) => !v);
+                    }}
+                  >
+                    {peeking ? 'Show the beautified' : 'Show the original'}
+                  </MenuItem>
+                )}
+
+                {/* Beautify THIS image alone. The bar above does the whole
+                    product; this is for the one shot that needs redoing, and
+                    it is the way out of a failed tile. */}
+                {canBeautify && !beautifyBusy && (
+                  <MenuItem
+                    icon={Sparkles}
+                    onClick={() => {
+                      close();
+                      setBeautifyOpen(true);
+                    }}
+                  >
+                    {beautifyState?.status === 'failed' || beautifyState?.status === 'ready'
+                      ? 'Correct this image'
+                      : 'Beautify this image'}
+                  </MenuItem>
+                )}
+
+                <MenuItem
+                  icon={RefreshCw}
+                  onClick={() => {
+                    close();
+                    openPicker();
+                  }}
+                >
+                  Replace image
+                </MenuItem>
+
+                {clear && (
+                  <>
+                    <div className="my-1 border-t border-rule-subtle" />
+                    <MenuItem
+                      icon={Trash2}
+                      tone="bad"
+                      onClick={() => {
+                        close();
+                        clear();
+                      }}
+                    >
+                      Remove
+                    </MenuItem>
+                  </>
+                )}
+              </>
             )}
-            {/* Beautify THIS image alone. The bar above does the whole
-                product; this is for the one shot that needs redoing, and it
-                is also the way out of a failed tile. */}
-            {canBeautify && !beautifyBusy && (
-              <button
-                type="button"
-                onClick={() => setBeautifyOpen(true)}
-                aria-label={
-                  beautifyState?.status === 'failed'
-                    ? `Correct ${name}`
-                    : `Beautify ${name}`
-                }
-                className={cn(CORNER_ACTION, 'text-brass hover:bg-brass-wash')}
-              >
-                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={openPicker}
-              aria-label={`Replace ${name}`}
-              className={CORNER_ACTION}
-            >
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden="true" />
-            </button>
-            {clear && (
-              <button
-                type="button"
-                onClick={clear}
-                aria-label={`Remove ${name}`}
-                className={cn(CORNER_ACTION, 'hover:bg-bad-wash hover:text-bad')}
-              >
-                <X className="h-3.5 w-3.5" aria-hidden="true" />
-              </button>
-            )}
-          </div>
+          </Popover>
         )}
 
         {uploading && (
@@ -361,11 +474,7 @@ function MediaTile({
             looking at. Never while an upload is in flight: the two states
             would stack, and the tile would claim to be doing both. */}
         {!uploading && beautify && beautifySlot && (
-          <BeautifyTileState
-            state={beautifyState}
-            label={name}
-            onRedo={() => setBeautifyOpen(true)}
-          />
+          <BeautifyTileState state={beautifyState} peeking={peeking} />
         )}
 
         {canBeautify && beautifySlot && (
@@ -394,7 +503,10 @@ function MediaTile({
         {undecodable && !uploading && (
           <div
             role="alert"
-            className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-bad-wash/95 px-2 text-center"
+            /* Transparent to clicks like the beautify layers, so the menu that
+               offers "Replace" and "Remove" — the two things this text tells
+               the operator to do — is still reachable underneath it. */
+            className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 bg-bad-wash/95 px-2 text-center"
           >
             <AlertTriangle className="h-4 w-4 text-bad" aria-hidden="true" />
             <span className="text-2xs font-semibold text-bad">This clip will not play</span>

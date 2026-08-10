@@ -468,13 +468,48 @@ describe('the operator never presses Try again', () => {
     render(
       <BeautifyTileState
         state={{ status: 'failed', message: 'The model declined: no under-18s.' }}
-        label="Front"
-        onRedo={() => {}}
       />,
     );
     expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
     // The model's own explanation is what the operator gets instead.
     expect(screen.getByText(/no under-18s/i)).toBeTruthy();
+  });
+
+  /*
+   * THE FAILED TILE MUST NOT SWALLOW THE CLICK THAT RESCUES IT.
+   *
+   * The overlay covers the whole tile, and the tile is the button that opens
+   * the menu holding "Correct this image". While it captured pointer events
+   * there was no way out of a failure on a variant tile at all — the corner
+   * Correct button was clipped outside the tile's 75px, so BOTH routes were
+   * shut. Layers that draw over the picture stay transparent to clicks.
+   */
+  it('lets a click through every layer it draws over the picture', () => {
+    /* The positioned layers only. `pointer-events` is an inherited property,
+       so a caption nested inside a transparent overlay is already transparent
+       and does not need to say so itself. */
+    // `classList`, not `className` — an SVG's is an SVGAnimatedString.
+    const layers = (el: HTMLElement) =>
+      (Array.from(el.querySelectorAll('*')) as HTMLElement[]).filter((n) =>
+        n.classList.contains('absolute'),
+      );
+
+    for (const state of [
+      { status: 'queued' as const },
+      { status: 'failed' as const, message: 'The model declined.' },
+      { status: 'ready' as const, job: { previewUrl: 'blob:after' } },
+    ] as const) {
+      const { container, unmount } = render(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        <BeautifyTileState state={state as any} />,
+      );
+      const found = layers(container);
+      expect(found.length).toBeGreaterThan(0); // or the loop below proves nothing
+      for (const el of found) {
+        expect(el.classList.contains('pointer-events-none')).toBe(true);
+      }
+      unmount();
+    }
   });
 });
 
