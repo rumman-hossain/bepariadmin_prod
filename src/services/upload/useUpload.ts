@@ -31,7 +31,20 @@ interface UploadSlotOptions {
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 100 * 1024 * 1024;
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif'];
-const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
+/*
+ * THE SERVER'S LIST, exactly.
+ *
+ * `video/webm` was offered here and is not in `allowedContentTypes` in
+ * internal/upload/service.go, so choosing one passed the file picker and came
+ * back INVALID_CONTENT_TYPE — a rule the operator had no way to see, which is
+ * the same shape as the HEIC and PDF rejections this file already documents.
+ *
+ * `video/quicktime` stays: an iPhone .mov that skipped compression arrives
+ * labelled that way, and it is the common case on this platform. It was also
+ * the type that produced a 500 until migration 000104 taught the database the
+ * same list.
+ */
+const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime'];
 
 /**
  * KYC paperwork: a scan is usually a PDF, sometimes a photograph of a document.
