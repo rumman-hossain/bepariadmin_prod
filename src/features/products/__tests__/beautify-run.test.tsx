@@ -477,3 +477,35 @@ describe('the operator never presses Try again', () => {
     expect(screen.getByText(/no under-18s/i)).toBeTruthy();
   });
 });
+
+describe('beautifying one image on its own', () => {
+  it('touches only the slot that was asked for', async () => {
+    /*
+     * The bar runs every front and back, which is right the first time a
+     * product is prepared and wrong afterwards: redoing one bad shot must not
+     * regenerate — or re-bill — the eleven that were already fine.
+     */
+    const { result } = renderHook(() => useBeautify());
+    const target = SLOTS[3]; // Red · back
+
+    await act(async () => {
+      await result.current.redo(opts('with_model'), target);
+    });
+
+    expect(runBeautify).toHaveBeenCalledTimes(1);
+    const sent = runBeautify.mock.calls[0][0] as RunBeautifyInput;
+    expect(sent.variationId).toBe('v1');
+    expect(sent.side).toBe('back');
+    // ...and every other slot is untouched.
+    expect(result.current.states[slotKey('v1', 'front')]).toBeUndefined();
+    expect(result.current.states[slotKey('', 'front')]).toBeUndefined();
+  });
+
+  it('still refuses to put a description on a back', async () => {
+    const { result } = renderHook(() => useBeautify());
+    await act(async () => {
+      await result.current.redo(opts('with_model'), SLOTS[1]); // product back
+    });
+    expect((runBeautify.mock.calls[0][0] as RunBeautifyInput).modelDescription).toBeUndefined();
+  });
+});

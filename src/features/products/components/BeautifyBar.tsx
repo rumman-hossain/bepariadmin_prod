@@ -174,8 +174,16 @@ function StripTile({
               )}
 
               {state?.status === 'failed' && (
-                <div className="absolute inset-0 flex items-center justify-center bg-sheet-inverse/70">
+                <div
+                  className="absolute inset-0 flex items-center justify-center bg-sheet-inverse/70"
+                  /* The reason on hover and to a screen reader. The thumbnail is
+                     72px, so the full sentence lives on the tile below; a bare
+                     warning triangle with no way to learn why is what made the
+                     old failures feel arbitrary. */
+                  title={state.message}
+                >
                   <AlertTriangle className="h-4 w-4 text-bad" aria-hidden="true" />
+                  <span className="sr-only">{state.message}</span>
                 </div>
               )}
 
@@ -194,7 +202,9 @@ function StripTile({
                   : 'Beautifying…'
                 : state?.status === 'queued'
                   ? 'In line'
-                  : slot.label}
+                  : state?.status === 'failed'
+                    ? 'Could not be made'
+                    : slot.label}
             </figcaption>
           </figure>
     );

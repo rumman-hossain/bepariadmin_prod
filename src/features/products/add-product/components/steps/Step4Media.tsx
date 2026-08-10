@@ -7,7 +7,7 @@ import {
   type DragEvent,
   type ReactNode,
 } from 'react';
-import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, Check, ImagePlus, Loader2, Maximize2, RefreshCw, Sparkles, X } from 'lucide-react';
 import {
   useAddProductStore,
   emptySlot,
@@ -23,6 +23,7 @@ import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { ProductMediaViewer, type ViewerItem } from '../../../components/ProductMediaViewer';
 import { useParams } from 'react-router-dom';
 import { BeautifyStart, BeautifyStrip, BeautifyReview } from '../../../components/BeautifyBar';
+import { BeautifyOneDialog } from '../../../components/BeautifyOneDialog';
 import { BeautifyTileState } from '../../../components/BeautifyTileState';
 import {
   useBeautify,
@@ -120,6 +121,8 @@ function MediaTile({
   const beautify = useContext(BeautifyContext);
   const beautifySlot = beautifySlotFromPurpose(purpose);
   const beautifyState = beautifySlot ? beautify?.stateFor(purpose) : undefined;
+  const [beautifyOpen, setBeautifyOpen] = useState(false);
+
   const { uploadSlot, releasePreviewUrl } = useUpload();
 
   const name = ariaLabel ?? label;
@@ -158,6 +161,13 @@ function MediaTile({
     durable URL and nothing else.
   */
   const previewUrl = mediaDisplayUrl(slot.localUri || slot.uploadedUrl);
+
+  // Only a front or a back, only once the product exists, and only when there
+  // is actually a photograph to work from. Declared after previewUrl, which it
+  // reads.
+  const canBeautify = Boolean(beautify?.enabled && beautifySlot && previewUrl);
+  const beautifyBusy =
+    beautifyState?.status === 'working' || beautifyState?.status === 'queued';
 
   const openPicker = () => {
     if (!uploading) inputRef.current?.click();
@@ -302,6 +312,23 @@ function MediaTile({
                 <Maximize2 className="h-3.5 w-3.5" aria-hidden="true" />
               </button>
             )}
+            {/* Beautify THIS image alone. The bar above does the whole
+                product; this is for the one shot that needs redoing, and it
+                is also the way out of a failed tile. */}
+            {canBeautify && !beautifyBusy && (
+              <button
+                type="button"
+                onClick={() => setBeautifyOpen(true)}
+                aria-label={
+                  beautifyState?.status === 'failed'
+                    ? `Correct ${name}`
+                    : `Beautify ${name}`
+                }
+                className={cn(CORNER_ACTION, 'text-brass hover:bg-brass-wash')}
+              >
+                <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+              </button>
+            )}
             <button
               type="button"
               onClick={openPicker}
@@ -337,7 +364,23 @@ function MediaTile({
           <BeautifyTileState
             state={beautifyState}
             label={name}
-            onRedo={(note) => beautify.redo(purpose, note)}
+            onRedo={() => setBeautifyOpen(true)}
+          />
+        )}
+
+        {canBeautify && beautifySlot && (
+          <BeautifyOneDialog
+            open={beautifyOpen}
+            label={name}
+            side={beautifySlot.side}
+            correcting={
+              beautifyState?.status === 'failed' || beautifyState?.status === 'ready'
+            }
+            onClose={() => setBeautifyOpen(false)}
+            onConfirm={(mode, description) => {
+              setBeautifyOpen(false);
+              beautify?.beautifyOne(purpose, mode, description);
+            }}
           />
         )}
 
@@ -533,6 +576,16 @@ const OpenMediaContext = createContext<((url: string) => void) | undefined>(unde
 interface BeautifyTileAccess {
   stateFor: (purpose: string) => SlotState | undefined;
   redo: (purpose: string, note: string) => void;
+  /**
+   * Beautify ONE image, on its own, without touching the rest of the product.
+   *
+   * The bar runs every front and back at once, which is right when a product
+   * is first prepared and wrong afterwards: re-doing a single bad shot should
+   * not regenerate — or re-bill — the eleven that were already fine.
+   */
+  beautifyOne: (purpose: string, mode: BeautifyMode, description: string) => void;
+  /** False during first registration, where there is no product row to commit to. */
+  enabled: boolean;
 }
 const BeautifyContext = createContext<BeautifyTileAccess | undefined>(undefined);
 
@@ -734,10 +787,17 @@ export function Step4Media() {
         });
       }
     };
-    if (!hasVariant) {
-      push(productMedia.front, '', 'front', 'Front');
-      push(productMedia.back, '', 'back', 'Back');
-    }
+    /*
+     * The product's own pair counts whenever it EXISTS, variant or not.
+     *
+     * This used to be gated on `!hasVariant`. In practice a variant product's
+     * own front and back are empty — the variant layout offers a poster and
+     * then per-variation tiles — so `slotActive` skips them anyway. Gating on
+     * the shape as well was a second rule that could only ever disagree with
+     * the first: "front and back, variant and non-variant" is the rule.
+     */
+    push(productMedia.front, '', 'front', 'Front');
+    push(productMedia.back, '', 'back', 'Back');
     variations.forEach((v) => {
       const m = v.media;
       if (!m || !v.id) return;
@@ -746,7 +806,7 @@ export function Step4Media() {
       push(m.back, String(v.id), 'back', `${who} · back`);
     });
     return out;
-  }, [hasVariant, productMedia, variations]);
+  }, [productMedia, variations]);
 
   /*
    * The price BEFORE the button, from the same split the server bills on: the
@@ -789,6 +849,31 @@ export function Step4Media() {
           known,
         );
       },
+
+      /*
+       * ONE IMAGE, ON ITS OWN.
+       *
+       * Reuses the single-slot path Redo already uses, so this is a control
+       * and a dialog rather than new plumbing. `runOpts` is also recorded so a
+       * later Redo on this tile knows which mode and description it is
+       * correcting — without it, a redo after an individual run would have
+       * nothing to append the correction to.
+       */
+      beautifyOne: (purpose: string, mode: BeautifyMode, description: string) => {
+        const slot = beautifySlotFromPurpose(purpose);
+        if (!slot || !productId) return;
+        const known = beautifySlots.find(
+          (s) => s.variationId === slot.variationId && s.side === slot.side,
+        );
+        if (!known) return;
+        setRunOpts({ mode, description });
+        void beautify.redo(
+          { productId, mode, modelDescription: description, slots: beautifySlots },
+          known,
+        );
+      },
+
+      enabled: Boolean(productId),
     }),
     [beautify, beautifySlots, productId, runOpts],
   );

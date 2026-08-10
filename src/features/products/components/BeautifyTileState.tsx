@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { AlertTriangle, Eye, RotateCcw, Sparkles } from 'lucide-react';
-import { Button, Textarea } from '@/src/components/controls';
-import { Dialog } from '@/src/components/feedback';
 import { Text } from '@/src/components/data';
-import { cn } from '@/src/design-system/utils/cn';
 import { useLongWait, type SlotState } from '../hooks/useBeautify';
 
 /**
@@ -20,11 +17,18 @@ interface Props {
   state: SlotState | undefined;
   /** Announced to a screen reader as part of the redo control's name. */
   label: string;
+  /**
+   * Opens the tile's own beautify dialog.
+   *
+   * The dialog lives on MediaTile rather than here, because it must also be
+   * reachable when this component renders nothing at all — an untouched tile
+   * has no beautify state, and starting a single image is exactly the case
+   * where there is none yet.
+   */
   onRedo: (note: string) => void;
 }
 
 export function BeautifyTileState({ state, label, onRedo }: Props) {
-  const [redoOpen, setRedoOpen] = useState(false);
   const [peeking, setPeeking] = useState(false);
   const longWait = useLongWait(state?.status === 'working' ? state.since : undefined);
 
@@ -135,7 +139,7 @@ export function BeautifyTileState({ state, label, onRedo }: Props) {
           type="button"
           aria-label={`Redo ${label}`}
           className="rounded-md bg-sheet/90 p-1.5 text-ink hover:bg-sheet"
-          onClick={() => setRedoOpen(true)}
+          onClick={() => onRedo('')}
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
         </button>
@@ -147,15 +151,6 @@ export function BeautifyTileState({ state, label, onRedo }: Props) {
         </span>
       )}
 
-      <RedoDialog
-        open={redoOpen}
-        label={label}
-        onClose={() => setRedoOpen(false)}
-        onConfirm={(note) => {
-          setRedoOpen(false);
-          onRedo(note);
-        }}
-      />
     </>
   );
 }
@@ -165,59 +160,5 @@ function Overlay({ children }: { children: React.ReactNode }) {
     <div className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-sheet-inverse/70">
       {children}
     </div>
-  );
-}
-
-interface RedoProps {
-  open: boolean;
-  label: string;
-  onClose: () => void;
-  onConfirm: (note: string) => void;
-}
-
-/**
- * The correction field, attached to the image being corrected.
- *
- * One global box would be ambiguous the moment there is more than one tile:
- * "the hem is cut off" is about a particular picture, and a run has twelve.
- *
- * Shaped after ReasonDialog, and using Dialog's `isDirty` guard for the same
- * reason it does — a stray click on the backdrop must not throw away a
- * correction somebody was halfway through typing.
- */
-function RedoDialog({ open, label, onClose, onConfirm }: RedoProps) {
-  const [note, setNote] = useState('');
-
-  return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      size="sm"
-      title={`Redo ${label}`}
-      isDirty={note.trim().length > 0}
-      discardMessage="The note you have written will be lost."
-    >
-      <div className={cn('space-y-4')}>
-        <Textarea
-          label="What should change?"
-          value={note}
-          onChange={(e) => setNote(e.target.value)}
-          rows={3}
-          maxLength={300}
-          placeholder="the hem is cut off — show the whole garment"
-        />
-        {/* Redo is the only control here that spends money, and it is the one
-            an impatient operator will press repeatedly. */}
-        <Text variant="caption">This generates a new image and costs about $0.07.</Text>
-        <div className="flex justify-end gap-3">
-          <Button variant="secondary" size="md" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button variant="primary" size="md" onClick={() => onConfirm(note.trim())}>
-            Generate again
-          </Button>
-        </div>
-      </div>
-    </Dialog>
   );
 }
