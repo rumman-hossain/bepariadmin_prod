@@ -14,6 +14,7 @@
 import { ChevronRight, ChevronDown, ImageOff, Layers } from 'lucide-react';
 import { Money, Text, formatAge, formatDate } from '@/src/components/data';
 import { StatusBadge } from '@/src/components/data/StatusBadge';
+import { ProductImage } from '../components/ProductImage';
 import { cn } from '@/src/design-system/utils/cn';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { PRODUCT_STATE_LABEL, isProductState } from '../types/adminProduct';
@@ -59,11 +60,11 @@ export function buildColumns({
         return (
           <div className="flex gap-3 min-w-0">
             {thumbnail ? (
-              <img
+              <ProductImage
                 src={thumbnail}
-                alt=""
-                loading="lazy"
+                alt={row.name ?? ''}
                 className="h-10 w-10 shrink-0 rounded-sm border border-rule object-cover"
+                failedClassName="h-10 w-10 shrink-0"
               />
             ) : row.imageCount === 0 ? (
               /*

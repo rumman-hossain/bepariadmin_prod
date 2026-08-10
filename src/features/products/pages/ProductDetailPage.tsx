@@ -43,6 +43,7 @@ import {
 import { PRODUCT_ROUTES } from '../routes';
 import { formatDispatchDisplay } from '@/src/features/products/utils/dispatchTime';
 import { ProductActionRail } from '../components/ProductActionRail';
+import { ProductImage } from '../components/ProductImage';
 import { ProductReviewChecklist, type ChecklistItem } from '../components/ProductReviewChecklist';
 import { ProductAuditTab } from '../components/ProductAuditTab';
 import { VariantEditRow } from '../components/VariantEditRow';
@@ -350,11 +351,11 @@ export function ProductDetailPage() {
             <div className="grid grid-cols-1 gap-5 sm:grid-cols-[10.5rem_minmax(0,1fr)]">
               <div>
                 {images.length > 0 ? (
-                  <img
+                  <ProductImage
                     src={images[0]}
                     alt={product.name}
                     className="aspect-square w-full rounded-md border border-rule object-cover"
-                    loading="lazy"
+                    failedClassName="aspect-square w-full"
                   />
                 ) : (
                   <div className="flex aspect-square w-full flex-col items-center justify-center gap-1.5 rounded-md border border-dashed border-warn-border bg-warn-wash text-warn">
@@ -365,12 +366,12 @@ export function ProductDetailPage() {
                 {images.length > 1 && (
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {images.slice(1, 6).map((src) => (
-                      <img
+                      <ProductImage
                         key={src}
                         src={src}
                         alt=""
                         className="h-11 w-11 rounded-sm border border-rule object-cover"
-                        loading="lazy"
+                        failedClassName="h-11 w-11"
                       />
                     ))}
                   </div>

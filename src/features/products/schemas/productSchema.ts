@@ -24,6 +24,15 @@ export const variationInventorySchema = z.object({
 export const variationMediaSchema = z.object({
   id: z.string().optional().nullable(),
   url: z.string(),
+  /*
+   * The STORED reference behind `url`.
+   *
+   * `url` is a fifteen-minute proxy token. Sending it back on a save is what
+   * put `/api/v1/file/<token>` into products.product_media and blanked a live
+   * product's images a quarter of an hour later. This is the durable `gs://`
+   * the server resolved from, and the only value a write may carry.
+   */
+  objectRef: z.string().optional().nullable(),
   mediaType: z.string().optional().nullable(),
   position: z.number().optional().nullable(),
   variationId: z.string().optional().nullable(),
@@ -315,6 +324,8 @@ export const productResponseSchema = z.object({
   moqSet: z.record(z.string(), z.number()).optional().nullable(),
 
   videoUrl: z.string().optional().nullable(),
+  /** Stored reference behind `videoUrl` — see variationMediaSchema.objectRef. */
+  videoObjectRef: z.string().optional().nullable(),
   bundleDetails: bundleDetailsSchema.optional().nullable(),
 
   estimatedProfit: z.number().optional().nullable(),

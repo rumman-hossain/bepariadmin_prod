@@ -37,7 +37,21 @@ export interface LifecycleState {
  * otherwise is how a null position ends up indexing an array. Written out here
  * rather than cast away at each call site.
  */
-type ServerMediaRow = { url: string; mediaType?: string | null; position?: number | null };
+type ServerMediaRow = {
+  url: string;
+  /**
+   * The STORED reference — the `gs://` value `url` was resolved from.
+   *
+   * `url` is a fifteen-minute display token. Hydrating a slot's `uploadedUrl`
+   * from it, and then sending that back on save, is what wrote
+   * `/api/v1/file/lscRDFAi-VrKND4ovAfDow` into products.product_media and
+   * blanked a live product's images a quarter of an hour later. The server
+   * refuses to store one now; this is the value it wants instead.
+   */
+  objectRef?: string | null;
+  mediaType?: string | null;
+  position?: number | null;
+};
 
 /**
  * The server's media rows, folded into the wizard's slots.
@@ -65,9 +79,24 @@ function foldMediaRows<T extends { more: MediaSlot[] }>(
   rows
     .filter((m) => (m.mediaType ?? 'image') === 'image')
     .forEach((m) => {
+      /*
+       * `localUri` DISPLAYS, `uploadedUrl` IS STORED — and they are not the
+       * same string on an edit.
+       *
+       * Both used to be `m.url`. That is the resolved proxy token, good for
+       * fifteen minutes, and `buildProductPayload` sends `uploadedUrl`
+       * straight back to the server — so opening a product and saving it wrote
+       * a dying token into the media column. Fifteen minutes later every image
+       * on that product was blank, permanently, with nothing saying why.
+       *
+       * `objectRef` is the durable `gs://` the server resolved from. Falling
+       * back to `m.url` only for a server too old to send one: the write path
+       * now rejects a token outright, so a stale server turns this into a
+       * visible 400 rather than another silently corrupt row.
+       */
       const slot: MediaSlot = {
         localUri: m.url,
-        uploadedUrl: m.url,
+        uploadedUrl: m.objectRef || m.url,
         uploadStatus: 'done',
       };
       const key = named[m.position ?? -1];
@@ -126,9 +155,11 @@ export function mapProductToWizardState(p: Product): Partial<WizardState> {
     'back',
   ]);
   if (p.videoUrl) {
+    // Same split as the image slots above: the token displays, the gs://
+    // reference is what a save may write back.
     productMedia.video = {
       localUri: p.videoUrl,
-      uploadedUrl: p.videoUrl,
+      uploadedUrl: p.videoObjectRef || p.videoUrl,
       uploadStatus: 'done',
       thumbnail: '',
     };

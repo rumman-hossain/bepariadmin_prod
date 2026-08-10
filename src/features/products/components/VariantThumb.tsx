@@ -18,7 +18,8 @@
  * ones that have not been. An unlabelled fallback is a confident lie; a blank
  * box is indistinguishable from a failed load.
  */
-import { ImageOff } from 'lucide-react';
+import { useRef, useState } from 'react';
+import { AlertTriangle, ImageOff } from 'lucide-react';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import { cn } from '@/src/design-system/utils/cn';
 
@@ -59,6 +60,42 @@ export function VariantThumb({ variant, fallback, size = 'sm' }: Props) {
   const label = [variant.color, variant.design].filter(Boolean).join(' · ') || variant.subName || '';
   const box = size === 'md' ? 'h-12 w-12' : 'h-9 w-9';
 
+  /*
+   * A URL THAT WAS SUPPOSED TO WORK AND DID NOT.
+   *
+   * The note at the top of this file already says it — "a blank box is
+   * indistinguishable from a failed load" — and then nothing listened for the
+   * failure, so that is exactly what shipped. A product carrying an expired
+   * media token rendered an empty square that reads like a styling glitch, and
+   * it took someone pasting the <img> tag into a message for anyone to find
+   * out.
+   *
+   * Distinct from the no-image state below: "nobody photographed this" and
+   * "the photograph will not load" are different problems with different
+   * owners, and a shared empty box hides which one you have.
+   */
+  const [failed, setFailed] = useState(false);
+  const lastSrc = useRef(src);
+  if (lastSrc.current !== src) {
+    lastSrc.current = src;
+    if (failed) setFailed(false);
+  }
+
+  if (src && failed) {
+    return (
+      <span
+        className={cn(
+          box,
+          'flex shrink-0 items-center justify-center rounded-sm border border-bad-border bg-bad-wash text-bad',
+        )}
+        title="This image did not load. Its stored reference is broken — re-upload it from the edit screen."
+      >
+        <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+        <span className="sr-only">Image failed to load</span>
+      </span>
+    );
+  }
+
   if (!src) {
     return (
       <span
@@ -79,6 +116,7 @@ export function VariantThumb({ variant, fallback, size = 'sm' }: Props) {
       <img
         src={src}
         alt={label ? `${label} variant` : ''}
+        onError={() => setFailed(true)}
         loading="lazy"
         className={cn(
           box,

@@ -40,13 +40,14 @@ export interface BackendProduct {
   imageUrl?: string;
   imageUrls?: string[];
   videoUrl?: string;
+  videoObjectRef?: string;
   variations?: unknown[];
   createdAt?: string;
   updatedAt?: string;
   isFeatured?: boolean;
   productTags?: string[];
   description?: string;
-  media?: Array<{ url?: string; position?: number; mediaType?: string }>;
+  media?: Array<{ url?: string; objectRef?: string; position?: number; mediaType?: string }>;
   inventory?: Array<{ size: string; stock: number; moq: number; lowStockAlert: number }>;
   deleted?: boolean;
   marginPercent?: number;
@@ -298,6 +299,16 @@ export function normalizeBackendProduct(
     availableSizes: raw.availableSizes ?? [],
     moqSet: {},
     videoUrl: raw.videoUrl ?? '',
+    /*
+     * Carried through, because the wizard writes it back.
+     *
+     * `videoUrl` is a fifteen-minute proxy token; this is the gs:// it was
+     * resolved from. Dropping it here would send the hydrating form back to
+     * the token, which is the round trip that corrupted the media column.
+     * `media[].objectRef` needs no line of its own — that array is passed
+     * through whole.
+     */
+    videoObjectRef: raw.videoObjectRef ?? '',
     isFeatured: Boolean(raw.isFeatured),
     categoryId,
     subCategoryId: raw.subCategoryId ?? '',
