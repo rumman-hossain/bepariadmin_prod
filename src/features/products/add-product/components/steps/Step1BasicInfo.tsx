@@ -1,7 +1,6 @@
 import { useEffect, useId, useState } from 'react';
 import { ChevronRight } from 'lucide-react';
 import { Input } from '@/src/components/controls';
-import { Textarea } from '@/src/components/controls';
 import { cn } from '@/src/design-system/utils/cn';
 import { useAddProductStore } from '../../store/useAddProductStore';
 import { listSuppliersForPicker } from '@/src/features/wholesalers/api/wholesalerApi';
@@ -189,12 +188,22 @@ export function Step1BasicInfo({ onSelect, generatedSku, isGeneratingSku, errors
         </div>
       )}
       <TagInput tags={store.tags} onChange={(tags) => setField('tags', tags)} />
-      <Textarea
-        label="Description"
-        value={store.description}
-        onChange={(e) => setField('description', e.target.value)}
-        rows={4}
-      />
+      {/*
+        THE DESCRIPTION LIVES ON STEP 2, BESIDE THE TEMPLATE THAT WRITES IT.
+
+        It was here as well, and both boxes were the same `description` key —
+        one field, two places to edit it, which is redundant in the same way the
+        Variation Manager's Stock/MOQ/alert were.
+
+        Step 2 is the one to keep. `ClassificationTemplates` SEEDS this text from
+        the chosen classification, so with the box here the operator saw an empty
+        Description on step 1, moved on, and found it full of Bengali on step 2
+        that they had not typed. Beside the template, the text and the thing that
+        produced it are visible together.
+
+        `description` is validated on no step, so nothing is left reporting an
+        error against a control that is no longer on the same screen.
+      */}
     </div>
   );
 }

@@ -109,3 +109,26 @@ describe('step 1 shows which field is wrong', () => {
     expect(screen.queryByText('Product name is required')).toBeNull();
   });
 });
+
+describe('the description is not edited in two places', () => {
+  /*
+   * Step 1 and step 2 both rendered a Description box over the same
+   * `description` store key — one field pretending to be two, with nothing on
+   * either screen admitting the other existed.
+   *
+   * Step 2 keeps it, because ClassificationTemplates SEEDS the text from the
+   * chosen classification: with the box on step 1 as well, the operator saw an
+   * empty Description, moved on, and found it full of Bengali on step 2 that
+   * they had not typed.
+   */
+  it('offers no Description control on step 1', () => {
+    renderStep();
+    expect(screen.queryByLabelText('Description')).toBeNull();
+  });
+
+  it('still carries a description through the store, untouched by step 1', () => {
+    useAddProductStore.setState({ description: 'Written on step 2.' });
+    renderStep();
+    expect(store().description).toBe('Written on step 2.');
+  });
+});

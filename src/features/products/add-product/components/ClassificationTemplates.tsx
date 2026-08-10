@@ -126,25 +126,23 @@ export function ClassificationTemplates() {
       </div>
 
       {/*
-        THE TEMPLATE TEXT, WHERE IT CAN BE CHANGED.
+        THE TEMPLATE TEXT, WHERE IT CAN BE CHANGED — AND ONLY HERE.
 
         The cards above showed the wording in a `line-clamp-3` paragraph inside a
-        button — visible, truncated, and unreachable. The only way to alter it
-        was to find the Description box back on step 1 and realise it was the
-        same words, which nothing on this screen said.
+        button: visible, truncated, and unreachable. The only way to alter it was
+        to find the Description box on step 1 and work out that it held the same
+        words, which nothing said.
 
-        This is that same `description` field, not a copy: one store key, two
-        places it can be edited. Putting it beside the template is the point —
-        the operator picks the boilerplate and then adds the two lines that make
-        it this product, without leaving the step or guessing where the text
-        went.
+        Step 1 no longer carries one. Two boxes over a single store key is one
+        field pretending to be two, and whichever the operator edited last won
+        with nothing on screen admitting the other existed.
       */}
       <Textarea
         label="Description"
         value={description}
         onChange={(e) => setField('description', e.target.value)}
         rows={6}
-        hint="Filled from the template above. Edit it, or add your own lines — this is the same description as step 1, and it is what is saved."
+        hint="Filled from the template above. Edit it or add your own lines — this is what is saved."
       />
 
       {selected?.details && !templateTextPresent && (
