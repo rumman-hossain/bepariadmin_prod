@@ -58,6 +58,16 @@ export function useWizardNavigation({
   const [pendingVariantChoice, setPendingVariantChoice] = useState<boolean | null>(null);
   /** Which step the discard prompt is standing in the way of. */
   const [pendingBackStep, setPendingBackStep] = useState<WizardStep>(2);
+  /*
+   * Whether the variant answer in flight should also advance to step 3.
+   *
+   * The dialog answers the question ON THE WAY to pricing, so it advances. The
+   * toggle on step 2 answers it in place, and must not move the operator off the
+   * step they are editing. Both routes can open the pricing-reuse prompt, so the
+   * intent has to survive that round trip rather than being implied by which
+   * function opened it.
+   */
+  const [pendingVariantAdvance, setPendingVariantAdvance] = useState(true);
 
   const closePrompt = useCallback(() => setPrompt('none'), []);
 
@@ -82,6 +92,7 @@ export function useWizardNavigation({
    */
   const cancelPrompt = useCallback(() => {
     setPendingVariantChoice(null);
+    setPendingVariantAdvance(true);
     setPrompt('none');
   }, []);
 
@@ -148,10 +159,21 @@ export function useWizardNavigation({
     [currentStep, isEditMode, state.hasVariant, state.variations, setField],
   );
 
-  const chooseVariant = useCallback(
-    (hasVariant: boolean) => {
+  /*
+   * ONE ANSWER, TWO WAYS OF GIVING IT.
+   *
+   * The dialog on the way to step 3, and the toggle on step 2 itself. They must
+   * do the same work — seed the per-size maps, guard the pricing that a change
+   * would discard, apply the colour axis — or the two routes drift and one of
+   * them starts producing states the validator rejects.
+   *
+   * `advance` is the only difference between them.
+   */
+  const applyVariantAnswer = useCallback(
+    (hasVariant: boolean, advance: boolean) => {
       setPrompt('none');
       setPendingVariantChoice(hasVariant);
+      setPendingVariantAdvance(advance);
 
       // Without variants, every selected size needs a row in the three
       // per-size maps so the pricing step renders an input for each.
@@ -176,7 +198,7 @@ export function useWizardNavigation({
 
       if (hasVariant) applyVariantColors();
       setField('hasVariant', hasVariant);
-      setCurrentStep(3);
+      if (advance) setCurrentStep(3);
     },
     [
       hasExistingPricingData,
@@ -189,6 +211,27 @@ export function useWizardNavigation({
     ],
   );
 
+  /** The dialog's answer: decide, then continue into pricing. */
+  const chooseVariant = useCallback(
+    (hasVariant: boolean) => applyVariantAnswer(hasVariant, true),
+    [applyVariantAnswer],
+  );
+
+  /*
+   * The step-2 toggle's answer: change it and stay put.
+   *
+   * WITHOUT THIS THE ANSWER WAS UNREACHABLE ON AN EDIT. `goToStep` skips the
+   * dialog when `isEditMode`, so a product's variant answer was whatever it was
+   * created as, for ever. The visible symptom was a missing field: Step2Details
+   * hides "Variant colours" once `hasVariant === false`, so opening a
+   * non-variant product for editing showed a step with no colour input and no
+   * way to ask for one — the field simply was not there, and nothing said why.
+   */
+  const setVariantMode = useCallback(
+    (hasVariant: boolean) => applyVariantAnswer(hasVariant, false),
+    [applyVariantAnswer],
+  );
+
   const choosePricingReuse = useCallback(
     (reusePrevious: boolean) => {
       if (!reusePrevious) resetPricing();
@@ -198,9 +241,14 @@ export function useWizardNavigation({
       }
       setPendingVariantChoice(null);
       setPrompt('none');
-      setCurrentStep(3);
+      // Only when the answer was given on the way to pricing. A toggle flipped
+      // on step 2 must leave the operator on step 2 — being thrown forward after
+      // confirming a discard reads as the confirmation having done something
+      // else as well.
+      if (pendingVariantAdvance) setCurrentStep(3);
+      setPendingVariantAdvance(true);
     },
-    [pendingVariantChoice, resetPricing, applyVariantColors, setField],
+    [pendingVariantChoice, pendingVariantAdvance, resetPricing, applyVariantColors, setField],
   );
 
   const confirmDiscardPricing = useCallback(() => {
@@ -229,6 +277,7 @@ export function useWizardNavigation({
     cancelPrompt,
     hasExistingPricingData,
     chooseVariant,
+    setVariantMode,
     choosePricingReuse,
     confirmDiscardPricing,
     confirmReset,

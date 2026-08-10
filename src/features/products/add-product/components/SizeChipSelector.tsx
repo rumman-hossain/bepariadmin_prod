@@ -31,6 +31,10 @@ export function SizeChipSelector({
             <button
               key={size}
               type="button"
+              // Selection was conveyed by `bg-brass` alone, so which sizes a
+              // product came in was invisible to a screen reader — on a field
+              // marked required. See the note in ToggleBar.
+              aria-pressed={isSelected}
               onClick={() => (isSelected ? onDeselect(size) : onSelect(size))}
               className={cn(
                 'px-3 py-1.5 rounded-full text-sm font-medium border transition-colors',

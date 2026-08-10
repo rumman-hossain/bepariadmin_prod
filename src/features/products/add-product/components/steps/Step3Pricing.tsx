@@ -10,7 +10,7 @@ import type { VariationIssue } from '../../utils/validateWizardStep';
 
 interface Props {
   sellPrice: number;
-  platformMargin: number;
+  effectiveMargin: number;
   onGenerateVariations: () => void;
   isEditMode?: boolean;
   errors?: Record<string, string>;
@@ -20,7 +20,7 @@ interface Props {
 
 export function Step3Pricing({
   sellPrice,
-  platformMargin,
+  effectiveMargin,
   onGenerateVariations,
   isEditMode = false,
   errors = {},
@@ -65,7 +65,7 @@ export function Step3Pricing({
         />
         <div className="flex items-center justify-between text-sm">
           <span className="text-ink-2">Platform Margin</span>
-          <span className="font-semibold text-ink">{platformMargin}%</span>
+          <span className="font-semibold text-ink">{effectiveMargin}%</span>
         </div>
         <p className="flex items-baseline gap-2">
           <Text variant="secondary">Selling price</Text>
@@ -97,7 +97,7 @@ export function Step3Pricing({
         <>
           <VariationConfigSection
             onGenerate={onGenerateVariations}
-            platformMargin={platformMargin}
+            effectiveMargin={effectiveMargin}
             errorMessage={errors.variations}
             issues={issues}
           />

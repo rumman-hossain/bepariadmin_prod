@@ -11,7 +11,7 @@ import type { ProductVariation } from '../../types/registration';
 
 interface Props {
   onGenerate: () => void;
-  platformMargin: number;
+  effectiveMargin: number;
   errorMessage?: string;
   /** Per-variation faults, so the manager can mark the offending row. */
   issues?: VariationIssue[];
@@ -68,7 +68,7 @@ function ChipList({
   );
 }
 
-export function VariationConfigSection({ onGenerate, platformMargin, errorMessage, issues = [] }: Props) {
+export function VariationConfigSection({ onGenerate, effectiveMargin, errorMessage, issues = [] }: Props) {
   const { variationColors, variationDesigns, variations, sku, basePrice, selectedSizes, setField } =
     useAddProductStore();
   const [colorInput, setColorInput] = useState('');
@@ -156,18 +156,34 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
     issues.some((i) => i.variationId === variationId);
 
   /*
-   * Once the product has sizes, `isVariationStocked` reads the per-size maps and
-   * never looks at these three. The operator could fill Stock and MOQ for every
-   * variation and watch the error count refuse to move, with nothing on screen
-   * saying the figures they were entering did not count.
+   * SIZES MEAN STOCK, MOQ AND THE ALERT ARE NOT ENTERED HERE — so they are not
+   * shown here. Do not "restore" them.
+   *
+   * `rollUpVariation` in buildProductPayload.ts DISCARDS whatever these three
+   * hold the moment per-size inventory exists, replacing them with the grid's
+   * sum / min / max. The panel figure does not even seed the grid:
+   * `resolveVariationInventory` falls back to previously-saved inventory, never
+   * to it. Typing 500 into Stock and saving stored the sum of the cells below.
+   *
+   * They were visible with a hint reading "Per-size figures below override
+   * this" — a live, focusable input whose own label said typing in it was
+   * pointless. Hiding beats apologising.
+   *
+   * Nothing reachable is lost with them. `stockIssues` in validateWizardStep.ts
+   * emits whole-variation issues (`size: undefined`) ONLY on the no-size branch;
+   * with sizes every issue carries a `size`, and `fieldIssue` below matches only
+   * `!i.size`. Their `error` props were already dead under exactly this
+   * condition.
+   *
+   * With no sizes there is no grid, so these three are the only place stock
+   * lives — which is why this is conditional rather than a deletion.
    */
-  const sizedHint =
-    selectedSizes.length > 0 ? 'Per-size figures below override this' : undefined;
+  const hasSizes = selectedSizes.length > 0;
 
   const base = parseFloat(basePrice) || 0;
   const calcRetail = (price?: number) => {
     const b = price ?? base;
-    return b > 0 ? (b * (1 + platformMargin / 100)).toFixed(2) : '0';
+    return b > 0 ? (b * (1 + effectiveMargin / 100)).toFixed(2) : '0';
   };
 
   return (
@@ -229,8 +245,13 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
         size="lg"
         title="Variation Manager"
         subtitle={
-          selectedSizes.length > 0
-            ? 'Per-size stock is set in the grid below this panel.'
+          /*
+           * With sizes, this line is the ONLY thing saying where stock went: the
+           * three inputs that used to sit in every row are not rendered, so an
+           * operator looking for them needs to be told, not left to hunt.
+           */
+          hasSizes
+            ? 'Stock, MOQ and the low-stock alert are set per size in the grid below this panel.'
             : undefined
         }
         footer={
@@ -262,7 +283,11 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
                     <Money amount={calcRetail(v.price)} className="text-sm font-semibold" />
                   </div>
                   {/*
-                    FOUR fields, and responsive.
+                    Base Price always; the other three only without sizes.
+
+                    Base Price is the one figure this panel genuinely owns — it
+                    is not rolled up from anything, and its `fieldIssue` is live
+                    on both branches.
 
                     The low-stock alert had no control anywhere in the console,
                     while `isVariationStocked` requires it above 0 for a variant
@@ -272,9 +297,16 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
 
                     `grid-cols-3` was unconditional, so three number inputs sat
                     at a third of the panel each on a phone; four would have been
-                    unusable. Two columns until there is room for four.
+                    unusable. Two columns until there is room for four — and with
+                    sizes, where Base Price stands alone, a track count that does
+                    not strand it at a quarter of the width.
                   */}
-                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  <div
+                    className={cn(
+                      'grid gap-2',
+                      hasSizes ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2 sm:grid-cols-4',
+                    )}
+                  >
                     <Input
                       label="Base Price"
                       type="number"
@@ -282,32 +314,33 @@ export function VariationConfigSection({ onGenerate, platformMargin, errorMessag
                       onChange={(e) => updateVariation(idx, { price: numberOrUndefined(e.target.value) })}
                       error={fieldIssue(v.id, 'price')}
                     />
-                    <Input
-                      label="Stock"
-                      type="number"
-                      value={v.stock != null ? String(v.stock) : ''}
-                      onChange={(e) => updateVariation(idx, { stock: numberOrUndefined(e.target.value) })}
-                      error={fieldIssue(v.id, 'stock')}
-                      hint={sizedHint}
-                    />
-                    <Input
-                      label="MOQ"
-                      type="number"
-                      value={v.moq != null ? String(v.moq) : ''}
-                      onChange={(e) => updateVariation(idx, { moq: numberOrUndefined(e.target.value) })}
-                      error={fieldIssue(v.id, 'moq')}
-                      hint={sizedHint}
-                    />
-                    <Input
-                      label="Low-stock alert"
-                      type="number"
-                      value={v.lowStockAlert != null ? String(v.lowStockAlert) : ''}
-                      onChange={(e) =>
-                        updateVariation(idx, { lowStockAlert: numberOrUndefined(e.target.value) })
-                      }
-                      error={fieldIssue(v.id, 'lowStockAlert')}
-                      hint={sizedHint}
-                    />
+                    {!hasSizes && (
+                      <>
+                        <Input
+                          label="Stock"
+                          type="number"
+                          value={v.stock != null ? String(v.stock) : ''}
+                          onChange={(e) => updateVariation(idx, { stock: numberOrUndefined(e.target.value) })}
+                          error={fieldIssue(v.id, 'stock')}
+                        />
+                        <Input
+                          label="MOQ"
+                          type="number"
+                          value={v.moq != null ? String(v.moq) : ''}
+                          onChange={(e) => updateVariation(idx, { moq: numberOrUndefined(e.target.value) })}
+                          error={fieldIssue(v.id, 'moq')}
+                        />
+                        <Input
+                          label="Low-stock alert"
+                          type="number"
+                          value={v.lowStockAlert != null ? String(v.lowStockAlert) : ''}
+                          onChange={(e) =>
+                            updateVariation(idx, { lowStockAlert: numberOrUndefined(e.target.value) })
+                          }
+                          error={fieldIssue(v.id, 'lowStockAlert')}
+                        />
+                      </>
+                    )}
                   </div>
                 </div>
               ))}

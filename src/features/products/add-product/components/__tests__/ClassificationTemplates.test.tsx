@@ -65,3 +65,47 @@ describe('the classification template and the operator’s description', () => {
     expect(store().description).toBe(TEMPLATES[1].details);
   });
 });
+
+describe('the template text can be edited and added to', () => {
+  /*
+   * It was rendered inside the picker button, clamped to three lines, and there
+   * was no control anywhere on step 2 that could change it. The words were
+   * visible and unreachable — the operator had to go back to step 1, find the
+   * Description box, and work out for themselves that it held the same text.
+   */
+  const box = () => screen.getByLabelText('Description') as HTMLTextAreaElement;
+
+  it('shows the template text in an editable box', () => {
+    render(<ClassificationTemplates />);
+    expect(box().value).toBe(TEMPLATES[0].details);
+  });
+
+  it('lets the operator add to it', () => {
+    render(<ClassificationTemplates />);
+    fireEvent.change(box(), { target: { value: `${TEMPLATES[0].details}\n\nAlso: ships in 2 days.` } });
+    expect(store().description).toBe(`${TEMPLATES[0].details}\n\nAlso: ships in 2 days.`);
+  });
+
+  it('offers no insert button while the template text is already there', () => {
+    render(<ClassificationTemplates />);
+    expect(screen.queryByRole('button', { name: /template text/i })).toBeNull();
+  });
+
+  it('offers to put the template text back once it has been cleared', () => {
+    render(<ClassificationTemplates />);
+    fireEvent.change(box(), { target: { value: '' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Use template text' }));
+    expect(store().description).toBe(TEMPLATES[0].details);
+  });
+
+  it('APPENDS rather than overwriting what the operator wrote', () => {
+    // The whole point of the button. Replacing here would reintroduce the bug
+    // the tests above exist to prevent, only with a click behind it.
+    useAddProductStore.setState({ description: 'My own words.', productDetailId: 'd1' });
+    render(<ClassificationTemplates />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add template text' }));
+
+    expect(store().description).toBe(`My own words.\n\n${TEMPLATES[0].details}`);
+  });
+});

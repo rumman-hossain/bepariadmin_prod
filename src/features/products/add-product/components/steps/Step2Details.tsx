@@ -8,12 +8,19 @@ import { ToggleBar } from '../ToggleBar';
 import { getAvailableSizes, type FootwearScale, type SizeMode } from '../../utils/sizeOptions';
 import type { SizeConfig } from '../../../types/registration';
 
+const VARIANT_LABELS = { false: 'No variants', true: 'Has variants' } as const;
+
 interface Props {
   sizeConfig: SizeConfig | null;
   errors?: Record<string, string>;
+  /**
+   * Change the variant answer in place. Routes through the same seeding and
+   * discard guard the dialog uses — see `setVariantMode` in useWizardNavigation.
+   */
+  onChangeVariantMode?: (hasVariant: boolean) => void;
 }
 
-export function Step2Details({ sizeConfig, errors = {} }: Props) {
+export function Step2Details({ sizeConfig, errors = {}, onChangeVariantMode }: Props) {
   const store = useAddProductStore();
   const {
     material,
@@ -93,6 +100,31 @@ export function Step2Details({ sizeConfig, errors = {} }: Props) {
         to stop presenting it as something that will be kept. The label and hint
         now say what it does, and it appears only where it does it.
       */}
+      {/*
+        THE ANSWER, WHERE THE FIELD IT CONTROLS CAN SEE IT.
+
+        `goToStep` skips the variant dialog when `isEditMode`, so on an edit the
+        answer was fixed at whatever the product was created as. Because the
+        colour input below is hidden once `hasVariant === false`, a non-variant
+        product opened for editing showed a step with no colour field and no
+        control that could bring one back — the reported "missing and not
+        editable".
+
+        Rendered only once the question has been answered. While `hasVariant` is
+        null the dialog on Continue is what asks, and offering both at the same
+        time would be two controls for one decision.
+      */}
+      {hasVariant !== null && onChangeVariantMode && (
+        <div className="sm:col-span-2 space-y-2">
+          <p className="text-sm font-medium text-ink">Variants</p>
+          <ToggleBar
+            options={[VARIANT_LABELS.false, VARIANT_LABELS.true]}
+            selected={hasVariant ? VARIANT_LABELS.true : VARIANT_LABELS.false}
+            onSelect={(v) => onChangeVariantMode(v === VARIANT_LABELS.true)}
+          />
+        </div>
+      )}
+
       {hasVariant !== false && (
         <Input
           label="Variant colours"

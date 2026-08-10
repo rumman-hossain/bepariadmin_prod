@@ -17,7 +17,7 @@ import { summaryMoney, countProductMedia } from './summaryStats';
 
 interface Props {
   sellPrice: number;
-  platformMargin: number;
+  effectiveMargin: number;
 }
 import { formatDispatchDisplay } from '@/src/features/products/utils/dispatchTime';
 import { Text } from '@/src/components/data';
@@ -189,7 +189,7 @@ function PolicyBlock({
   );
 }
 
-export function Step6Summary({ sellPrice, platformMargin }: Props) {
+export function Step6Summary({ sellPrice, effectiveMargin }: Props) {
   const s = useAddProductStore();
   const [wholesalerLabel, setWholesalerLabel] = useState('');
 
@@ -201,7 +201,7 @@ export function Step6Summary({ sellPrice, platformMargin }: Props) {
     });
   }, [s.wholesalerId]);
 
-  const marginValue = parseFloat(s.margin) || platformMargin;
+  const marginValue = parseFloat(s.margin) || effectiveMargin;
   const basePriceValue = parseFloat(s.basePrice) || 0;
   const calculateRetail = (base: number) => (base > 0 ? base + (base * marginValue) / 100 : 0);
 

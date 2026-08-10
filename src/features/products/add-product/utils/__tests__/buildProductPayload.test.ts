@@ -370,6 +370,27 @@ describe('buildProductPayload', () => {
       expect(withVariant(v, ['M', 'L']).stock).toBe(0);
     });
 
+    it('DISCARDS all three variation-level figures once sizes exist', () => {
+      /*
+       * The reason the Variation Manager no longer renders Stock, MOQ and the
+       * low-stock alert when sizes are selected. Every one of them is thrown
+       * away here, so the inputs were collecting numbers that could not reach
+       * the payload — and did not even seed the grid that replaced them.
+       *
+       * The figures below are chosen so a fallback would be unmistakable: none
+       * of 500 / 9 / 1 can be produced by sum / min / max of the size maps.
+       */
+      const v = variation({
+        stock: 500,
+        moq: 9,
+        lowStockAlert: 1,
+        sizeStock: { M: '10', L: '15' },
+        sizeMoq: { M: '12', L: '3' },
+        sizeAlert: { M: '2', L: '20' },
+      });
+      expect(withVariant(v, ['M', 'L'])).toMatchObject({ stock: 25, moq: 3, lowStockAlert: 20 });
+    });
+
     it('falls back to the variation-level figures when no sizes are selected', () => {
       const v = variation({ stock: 42, moq: 4, lowStockAlert: 7 });
       expect(withVariant(v, [])).toMatchObject({ stock: 42, moq: 4, lowStockAlert: 7 });

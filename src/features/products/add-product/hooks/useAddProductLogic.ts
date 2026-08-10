@@ -4,6 +4,7 @@ import { useAddProductStore } from '../store/useAddProductStore';
 import { useProductFormLifecycle } from './useProductFormLifecycle';
 import { useProductRegistration } from './useProductRegistration';
 import { useCatalogCascade } from './useCatalogCascade';
+import { useEffectiveMargin } from './useEffectiveMargin';
 import { useWizardNavigation, type WizardStep } from './useWizardNavigation';
 import { syncSizeSelection } from '../utils/syncSizeSelection';
 import { resolveHasVariant } from '../utils/resolveHasVariant';
@@ -67,6 +68,13 @@ export function useAddProductLogic() {
     productGroupId: store.productGroupId,
   });
 
+  /*
+   * The rate this product will actually sell at. `catalog.platformMargin` is the
+   * global default and is only the fallback — see useEffectiveMargin for the
+   * ৳547.50-shown / ৳575-stored discrepancy that came of confusing the two.
+   */
+  const effectiveMargin = useEffectiveMargin(store.wholesalerId, catalog.platformMargin);
+
   const {
     registrationState,
     sku: activeSku,
@@ -79,7 +87,7 @@ export function useAddProductLogic() {
 
   const resetPricingState = useCallback(() => {
     setField('basePrice', '');
-    setField('margin', String(catalog.platformMargin));
+    setField('margin', String(effectiveMargin));
     setField('stock', '');
     setField('moq', '');
     setField('lowStockAlert', '');
@@ -90,7 +98,7 @@ export function useAddProductLogic() {
     setField('variationColors', []);
     setField('variationDesigns', []);
     setField('variations', []);
-  }, [setField, catalog.platformMargin]);
+  }, [setField, effectiveMargin]);
 
   /*
    * RESET MEANS "UNDO MY CHANGES", NOT "EMPTY THIS PRODUCT".
@@ -127,11 +135,24 @@ export function useAddProductLogic() {
     setCurrentStep(1);
   }, [routeProductId, setCurrentStep]);
 
-  // Seed the margin field from the platform default, but never overwrite a
-  // figure the operator has already typed.
+  /*
+   * Keep `margin` on the supplier's rate — INCLUDING when the supplier changes.
+   *
+   * This used to read `if (!store.margin)`, seeding once and never again. That
+   * guard was written to protect a figure the operator had typed, but there is
+   * no margin input anywhere in the wizard: the only writes to this field are
+   * this effect and `resetPricingState`. So the guard protected nothing and cost
+   * everything — the seed ran on mount with the platform default, before a
+   * supplier existed, and then declined to move when one was picked.
+   *
+   * Switching supplier must re-price. Writing unconditionally is safe precisely
+   * because nothing else authors this value, and the equality check keeps it
+   * from looping.
+   */
   useEffect(() => {
-    if (!store.margin) setField('margin', String(catalog.platformMargin));
-  }, [catalog.platformMargin, store.margin, setField]);
+    const next = String(effectiveMargin);
+    if (store.margin !== next) setField('margin', next);
+  }, [effectiveMargin, store.margin, setField]);
 
   // AUTO follows whatever the product group declares; anything else is an
   // explicit override by the operator.
@@ -221,10 +242,10 @@ export function useAddProductLogic() {
   const pricing = useMemo(() => {
     const base = parseFloat(store.basePrice) || 0;
     const marginVal =
-      store.margin === '' ? catalog.platformMargin : parseFloat(store.margin) || 0;
+      store.margin === '' ? effectiveMargin : parseFloat(store.margin) || 0;
     const sell = base > 0 ? base * (1 + marginVal / 100) : 0;
     return { base, margin: marginVal, sell: Math.round(sell * 100) / 100 };
-  }, [store.basePrice, store.margin, catalog.platformMargin]);
+  }, [store.basePrice, store.margin, effectiveMargin]);
 
   const totalMoq = useMemo(() => {
     const perSizeTotal = Object.values(store.moqSet).reduce(
@@ -253,6 +274,8 @@ export function useAddProductLogic() {
     // the step components stay unchanged.
     showVariantPrompt: nav.prompt === 'variant',
     handleVariantChoice: nav.chooseVariant,
+    /** The step-2 toggle: same decision, without moving off the step. */
+    handleVariantModeChange: nav.setVariantMode,
     showPricingReusePrompt: nav.prompt === 'pricing-reuse',
     handlePricingReuseChoice: nav.choosePricingReuse,
     /** Dismissal for both prompts above — see cancelPrompt. */
@@ -301,7 +324,12 @@ export function useAddProductLogic() {
     handleGenerateSku,
     isGeneratingSku,
     sizeConfig: catalog.sizeConfig,
-    platformMargin: catalog.platformMargin,
+    /*
+     * The SUPPLIER's rate, not the platform default. Named for what the screens
+     * do with it — they print it next to a price and call it "% margin", so a
+     * value that was merely the global default was a false statement.
+     */
+    effectiveMargin,
     unitTypes: UNIT_TYPES,
   };
 }

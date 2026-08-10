@@ -26,7 +26,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 function open() {
-  render(<VariationConfigSection onGenerate={vi.fn()} platformMargin={10} />);
+  render(<VariationConfigSection onGenerate={vi.fn()} effectiveMargin={10} />);
   fireEvent.click(screen.getByRole('button', { name: /manage 1 variation/i }));
 }
 
@@ -70,6 +70,55 @@ describe('the low-stock alert has a control at all', () => {
   });
 });
 
+describe('stock, MOQ and the alert are not shown when sizes decide them', () => {
+  /*
+   * They were REDUNDANT, not merely confusing. `rollUpVariation` discards all
+   * three the moment per-size inventory exists, replacing them with the grid's
+   * sum / min / max — so 500 typed into Stock was saved as the sum of the cells
+   * below. The panel figure does not even seed the grid.
+   *
+   * They stay on the no-size branch because there is no grid there, and they
+   * are then the only place stock lives. That asymmetry is the whole behaviour,
+   * so both directions are asserted: hiding them in the wrong branch would make
+   * stock unenterable for a sized-less variant product, which is worse than the
+   * bug being fixed.
+   */
+  const sized = () =>
+    useAddProductStore.setState({ selectedSizes: ['M', 'L'] });
+
+  it.each(['Stock', 'MOQ', 'Low-stock alert'])('hides %s once sizes exist', (label) => {
+    sized();
+    open();
+    expect(screen.queryByLabelText(label)).toBeNull();
+  });
+
+  it('keeps Base Price, which no grid rolls up', () => {
+    sized();
+    open();
+    expect(screen.getByLabelText('Base Price')).toBeTruthy();
+  });
+
+  it.each(['Stock', 'MOQ', 'Low-stock alert', 'Base Price'])(
+    'still offers %s when there are no sizes',
+    (label) => {
+      open();
+      expect(screen.getByLabelText(label)).toBeTruthy();
+    },
+  );
+
+  it('says where the figures went instead of leaving the operator to hunt', () => {
+    sized();
+    open();
+    expect(screen.getByText(/set per size in the grid below/i)).toBeTruthy();
+  });
+
+  it('drops the hint that apologised for the dead inputs', () => {
+    sized();
+    open();
+    expect(screen.queryByText(/override this/i)).toBeNull();
+  });
+});
+
 describe('the manager says what is wrong and where', () => {
   const issues: VariationIssue[] = [
     { variationId: 'v1', label: 'Red', field: 'moq', message: 'Must be below the stock of 20' },
@@ -77,7 +126,7 @@ describe('the manager says what is wrong and where', () => {
 
   it('puts the reason on the offending field', () => {
     render(
-      <VariationConfigSection onGenerate={vi.fn()} platformMargin={10} issues={issues} />,
+      <VariationConfigSection onGenerate={vi.fn()} effectiveMargin={10} issues={issues} />,
     );
     fireEvent.click(screen.getByRole('button', { name: /manage 1 variation/i }));
     expect(screen.getByText('Must be below the stock of 20')).toBeTruthy();
@@ -90,7 +139,7 @@ describe('the manager says what is wrong and where', () => {
     render(
       <VariationConfigSection
         onGenerate={vi.fn()}
-        platformMargin={10}
+        effectiveMargin={10}
         errorMessage="1 variation(s) need attention"
       />,
     );

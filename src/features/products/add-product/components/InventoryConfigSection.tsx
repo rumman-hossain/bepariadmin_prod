@@ -74,9 +74,20 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
                   <tr key={size} className="border-t border-rule-subtle">
                     <td data-label="Size" data-primary className="px-3 py-2 font-semibold">{size}</td>
                     <td data-label="Stock" className="px-3 py-2">
+                      {/*
+                        THREE BOXES PER ROW WITH NO NAME BETWEEN THEM.
+
+                        The column headers say Stock / MOQ / Alert, but nothing
+                        associated them with the inputs, so the accessibility
+                        tree showed a bare `textbox` nine times over on a
+                        three-size product. The same reasoning as the stock-out
+                        button below, which already names its size — and the
+                        variant grid, which reads "Stock for M".
+                      */}
                       <input
                         type="text"
                         inputMode="numeric"
+                        aria-label={`Stock for ${size}`}
                         disabled={isOut}
                         value={sizeStockSet[size] ?? ''}
                         onChange={(e) =>
@@ -89,6 +100,7 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
                       <input
                         type="text"
                         inputMode="numeric"
+                        aria-label={`MOQ for ${size}`}
                         disabled={isOut}
                         value={moqSet[size] ?? ''}
                         onChange={(e) => setField('moqSet', { ...moqSet, [size]: cleanDigits(e.target.value) })}
@@ -99,6 +111,7 @@ export function InventoryConfigSection({ selectedSizes, isEditMode = false, erro
                       <input
                         type="text"
                         inputMode="numeric"
+                        aria-label={`Low-stock alert for ${size}`}
                         disabled={isOut}
                         value={sizeLowStockAlertSet[size] ?? ''}
                         onChange={(e) =>

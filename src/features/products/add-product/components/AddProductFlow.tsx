@@ -40,6 +40,7 @@ export function AddProductFlow({ onBack }: Props) {
     routeProductId,
     showVariantPrompt,
     handleVariantChoice,
+    handleVariantModeChange,
     showPricingReusePrompt,
     handlePricingReuseChoice,
     cancelPrompt,
@@ -65,7 +66,7 @@ export function AddProductFlow({ onBack }: Props) {
     handleGenerateSku,
     isGeneratingSku,
     sizeConfig,
-    platformMargin,
+    effectiveMargin,
     unitTypes,
     registrationError,
     isHydrating,
@@ -151,12 +152,18 @@ export function AddProductFlow({ onBack }: Props) {
           />
         );
       case 2:
-        return <Step2Details sizeConfig={sizeConfig} errors={visibleErrors} />;
+        return (
+          <Step2Details
+            sizeConfig={sizeConfig}
+            errors={visibleErrors}
+            onChangeVariantMode={handleVariantModeChange}
+          />
+        );
       case 3:
         return (
           <Step3Pricing
             sellPrice={pricing.sell}
-            platformMargin={platformMargin}
+            effectiveMargin={effectiveMargin}
             onGenerateVariations={handleGenerateVariations}
             errors={visibleErrors}
             issues={showErrors ? (validation.variationIssues ?? []) : []}
@@ -168,7 +175,7 @@ export function AddProductFlow({ onBack }: Props) {
       case 5:
         return <Step5Policies errors={visibleErrors} />;
       case 6:
-        return <Step6Summary sellPrice={pricing.sell} platformMargin={platformMargin} />;
+        return <Step6Summary sellPrice={pricing.sell} effectiveMargin={effectiveMargin} />;
       default:
         return null;
     }

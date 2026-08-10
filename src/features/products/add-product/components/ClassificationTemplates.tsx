@@ -2,6 +2,7 @@ import { useEffect, useMemo } from 'react';
 import { cn } from '@/src/design-system/utils/cn';
 import { useAddProductStore } from '../store/useAddProductStore';
 import { Text } from '@/src/components/data';
+import { Button, Textarea } from '@/src/components/controls';
 
 interface CatalogDetail {
   id: string;
@@ -54,6 +55,33 @@ export function ClassificationTemplates() {
 
   if (details.length === 0) return null;
 
+  const selected = details.find((d) => d.id === productDetailId);
+  /*
+   * Whether the template's words are already in the box. Compared on the
+   * trimmed text rather than on a "was it seeded" flag: the operator may have
+   * typed around it, cleared it, or come back to an edit where the seeding
+   * happened months ago, and the only thing that matters is whether the text is
+   * there NOW.
+   */
+  const templateTextPresent = Boolean(
+    selected?.details && description.includes(selected.details.trim()),
+  );
+
+  /*
+   * ADDING TO THE TEMPLATE, NOT REPLACING WHAT IS WRITTEN.
+   *
+   * Appends with a blank line between, and only fills outright when the box is
+   * empty. The rule this preserves is the one above: a template may fill an
+   * empty description, it may not silently replace one. The difference here is
+   * that the operator asked for it by pressing the button, so it is not silent
+   * — and it still cannot destroy anything, because appending keeps their text.
+   */
+  const insertTemplateText = () => {
+    if (!selected?.details) return;
+    const current = description.trim();
+    setField('description', current ? `${current}\n\n${selected.details}` : selected.details);
+  };
+
   return (
     <div className="sm:col-span-2 space-y-3">
       <div>
@@ -96,6 +124,34 @@ export function ClassificationTemplates() {
           );
         })}
       </div>
+
+      {/*
+        THE TEMPLATE TEXT, WHERE IT CAN BE CHANGED.
+
+        The cards above showed the wording in a `line-clamp-3` paragraph inside a
+        button — visible, truncated, and unreachable. The only way to alter it
+        was to find the Description box back on step 1 and realise it was the
+        same words, which nothing on this screen said.
+
+        This is that same `description` field, not a copy: one store key, two
+        places it can be edited. Putting it beside the template is the point —
+        the operator picks the boilerplate and then adds the two lines that make
+        it this product, without leaving the step or guessing where the text
+        went.
+      */}
+      <Textarea
+        label="Description"
+        value={description}
+        onChange={(e) => setField('description', e.target.value)}
+        rows={6}
+        hint="Filled from the template above. Edit it, or add your own lines — this is the same description as step 1, and it is what is saved."
+      />
+
+      {selected?.details && !templateTextPresent && (
+        <Button type="button" variant="outline" onClick={insertTemplateText}>
+          {description.trim() ? 'Add template text' : 'Use template text'}
+        </Button>
+      )}
     </div>
   );
 }
