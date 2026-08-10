@@ -63,6 +63,19 @@ export interface RunBeautifyInput {
  * operator would watch a spinner. Per image, each response updates its own
  * tile, and a redo is this same call with the same key.
  */
+/**
+ * How long one image may take before the client gives up.
+ *
+ * The default is 15 seconds, which is right for endpoints that answer from a
+ * database and wrong for one that waits on an image model. A measured run came
+ * back at 14.9s — a tenth of a second inside the limit — so the request
+ * aborted, the tile reported failure, and the server finished the work anyway.
+ * Three minutes is deliberately generous: a false failure costs an operator a
+ * click, a scare and their trust in the feature, and a long wait costs them
+ * nothing but time they have already been told to expect.
+ */
+const GENERATE_TIMEOUT_MS = 180_000;
+
 export async function runBeautify(
   input: RunBeautifyInput,
 ): Promise<ApiResponse<{ data: BeautifyJob }>> {
@@ -70,7 +83,11 @@ export async function runBeautify(
   return request<{ data: BeautifyJob }>(
     'POST',
     `/api/v1/products/${encodeURIComponent(productId)}/beautify`,
-    { auth: true, body: body as unknown as Record<string, unknown> },
+    {
+      auth: true,
+      body: body as unknown as Record<string, unknown>,
+      timeoutMs: GENERATE_TIMEOUT_MS,
+    },
   );
 }
 

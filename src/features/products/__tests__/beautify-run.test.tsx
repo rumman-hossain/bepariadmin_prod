@@ -9,6 +9,7 @@ import {
   type SlotState,
 } from '../hooks/useBeautify';
 import { BeautifyStart, BeautifyStrip } from '../components/BeautifyBar';
+import { BeautifyTileState } from '../components/BeautifyTileState';
 import type { RunBeautifyInput } from '@/src/api/beautify';
 
 /**
@@ -349,8 +350,8 @@ describe('watching the run without scrolling', () => {
     // recognises. A shimmer on an empty box says "something is loading"; a
     // shimmer across the front shot says "your front shot is being worked on".
     strip({
-      ':front': { status: 'working' },
-      ':back': { status: 'working' },
+      ':front': { status: 'working', since: Date.now() },
+      ':back': { status: 'working', since: Date.now() },
     });
 
     const thumb = document.querySelector('img[src="/api/v1/file/front-thumb"]');
@@ -366,7 +367,7 @@ describe('watching the run without scrolling', () => {
     // prefers-reduced-motion flattens every animation in this app to 0.01ms,
     // so a state that existed only as movement would vanish for exactly the
     // people who most need it spelled out.
-    strip({ ':front': { status: 'working' }, ':back': { status: 'queued' } });
+    strip({ ':front': { status: 'working', since: Date.now() }, ':back': { status: 'queued' } });
     expect(screen.getAllByText(/Beautifying/i).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/In line/i).length).toBeGreaterThan(0);
   });
@@ -380,7 +381,7 @@ describe('watching the run without scrolling', () => {
           previewUrl: '/api/v1/file/generated-front', model: 'm', estCostUsd: 0.067, reused: false,
         },
       },
-      ':back': { status: 'working' },
+      ':back': { status: 'working', since: Date.now() },
     });
     expect(document.querySelector('img[src="/api/v1/file/generated-front"]')).not.toBeNull();
     // ...and the original is no longer shown for that slot.
@@ -390,10 +391,89 @@ describe('watching the run without scrolling', () => {
   it('marks a failed image without hiding the rest', () => {
     strip({
       ':front': { status: 'failed', message: 'The model refused.' },
-      ':back': { status: 'working' },
+      ':back': { status: 'working', since: Date.now() },
     });
     // The working one still shows its sheen; one failure does not blank the run.
     expect(document.querySelector('.beautify-sheen')).not.toBeNull();
     expect(document.querySelectorAll('img').length).toBeGreaterThan(0);
+  });
+});
+
+describe('the operator never presses Try again', () => {
+  it('re-requests once, silently, when the transport drops', async () => {
+    /*
+     * This is free, and that is the whole point. The server keys each job on
+     * what changes the picture, so a second identical request generates
+     * nothing — it returns the row the first attempt already produced.
+     *
+     * Which is exactly why "Try again" appeared to work: the image had been
+     * finished all along and the click was collecting it. Doing it here
+     * removes the click.
+     */
+    let attempts = 0;
+    runBeautify.mockImplementation((input: RunBeautifyInput) => {
+      attempts += 1;
+      if (attempts === 1) return Promise.reject(new DOMException('Aborted', 'AbortError'));
+      return Promise.resolve(ok(input));
+    });
+
+    const { result } = renderHook(() => useBeautify());
+    await act(async () => {
+      await result.current.run({ ...opts('with_model'), slots: [SLOTS[0]] });
+    });
+
+    expect(attempts).toBe(2);
+    expect(result.current.states[slotKey('', 'front')]?.status).toBe('ready');
+  });
+
+  it('does not re-request an answer the server actually gave', async () => {
+    // A 502 is a reply. Asking the identical question again gets the identical
+    // reply and is billed for it.
+    let attempts = 0;
+    runBeautify.mockImplementation(() => {
+      attempts += 1;
+      return Promise.resolve({ ok: false, status: 502, data: { message: 'The model declined.' } });
+    });
+
+    const { result } = renderHook(() => useBeautify());
+    await act(async () => {
+      await result.current.run({ ...opts('with_model'), slots: [SLOTS[0]] });
+    });
+
+    expect(attempts).toBe(1);
+    const st = result.current.states[slotKey('', 'front')];
+    expect(st?.status).toBe('failed');
+    expect(st?.status === 'failed' && st.message).toBe('The model declined.');
+  });
+
+  it('gives up after the second transport failure rather than looping', async () => {
+    let attempts = 0;
+    runBeautify.mockImplementation(() => {
+      attempts += 1;
+      return Promise.reject(new DOMException('Aborted', 'AbortError'));
+    });
+
+    const { result } = renderHook(() => useBeautify());
+    await act(async () => {
+      await result.current.run({ ...opts('with_model'), slots: [SLOTS[0]] });
+    });
+
+    expect(attempts).toBe(2);
+    expect(result.current.states[slotKey('', 'front')]?.status).toBe('failed');
+  });
+
+  it('offers no Try again button on a failed tile', () => {
+    // The control is gone on purpose and must not creep back: it never
+    // recovered from anything, it collected a result that was already done.
+    render(
+      <BeautifyTileState
+        state={{ status: 'failed', message: 'The model declined: no under-18s.' }}
+        label="Front"
+        onRedo={() => {}}
+      />,
+    );
+    expect(screen.queryByRole('button', { name: /try again/i })).toBeNull();
+    // The model's own explanation is what the operator gets instead.
+    expect(screen.getByText(/no under-18s/i)).toBeTruthy();
   });
 });

@@ -237,6 +237,22 @@ interface RequestOptions {
   auth?: boolean;
   body?: Record<string, unknown>;
   signal?: AbortSignal;
+  /**
+   * How long this ONE call may take, in ms. Defaults to `REQUEST_TIMEOUT`.
+   *
+   * Here because 15 seconds is right for the sixty-odd endpoints that answer
+   * from a database and wrong for the one that waits on an image model. Image
+   * generation takes 10-30s — a measured run came back at 14.9s, a tenth of a
+   * second inside the limit — so the request aborted, the tile reported a
+   * failure, and the server carried on and finished the work anyway. What the
+   * operator then pressed as "Try again" was not a retry: it was collecting a
+   * finished image through the idempotency key.
+   *
+   * Raising REQUEST_TIMEOUT globally would have fixed that by making every
+   * other endpoint slower to admit it is broken. This makes the exception
+   * explicit at the one call site that needs it.
+   */
+  timeoutMs?: number;
 }
 
 const pendingRequests = new Map<string, Promise<ApiResponse<unknown>>>();
@@ -299,7 +315,7 @@ async function execWithRetry<T>(
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT);
+    const timeoutId = setTimeout(() => controller.abort(), options.timeoutMs ?? REQUEST_TIMEOUT);
 
     try {
       const res = await fetch(`${API_BASE_URL}${path}`, {

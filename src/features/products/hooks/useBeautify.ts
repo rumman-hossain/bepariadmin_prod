@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   runBeautify,
   commitBeautify,
@@ -52,9 +52,47 @@ export interface BeautifySlot {
 export type SlotState =
   | { status: 'idle' }
   | { status: 'queued' }
-  | { status: 'working' }
+  /** `since` is Date.now() when work began, so the UI can say a wait has gone long. */
+  | { status: 'working'; since: number }
   | { status: 'ready'; job: BeautifyJob }
   | { status: 'failed'; message: string };
+
+/**
+ * When a wait stops being ordinary and should explain itself.
+ *
+ * Generation takes 10-30s normally. Past this, silence starts reading as a
+ * hang, and the operator has been promised the wait is fine — not that it is
+ * invisible.
+ */
+export const LONG_WAIT_MS = 20_000;
+
+/**
+ * True once THIS job has been working longer than LONG_WAIT_MS.
+ *
+ * The timer is the only writer, and it records which job it fired for. That
+ * shape is deliberate and does three things at once:
+ *
+ *   - nothing calls Date.now() during render, which is impure and would make
+ *     the result depend on when React happened to re-render;
+ *   - nothing assigns state from inside the effect body, only from the
+ *     timeout's callback;
+ *   - a new job resets it for free, because `longFor === since` is false the
+ *     moment `since` changes. No cleanup branch to get wrong.
+ *
+ * Lives here rather than beside the components so those files export only
+ * components, which is what keeps fast refresh working.
+ */
+export function useLongWait(since: number | undefined): boolean {
+  const [longFor, setLongFor] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (since === undefined) return;
+    const id = setTimeout(() => setLongFor(since), LONG_WAIT_MS);
+    return () => clearTimeout(id);
+  }, [since]);
+
+  return since !== undefined && longFor === since;
+}
 
 /** Tiles are addressed by variation and side; the product is the empty one. */
 export function slotKey(variationId: string, side: BeautifySide): string {
@@ -116,25 +154,49 @@ export function useBeautify() {
     async (opts: RunOptions, slot: BeautifySlot, gen: number) => {
       const key = slotKey(slot.variationId, slot.side);
       if (gen !== generation.current) return;
-      setSlot(key, { status: 'working' });
+      setSlot(key, { status: 'working', since: Date.now() });
 
-      const res = await runBeautify({
-        productId: opts.productId,
-        variationId: slot.variationId || undefined,
-        side: slot.side,
-        mode: opts.mode,
-        // Only a front in with_model uses it. Sent unconditionally would put it
-        // in the request for backs too, which the server drops — but sending it
-        // where it has no meaning invites the next reader to think it does.
-        modelDescription:
-          slot.side === 'front' && opts.mode === 'with_model'
-            ? opts.modelDescription
-            : undefined,
-      }).catch((err: unknown) => ({
-        ok: false as const,
-        status: 0,
-        data: { message: err instanceof Error ? err.message : 'Request failed' },
-      }));
+      const send = () =>
+        runBeautify({
+          productId: opts.productId,
+          variationId: slot.variationId || undefined,
+          side: slot.side,
+          mode: opts.mode,
+          // Only a front in with_model uses it. Sent unconditionally would put
+          // it in the request for backs too, which the server drops — but
+          // sending it where it has no meaning invites the next reader to
+          // think it does.
+          modelDescription:
+            slot.side === 'front' && opts.mode === 'with_model'
+              ? opts.modelDescription
+              : undefined,
+        }).catch((err: unknown) => ({
+          ok: false as const,
+          status: 0,
+          data: { message: err instanceof Error ? err.message : 'Request failed' },
+        }));
+
+      let res = await send();
+
+      /*
+       * ONE SILENT RE-REQUEST, AND IT IS FREE.
+       *
+       * This looks like a double-spend and is the exact opposite. The server
+       * keys each job on what changes the picture, so a second identical
+       * request does not generate anything: it finds the row the first attempt
+       * already produced and returns it.
+       *
+       * That is precisely why pressing "Try again" used to appear to work —
+       * the image had been finished all along and the click was collecting it.
+       * Doing it here removes the click, and the operator never sees the seam.
+       *
+       * Only for a transport-level failure (status 0: aborted, dropped,
+       * offline). A 4xx or 5xx is an answer, and asking the same question
+       * twice will get the same one.
+       */
+      if (gen === generation.current && !res.ok && res.status === 0) {
+        res = await send();
+      }
 
       if (gen !== generation.current) return;
 

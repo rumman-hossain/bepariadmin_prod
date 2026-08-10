@@ -4,7 +4,7 @@ import { Button, Textarea } from '@/src/components/controls';
 import { Dialog } from '@/src/components/feedback';
 import { Text } from '@/src/components/data';
 import { cn } from '@/src/design-system/utils/cn';
-import type { SlotState } from '../hooks/useBeautify';
+import { useLongWait, type SlotState } from '../hooks/useBeautify';
 
 /**
  * What a media tile looks like while, and after, it is being beautified.
@@ -26,6 +26,7 @@ interface Props {
 export function BeautifyTileState({ state, label, onRedo }: Props) {
   const [redoOpen, setRedoOpen] = useState(false);
   const [peeking, setPeeking] = useState(false);
+  const longWait = useLongWait(state?.status === 'working' ? state.since : undefined);
 
   if (!state || state.status === 'idle') return null;
 
@@ -59,31 +60,37 @@ export function BeautifyTileState({ state, label, onRedo }: Props) {
         />
         <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-center gap-1.5 bg-sheet-inverse/70 px-2 py-1.5">
           <Sparkles className="h-3.5 w-3.5 shrink-0 text-ink-inverse" aria-hidden="true" />
-          <span className="text-2xs font-medium text-ink-inverse">Beautifying…</span>
+          <span className="text-2xs font-medium text-ink-inverse">
+            {longWait ? 'Still working — this can take a minute' : 'Beautifying…'}
+          </span>
         </div>
       </>
     );
   }
 
   if (state.status === 'failed') {
+    /*
+     * NO "TRY AGAIN" BUTTON. It is gone on purpose.
+     *
+     * It was never recovering from a failure. The client aborted at fifteen
+     * seconds while the server kept working and finished; the button then
+     * fetched that finished image through the idempotency key, which is why it
+     * "worked" almost every time. A control whose job is to collect something
+     * that was already done is a bug wearing a UI.
+     *
+     * Transport failures are now retried where the operator cannot see them,
+     * and the request has three minutes rather than fifteen seconds. What
+     * reaches this branch is a real refusal — usually the model declining and
+     * saying why — and the answer to that is not to ask again identically. It
+     * is to change what was asked, which is what Redo on the ready tile does,
+     * and which needs a human to decide.
+     */
     return (
       <Overlay>
         <AlertTriangle className="h-5 w-5 text-bad" aria-hidden="true" />
         <span className="px-2 text-center text-2xs font-medium text-ink-inverse">
           {state.message}
         </span>
-        <Button variant="secondary" size="sm" onClick={() => setRedoOpen(true)}>
-          Try again
-        </Button>
-        <RedoDialog
-          open={redoOpen}
-          label={label}
-          onClose={() => setRedoOpen(false)}
-          onConfirm={(note) => {
-            setRedoOpen(false);
-            onRedo(note);
-          }}
-        />
       </Overlay>
     );
   }

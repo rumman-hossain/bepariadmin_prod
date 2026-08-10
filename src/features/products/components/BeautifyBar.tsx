@@ -4,7 +4,7 @@ import { Button, Input } from '@/src/components/controls';
 import { Text } from '@/src/components/data';
 import { cn } from '@/src/design-system/utils/cn';
 import type { BeautifyMode } from '@/src/api/beautify';
-import { slotKey, type BeautifySlot, type SlotState } from '../hooks/useBeautify';
+import { slotKey, useLongWait, type BeautifySlot, type SlotState } from '../hooks/useBeautify';
 
 /**
  * The control that starts a beautify run, and the bar that ends one.
@@ -96,6 +96,7 @@ export function BeautifyStart({ imageCount, estimatedCost, disabled, onRun }: St
   );
 }
 
+
 interface StripProps {
   slots: BeautifySlot[];
   states: Record<string, SlotState>;
@@ -132,7 +133,26 @@ export function BeautifyStrip({ slots, states }: StripProps) {
         const state = states[slotKey(slot.variationId, slot.side)];
         const ready = state?.status === 'ready' ? state.job.previewUrl : undefined;
         return (
-          <figure key={slotKey(slot.variationId, slot.side)} className="w-[4.5rem]">
+          <StripTile key={slotKey(slot.variationId, slot.side)} slot={slot} state={state} ready={ready} />
+        );
+      })}
+    </div>
+  );
+}
+
+function StripTile({
+  slot,
+  state,
+  ready,
+}: {
+  slot: BeautifySlot;
+  state: SlotState | undefined;
+  ready: string | undefined;
+}) {
+  const longWait = useLongWait(state?.status === 'working' ? state.since : undefined);
+  {
+    return (
+          <figure className="w-[4.5rem]">
             <div className="relative aspect-square overflow-hidden rounded-lg border border-rule bg-sheet-2">
               {(ready ?? slot.thumbUrl) && (
                 <img
@@ -169,16 +189,16 @@ export function BeautifyStrip({ slots, states }: StripProps) {
                 where the sheen is flattened to nothing. */}
             <figcaption className="mt-1 truncate text-2xs text-ink-3" title={slot.label}>
               {state?.status === 'working'
-                ? 'Beautifying…'
+                ? longWait
+                  ? 'Still working…'
+                  : 'Beautifying…'
                 : state?.status === 'queued'
                   ? 'In line'
                   : slot.label}
             </figcaption>
           </figure>
-        );
-      })}
-    </div>
-  );
+    );
+  }
 }
 
 interface ReviewProps {
