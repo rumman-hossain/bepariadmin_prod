@@ -31,6 +31,7 @@ import {
   apiLogoutSession,
   apiResendLoginOtp,
 } from '../api/auth';
+import { readOtpNonce } from './otpProof';
 import { restoreSession, checkServerHealth } from './sessionRestore';
 import { shouldAttemptRestore } from './sessionHint';
 import { friendlyError, errorCode } from '../utils/errors';
@@ -150,6 +151,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             type: 'login/otpRequired',
             identifier: identifier.trim().toLowerCase(),
             userType,
+            // Minted with the code, and returned ONLY on this response. There is
+            // no endpoint to fetch it from later — one would hand anybody who
+            // read the SMS the other half of the proof — so it is captured here
+            // or the rest of the flow runs unbound.
+            otpNonce: readOtpNonce(res.data),
           });
           return;
         }
@@ -182,12 +188,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       // Carried by the machine rather than a ref, so it is cleared as part of
       // the transition that ends the flow instead of lingering after it.
-      const { identifier, userType } = pendingLoginRef.current ?? { identifier: '', userType: 'staff' };
+      const { identifier, userType, otpNonce } =
+        pendingLoginRef.current ?? { identifier: '', userType: 'staff', otpNonce: undefined };
 
       const res = await apiVerifyLoginOtp({
         identifier,
         code,
         user_type: userType as 'staff' | 'wholesaler' | 'retailer',
+        otpNonce,
       });
 
       if (!res.ok) {
@@ -211,7 +219,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       dispatch({
         type: 'request/failed',
-        error: err instanceof Error ? err.message : 'Could not reach the server.',
+        // `hashErrorMessage` first, as `login` already does: verifying a code
+        // now derives a digest before it reaches the network, so this catch can
+        // see a crypto failure and must not report it as an unreachable server.
+        error:
+          hashErrorMessage(err) ??
+          (err instanceof Error ? err.message : 'Could not reach the server.'),
       });
     }
   }, [fetchProfile]);
@@ -224,7 +237,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: 'error/cleared' });
     const pending = pendingLoginRef.current;
     try {
-      await apiResendLoginOtp(pending?.identifier ?? '', pending?.userType ?? 'staff');
+      const res = await apiResendLoginOtp(pending?.identifier ?? '', pending?.userType ?? 'staff');
+
+      /*
+       * The new code's nonce supersedes the one we are holding.
+       *
+       * Only on success: a refused resend — inside the cooldown, out of budget —
+       * did not issue anything, so the code in the user's inbox and the nonce
+       * bound to it are both still the live pair. Overwriting on a failure would
+       * break a flow that was working.
+       *
+       * On success we take whatever came back INCLUDING nothing, because a
+       * server that issued a code without naming its nonce has retired ours
+       * either way. See the `login/otpResent` case in authMachine.
+       */
+      if (res.ok) {
+        dispatch({ type: 'login/otpResent', otpNonce: readOtpNonce(res.data) });
+      }
     } catch (err) {
       // Was `catch { // Silent }`. A user clicking "Resend code" on a failed
       // network got no toast, no error, no state change — indistinguishable

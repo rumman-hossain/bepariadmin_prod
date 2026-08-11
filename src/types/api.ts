@@ -25,6 +25,14 @@ export interface VerifyOtpPayload {
   identifier: string;
   code: string;
   user_type: 'wholesaler' | 'retailer' | 'staff';
+  /**
+   * The nonce issued alongside this code, from the login or resend response.
+   *
+   * NOT a wire field — `apiVerifyLoginOtp` turns it into `otp_hash`/`otp_nonce`/
+   * `otp_mac`. Optional so a caller with no nonce degrades to the unbound digest
+   * rather than binding to something invented, which would fail as a wrong code.
+   */
+  otpNonce?: string;
 }
 
 export interface ForgotPasswordPayload {
@@ -49,6 +57,14 @@ export interface LoginResponseData {
   user: MeResponseData;
   requiresOTP: boolean;
   expiresIn?: number;
+  /**
+   * Minted with the OTP and returned only here, alongside `requiresOTP`.
+   *
+   * There is deliberately no endpoint that hands out a nonce on its own: one
+   * would let anyone holding the six digits go and fetch what binds them, which
+   * is the entire property this field exists to provide.
+   */
+  otpNonce?: string;
 }
 
 export interface RefreshResponseData {

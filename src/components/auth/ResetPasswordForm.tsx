@@ -18,6 +18,7 @@ import { CheckCircle2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { apiForgotPassword, apiResetPassword, apiVerifyResetOtp } from '../../api/auth';
+import { readOtpNonce } from '../../auth/otpProof';
 import { hashPassword, hashErrorMessage } from '../../auth/passwordHasher';
 import { validateEmail, validatePassword, validatePasswordMatch } from '../../utils/validation';
 import { friendlyError } from '../../utils/errors';
@@ -40,6 +41,25 @@ export function ResetPasswordForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+
+  /**
+   * The nonce belonging to the code currently in the user's inbox.
+   *
+   * ONE value for the whole screen, and that is deliberate. `verifyCode` does
+   * not consume the code — it is a pre-check — so `submitPassword` spends the
+   * SAME issuance afterwards, and both calls have to present the same nonce. A
+   * second copy of this, or one reset between the two steps, would bind the
+   * final request to nothing and lose the password the user just typed to a
+   * message reading "incorrect code".
+   *
+   * Undefined is a supported state, not a bug: forgot-password does not return a
+   * nonce today (it must answer identically for addresses that do not exist), a
+   * legacy `?email=` link never carried one, and someone who opens this route
+   * directly has none either. Those all send the digest unbound, which the
+   * server accepts while OTP_REQUIRE_BINDING is false — the same posture as the
+   * raw digits this replaced.
+   */
+  const [otpNonce, setOtpNonce] = useState<string | undefined>(undefined);
 
   /**
    * True when forgot-password sent us here carrying the address, which is the
@@ -82,7 +102,8 @@ export function ResetPasswordForm() {
    * once and stripped.
    */
   useEffect(() => {
-    const fromState = (location.state as { email?: string } | null)?.email;
+    const state = location.state as { email?: string; otpNonce?: string } | null;
+    const fromState = state?.email;
     const params = new URLSearchParams(window.location.search);
     const fromUrl = params.get('email');
     const value = fromState ?? fromUrl;
@@ -91,6 +112,18 @@ export function ResetPasswordForm() {
       setEmail(value);
       setEmailLocked(true);
     }
+
+    /*
+     * Router state only — there is no `?otpNonce=` branch and there must not be
+     * one. The email tolerates a query-string fallback because it is a privacy
+     * leak into access logs; a nonce is half of a credential, and putting it
+     * somewhere Cloudflare writes to disk would hand it to anybody reading them.
+     *
+     * Read here rather than at each call site so that a direct visit, an old
+     * `?email=` link and a normal arrival from forgot-password all end up in one
+     * known state instead of three.
+     */
+    if (state?.otpNonce) setOtpNonce(state.otpNonce);
 
     if (fromUrl) {
       params.delete('email');
@@ -137,6 +170,20 @@ export function ResetPasswordForm() {
          */
         setResendNote('Sent. Use the most recent code in your email.');
         setCode('');
+        /*
+         * The nonce follows the code, and it follows it EVEN INTO UNDEFINED.
+         *
+         * This is the stale-nonce trap on the reset side. The server may have
+         * re-sent the outstanding code or minted a fresh one — it deliberately
+         * will not say which, because saying so would reveal whether a reset is
+         * in flight for this address — so the only nonce we can trust afterwards
+         * is the one this response carried. Keeping the previous value when the
+         * new response has none would bind the next attempt to a code that may
+         * no longer exist, and the server reports that exactly as it reports a
+         * wrong code: three of them and the real code is destroyed, on the one
+         * screen whose whole purpose is recovering an account.
+         */
+        setOtpNonce(readOtpNonce(res.data));
       } else {
         setError(friendlyError(res));
       }
@@ -163,14 +210,20 @@ export function ResetPasswordForm() {
 
     setIsSubmitting(true);
     try {
-      const res = await apiVerifyResetOtp(email.trim().toLowerCase(), code.trim());
+      const res = await apiVerifyResetOtp(email.trim().toLowerCase(), code.trim(), otpNonce);
       if (res.ok) setStep('password');
       // friendlyError, not the raw `error.message`: the backend emits raw
       // Postgres text from some handlers, and this screen is unauthenticated —
       // anyone can reach it.
       else setError(friendlyError(res));
-    } catch {
-      setError('Could not reach the server. Check your connection and try again.');
+    } catch (err) {
+      // `hashErrorMessage` first: this step derives a digest from the code
+      // before it reaches the network, so a device without SubtleCrypto fails
+      // here — and telling that user to check their connection sends them
+      // looking for a problem they do not have.
+      setError(
+        hashErrorMessage(err) ?? 'Could not reach the server. Check your connection and try again.',
+      );
     } finally {
       setIsSubmitting(false);
     }
@@ -194,7 +247,15 @@ export function ResetPasswordForm() {
     setIsSubmitting(true);
     try {
       const passwordHash = await hashPassword(newPassword);
-      const res = await apiResetPassword(email.trim().toLowerCase(), code.trim(), passwordHash);
+      // The same `otpNonce` verifyCode used, not a re-read of anything: the
+      // pre-check left this code live and this is the call that spends it, so
+      // the two requests are two halves of one issuance.
+      const res = await apiResetPassword(
+        email.trim().toLowerCase(),
+        code.trim(),
+        passwordHash,
+        otpNonce,
+      );
 
       if (res.ok) {
         setSuccess(true);

@@ -53,8 +53,17 @@ export interface AuthState {
   notice: string | null;
   user: AuthUser | null;
   isServerReachable: boolean;
-  /** Identifier and account type carried between the login and OTP steps. */
-  pendingLogin: { identifier: string; userType: string } | null;
+  /**
+   * Identifier, account type and issuance nonce carried between the login and
+   * OTP steps.
+   *
+   * `otpNonce` belongs here rather than in a ref for the same reason the other
+   * two do: it is cleared by the transition that ends the flow. A nonce that
+   * outlived its login would be bound to a code that no longer exists, and the
+   * server reports that as a wrong code — three of those and the real code is
+   * destroyed.
+   */
+  pendingLogin: { identifier: string; userType: string; otpNonce?: string } | null;
 }
 
 export const initialAuthState: AuthState = {
@@ -75,7 +84,17 @@ export type AuthAction =
   | { type: 'bootstrap/failed' }
   | { type: 'request/start' }
   | { type: 'request/failed'; error: string }
-  | { type: 'login/otpRequired'; identifier: string; userType: string }
+  | { type: 'login/otpRequired'; identifier: string; userType: string; otpNonce?: string }
+  /**
+   * A replacement code was issued, superseding the one the user was sent.
+   *
+   * Carries `otpNonce` as REQUIRED-but-possibly-undefined rather than optional,
+   * so a dispatch that forgets it cannot type-check into "leave the old one
+   * alone". Undefined means the server issued a code without telling us what
+   * binds it, and the only safe reading of that is that whatever we hold is
+   * stale — see the reducer.
+   */
+  | { type: 'login/otpResent'; otpNonce: string | undefined }
   | { type: 'login/expired'; error: string }
   | { type: 'session/established'; user: AuthUser }
   | { type: 'session/ended'; notice?: string }
@@ -144,7 +163,38 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
         step: 'verifying_login',
         submitting: false,
         error: null,
-        pendingLogin: { identifier: action.identifier, userType: action.userType },
+        pendingLogin: {
+          identifier: action.identifier,
+          userType: action.userType,
+          otpNonce: action.otpNonce,
+        },
+      };
+
+    case 'login/otpResent':
+      /*
+       * OVERWRITE, including with undefined.
+       *
+       * `{ ...pendingLogin, otpNonce: action.otpNonce }` rather than
+       * `action.otpNonce ?? state.pendingLogin.otpNonce`, and the difference is
+       * the whole point of this case. The resend issued a new code; the nonce we
+       * were holding belongs to a code that no longer exists. Keeping it would
+       * bind every subsequent attempt to a dead issuance, and the server answers
+       * that identically to a wrong code — so the user would see "incorrect
+       * code" for a code they typed perfectly, three times, until it was
+       * destroyed.
+       *
+       * Dropping to undefined instead sends the digest unbound, which the server
+       * still accepts while OTP_REQUIRE_BINDING is false. Weaker than binding;
+       * far better than binding to the wrong thing.
+       *
+       * Ignored outside the OTP step: there is no pending login to amend, and
+       * inventing one here would be a way into `verifying_login` that never
+       * checked a password.
+       */
+      if (state.pendingLogin === null) return state;
+      return {
+        ...state,
+        pendingLogin: { ...state.pendingLogin, otpNonce: action.otpNonce },
       };
 
     case 'login/expired':

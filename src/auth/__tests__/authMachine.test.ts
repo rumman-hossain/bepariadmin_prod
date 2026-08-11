@@ -77,19 +77,106 @@ describe('auth machine — sign-in flows', () => {
   it('runs the OTP path end to end', () => {
     const afterLogin = run([
       { type: 'request/start' },
-      { type: 'login/otpRequired', identifier: 'karim@bepari-bd.com', userType: 'staff' },
+      {
+        type: 'login/otpRequired',
+        identifier: 'karim@bepari-bd.com',
+        userType: 'staff',
+        otpNonce: 'n-from-login',
+      },
     ]);
     expect(afterLogin.step).toBe('verifying_login');
     expect(afterLogin.submitting).toBe(false);
     expect(afterLogin.pendingLogin).toEqual({
       identifier: 'karim@bepari-bd.com',
       userType: 'staff',
+      // The nonce rides with the identifier because it belongs to the same
+      // sign-in attempt and has to die with it — /auth/login is the only place
+      // it is ever returned, so losing it here loses the binding for good.
+      otpNonce: 'n-from-login',
     });
 
     const afterOtp = run([{ type: 'session/established', user: USER }], afterLogin);
     expect(isAuthenticated(afterOtp)).toBe(true);
     // The identifier does not outlive the flow it belongs to.
     expect(afterOtp.pendingLogin).toBeNull();
+  });
+
+  /*
+   * THE STALE NONCE.
+   *
+   * A resend issues a NEW code and retires the old one, so the nonce held from
+   * /auth/login now binds to something that no longer exists. The server checks
+   * the mac against the nonce in its own record and answers a mismatch exactly
+   * as it answers a wrong code — so a client that keeps the old value shows
+   * "incorrect code" to someone typing the code correctly, three times, and then
+   * the code is destroyed. Nothing in the failure names the real cause.
+   */
+  it('replaces the nonce when a new code is issued', () => {
+    const state = run([
+      {
+        type: 'login/otpRequired',
+        identifier: 'karim@bepari-bd.com',
+        userType: 'staff',
+        otpNonce: 'n-superseded',
+      },
+      { type: 'login/otpResent', otpNonce: 'n-current' },
+    ]);
+
+    expect(state.pendingLogin?.otpNonce).toBe('n-current');
+    // The rest of the pending login is untouched: a resend does not re-identify
+    // anybody, and rebuilding the object here would be a way to lose the
+    // identifier the next request needs.
+    expect(state.pendingLogin?.identifier).toBe('karim@bepari-bd.com');
+    expect(state.pendingLogin?.userType).toBe('staff');
+    expect(state.step).toBe('verifying_login');
+  });
+
+  it('drops the old nonce even when the new code arrives without one', () => {
+    /*
+     * The case that makes this an overwrite rather than a `??`. A code was
+     * issued; whatever we were holding is stale regardless of whether the
+     * response named its replacement. Falling back to the previous value would
+     * bind to a dead issuance — an unbound digest is weaker but still verifies,
+     * while a wrong mac cannot.
+     */
+    const state = run([
+      {
+        type: 'login/otpRequired',
+        identifier: 'karim@bepari-bd.com',
+        userType: 'staff',
+        otpNonce: 'n-superseded',
+      },
+      { type: 'login/otpResent', otpNonce: undefined },
+    ]);
+
+    expect(state.pendingLogin?.otpNonce).toBeUndefined();
+  });
+
+  it('ignores a resent nonce when no sign-in is pending', () => {
+    // No pending login means no code was issued to this session. Materialising
+    // one here would be a route into the OTP step that never saw a password.
+    const state = run([{ type: 'login/otpResent', otpNonce: 'n-stray' }]);
+    expect(state.pendingLogin).toBeNull();
+    expect(state.step).toBe(initialAuthState.step);
+  });
+
+  it('does not carry a nonce out of the flow it belongs to', () => {
+    for (const ending of [
+      { type: 'session/established', user: USER },
+      { type: 'session/ended' },
+      { type: 'login/expired', error: 'That code has expired.' },
+    ] satisfies AuthAction[]) {
+      const state = run([
+        {
+          type: 'login/otpRequired',
+          identifier: 'karim@bepari-bd.com',
+          userType: 'staff',
+          otpNonce: 'n-from-login',
+        },
+        ending,
+      ]);
+      expect(state.pendingLogin).toBeNull();
+    }
   });
 
   it('returns to the form on an expired code, keeping the reason visible', () => {

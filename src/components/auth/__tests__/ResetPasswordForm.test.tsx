@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { ResetPasswordForm } from '../ResetPasswordForm';
 
@@ -19,6 +19,17 @@ vi.mock('../../../api/auth', () => ({
   apiResetPassword: apiMock.reset,
   apiForgotPassword: apiMock.forgot,
 }));
+
+/*
+ * Only the password derivation is stubbed — 310,000 PBKDF2 iterations per test
+ * buys nothing here and jsdom does not carry a SubtleCrypto to run them on.
+ * `readOtpNonce` is deliberately NOT mocked: the shape it reads off a response
+ * is half of what these tests are about.
+ */
+vi.mock('../../../auth/passwordHasher', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../../auth/passwordHasher')>();
+  return { ...real, hashPassword: async (p: string) => `pbkdf2v3:${p}`, hashErrorMessage: () => null };
+});
 
 afterEach(() => {
   cleanup();
@@ -39,7 +50,7 @@ function renderAt(search: string) {
  * How forgot-password hands the address over now: router state, which lives in
  * history.state rather than the URL or web storage.
  */
-function renderWithState(state: { email: string }) {
+function renderWithState(state: { email: string; otpNonce?: string }) {
   window.history.replaceState({}, '', '/reset-password');
   return render(
     <MemoryRouter initialEntries={[{ pathname: '/reset-password', state }]}>
@@ -159,6 +170,133 @@ describe('ResetPasswordForm — resend', () => {
     renderAt('?email=someone%40example.com');
     const resend = screen.getByRole('button', { name: /send a new code/i }) as HTMLButtonElement;
     expect(resend.type).toBe('button');
+  });
+});
+
+/**
+ * THE NONCE, END TO END.
+ *
+ * The code is issued by forgot-password and spent by reset-password, with a
+ * non-consuming pre-check in between — so ONE issuance has to survive two
+ * screens and three requests. Every hop is somewhere the value can be dropped or
+ * left behind, and none of them fails visibly: the backend compares the mac
+ * against the nonce in its OWN record and reports a mismatch exactly as it
+ * reports a wrong code. So the symptom of any bug below is an operator being
+ * told the code they typed correctly is incorrect, three times, after which the
+ * code is destroyed.
+ */
+describe('ResetPasswordForm — carrying the issuance nonce', () => {
+  const type = (label: RegExp, value: string) =>
+    fireEvent.change(screen.getByLabelText(label), { target: { value } });
+
+  beforeEach(() => {
+    apiMock.verify.mockReset().mockResolvedValue({ ok: true, status: 200, data: {} });
+    apiMock.reset.mockReset().mockResolvedValue({ ok: true, status: 200, data: {} });
+    apiMock.forgot.mockReset().mockResolvedValue({ ok: true, status: 200, data: {} });
+  });
+
+  it('sends the nonce forgot-password issued to BOTH the pre-check and the reset', async () => {
+    renderWithState({ email: 'someone@example.com', otpNonce: 'n-issued' });
+
+    type(/reset code/i, '481902');
+    fireEvent.click(screen.getByRole('button', { name: /verify code/i }));
+
+    await waitFor(() =>
+      expect(apiMock.verify).toHaveBeenCalledWith('someone@example.com', '481902', 'n-issued'),
+    );
+
+    type(/^new password/i, 'Kh0lnaRiver');
+    type(/confirm new password/i, 'Kh0lnaRiver');
+    fireEvent.click(screen.getByRole('button', { name: /set password/i }));
+
+    // The SAME nonce. The pre-check left the code live, so this is the second
+    // request against one stored record — a fresh or missing value here would
+    // fail the step that actually changes the password, after the user has
+    // chosen one.
+    await waitFor(() =>
+      expect(apiMock.reset).toHaveBeenCalledWith(
+        'someone@example.com',
+        '481902',
+        'pbkdf2v3:Kh0lnaRiver',
+        'n-issued',
+      ),
+    );
+  });
+
+  it('replaces the nonce when the user asks for another code', async () => {
+    renderWithState({ email: 'someone@example.com', otpNonce: 'n-superseded' });
+
+    apiMock.forgot.mockResolvedValue({
+      ok: true,
+      status: 200,
+      data: { data: { message: 'sent' }, otpNonce: 'n-current' },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /send a new code/i }));
+    await waitFor(() => expect(apiMock.forgot).toHaveBeenCalled());
+
+    type(/reset code/i, '481902');
+    fireEvent.click(screen.getByRole('button', { name: /verify code/i }));
+
+    await waitFor(() =>
+      expect(apiMock.verify).toHaveBeenCalledWith('someone@example.com', '481902', 'n-current'),
+    );
+  });
+
+  it('drops the old nonce when a resend does not name its replacement', async () => {
+    /*
+     * A code was issued either way, so the one we held is stale regardless. An
+     * unbound digest still verifies while OTP_REQUIRE_BINDING is false; a mac
+     * built from a retired nonce cannot verify at all.
+     */
+    renderWithState({ email: 'someone@example.com', otpNonce: 'n-superseded' });
+
+    fireEvent.click(screen.getByRole('button', { name: /send a new code/i }));
+    await waitFor(() => expect(apiMock.forgot).toHaveBeenCalled());
+
+    type(/reset code/i, '481902');
+    fireEvent.click(screen.getByRole('button', { name: /verify code/i }));
+
+    await waitFor(() =>
+      expect(apiMock.verify).toHaveBeenCalledWith('someone@example.com', '481902', undefined),
+    );
+  });
+
+  it('keeps the nonce when a resend FAILS — nothing new was issued', async () => {
+    // A refused resend (inside the cooldown, or out of budget) sent no message,
+    // so the code in the inbox and the nonce bound to it are both still live.
+    // Clearing here would downgrade a flow that was working.
+    renderWithState({ email: 'someone@example.com', otpNonce: 'n-issued' });
+
+    apiMock.forgot.mockResolvedValue({
+      ok: false,
+      status: 429,
+      data: { error: { code: 'RATE_LIMITED', message: 'Too many requests' } },
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /send a new code/i }));
+    await waitFor(() => expect(apiMock.forgot).toHaveBeenCalled());
+
+    type(/reset code/i, '481902');
+    fireEvent.click(screen.getByRole('button', { name: /verify code/i }));
+
+    await waitFor(() =>
+      expect(apiMock.verify).toHaveBeenCalledWith('someone@example.com', '481902', 'n-issued'),
+    );
+  });
+
+  it('runs unbound rather than refusing when no nonce ever arrived', async () => {
+    // The shape today: forgot-password answers identically for addresses that
+    // do not exist, so it returns no nonce at all. Also a legacy `?email=` link,
+    // and anyone who opens the route directly. All must still be able to reset.
+    renderAt('?email=someone%40example.com');
+
+    type(/reset code/i, '481902');
+    fireEvent.click(screen.getByRole('button', { name: /verify code/i }));
+
+    await waitFor(() =>
+      expect(apiMock.verify).toHaveBeenCalledWith('someone@example.com', '481902', undefined),
+    );
   });
 });
 
