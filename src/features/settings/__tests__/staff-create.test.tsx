@@ -4,6 +4,7 @@ import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/re
 import { MemoryRouter } from 'react-router-dom';
 import { StaffCreatePage } from '../pages/StaffCreatePage';
 import { CREATABLE_ROLES, type NewStaff } from '../api/staffCreateApi';
+import { STAFF_ROLES } from '../api/settingsApi';
 import { STAFF_ROLES_FOR_TEST } from './role-list';
 
 /**
@@ -214,5 +215,38 @@ describe('creating the account', () => {
 
     expect(await screen.findByText(/already exists/i)).toBeTruthy();
     expect(navigate).not.toHaveBeenCalledWith('/settings?tab=access');
+  });
+});
+
+/*
+THE LIST MUST BE ABLE TO SHOW EVERY ROLE A PERSON CAN HOLD.
+
+`STAFF_ROLES` feeds the role <select> on each row of the access table. A role
+missing from it has no matching option, so the control falls back to the first —
+which is `super_admin`. A logistics account was therefore displayed as a SUPER
+ADMIN on the one screen an operator uses to audit who has access, and neither
+department could be assigned after the fact.
+
+Separate from CREATABLE_ROLES on purpose: this list is wider, because an account
+that already holds super_admin must display truthfully even though no form may
+mint one.
+*/
+describe('the access list can name every role', () => {
+  it('has an option for every role the database allows', () => {
+    for (const role of STAFF_ROLES_FOR_TEST) {
+      expect(
+        STAFF_ROLES.some((r) => r.value === role),
+        `${role} has no option, so a person holding it displays as "${STAFF_ROLES[0].label}" ` +
+          `— the first option — on the screen used to audit access`,
+      ).toBe(true);
+    }
+  });
+
+  it('offers more than the create form does, and super_admin is the difference', () => {
+    const creatable = new Set(CREATABLE_ROLES.map((r) => r.value));
+    const holdable = new Set(STAFF_ROLES.map((r) => r.value));
+    expect(holdable.has('super_admin')).toBe(true);
+    expect(creatable.has('super_admin' as never)).toBe(false);
+    for (const r of creatable) expect(holdable.has(r)).toBe(true);
   });
 });

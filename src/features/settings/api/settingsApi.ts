@@ -72,11 +72,27 @@ export async function setPlatformMargin(marginPercent: number): Promise<void> {
   }
 }
 
-/** Roles, in the order they appear in the database CHECK constraint. */
+/**
+ * Every role an existing account may HOLD, in the order of the database CHECK.
+ *
+ * Wider than the list the create form offers, and deliberately so: this one
+ * includes `super_admin`, because an account that already has it must display
+ * as it truly is. Creating one from a form is a different question — see
+ * CREATABLE_ROLES in staffCreateApi.ts.
+ *
+ * `logistics` and `supplier_assistant` were both MISSING here, which is worse
+ * than it sounds. This list feeds the role `<select>` on each row, so a person
+ * holding either one had no matching option and the control fell back to
+ * showing the first — reporting a logistics account as a SUPER ADMIN on the
+ * screen an operator uses to audit who has access. It also meant nobody could
+ * be moved into either department after the fact.
+ */
 export const STAFF_ROLES = [
   { value: 'super_admin', label: 'Super admin', hint: 'Everything, including staff accounts and the platform margin' },
   { value: 'admin', label: 'Admin', hint: 'Suppliers, retailers and the catalogue — but not the books' },
   { value: 'finance', label: 'Finance', hint: 'The cash book, settlements and point adjustments' },
   { value: 'operations', label: 'Operations', hint: 'Orders and day-to-day running' },
+  { value: 'supplier_assistant', label: 'Supplier assistant', hint: 'Reads suppliers and the catalogue queue' },
+  { value: 'logistics', label: 'Logistics', hint: 'The shipping desk only' },
   { value: 'viewer', label: 'Viewer', hint: 'Read-only' },
 ] as const;
