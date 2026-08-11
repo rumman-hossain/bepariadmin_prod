@@ -24,4 +24,5 @@ export const STAFF_ROLES_FOR_TEST = [
   'viewer',
   'logistics',
   'supplier_assistant',
+  'product_registrar',
 ] as const;

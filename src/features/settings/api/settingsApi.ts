@@ -93,6 +93,7 @@ export const STAFF_ROLES = [
   { value: 'finance', label: 'Finance', hint: 'The cash book, settlements and point adjustments' },
   { value: 'operations', label: 'Operations', hint: 'Orders and day-to-day running' },
   { value: 'supplier_assistant', label: 'Supplier assistant', hint: 'Reads suppliers and the catalogue queue' },
+  { value: 'product_registrar', label: 'Product registrar', hint: 'The product registration app only' },
   { value: 'logistics', label: 'Logistics', hint: 'The shipping desk only' },
   { value: 'viewer', label: 'Viewer', hint: 'Read-only' },
 ] as const;

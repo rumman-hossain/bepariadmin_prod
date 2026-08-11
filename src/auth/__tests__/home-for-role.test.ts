@@ -1,6 +1,28 @@
 import { describe, it, expect } from 'vitest';
 import { homeFor, ADMIN_STAFF, ANY_STAFF } from '../roles';
-import { findRoute } from '@/src/app/routes';
+import { findRoute, ROUTES } from '@/src/app/routes';
+
+/**
+ * Roles with at least one destination in the RAIL.
+ *
+ * Derived from the registry rather than listed by hand, so it cannot drift.
+ *
+ * Hidden entries do not count. Every staff role reaches /profile — it is
+ * ANY_STAFF, because everyone has a password to change — and counting it would
+ * make every role look like it has somewhere to land after signing in. What
+ * this asks is where sign-in should SEND them, and nobody is sent to their own
+ * profile.
+ *
+ * Not every staff role has one. `product_registrar` belongs to the product
+ * registration app and the backend refuses it here outright with WRONG_APP —
+ * asking where it "lands" in this console is a question with no answer, and
+ * inventing one would mean routing an account to a screen it is not allowed to
+ * reach.
+ */
+const hasSomewhereToLand = (role: string) =>
+  ROUTES.filter((r) => !r.hidden).some((r) =>
+    (r.roles as readonly string[]).includes(role),
+  );
 
 /**
  * Where each role lands after signing in.
@@ -58,6 +80,14 @@ describe('homeFor', () => {
      * fourth role. The registry is where the answer actually lives.
      */
     for (const role of ANY_STAFF) {
+      /*
+       * A role with no destination at all is skipped — but the skip has to be
+       * EARNED, not assumed, so `hasSomewhereToLand` reads the registry. A role
+       * that quietly lost every nav entry would otherwise slip through this
+       * loop as "nothing to check" rather than failing.
+       */
+      if (!hasSomewhereToLand(role)) continue;
+
       const home = homeFor(role);
       const entry = findRoute(home.replace(/^\//, ''));
       expect(entry, `homeFor(${role}) returned ${home}, which is not a nav destination`).toBeTruthy();
@@ -66,5 +96,18 @@ describe('homeFor', () => {
         `${role} lands on ${home}, which its own role cannot see`,
       ).toBe(true);
     }
+  });
+
+  /*
+   * AND THE ROLES THAT BELONG TO ANOTHER APP HAVE NOTHING HERE.
+   *
+   * The other half of the skip above. `product_registrar` signs in to the
+   * product registration app; the backend refuses it on this console. If it
+   * ever gains a nav entry, that is either a deliberate widening — in which
+   * case homeFor needs to send it there — or somebody has pasted a role into a
+   * list without meaning to.
+   */
+  it('gives the registration app’s role no destination in this console', () => {
+    expect(hasSomewhereToLand('product_registrar')).toBe(false);
   });
 });

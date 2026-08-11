@@ -48,6 +48,7 @@ export const CREATABLE_ROLES: ReadonlyArray<{
   { value: 'finance', label: 'Finance', hint: 'The cash book, settlements and point adjustments' },
   { value: 'operations', label: 'Operations', hint: 'Orders and the day-to-day running' },
   { value: 'supplier_assistant', label: 'Supplier assistant', hint: 'Reads suppliers and the catalogue queue. Cannot approve, suspend or edit' },
+  { value: 'product_registrar', label: 'Product registrar', hint: 'The product registration app only — cannot sign in to this console' },
   { value: 'logistics', label: 'Logistics', hint: 'The shipping desk only — couriers, rates and shipments' },
   { value: 'viewer', label: 'Viewer', hint: 'Read-only across the back office' },
 ];

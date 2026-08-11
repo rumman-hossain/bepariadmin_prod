@@ -22,6 +22,7 @@ const STAFF_ROLES = [
   'viewer',
   'logistics',
   'supplier_assistant',
+  'product_registrar',
 ] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
@@ -140,6 +141,7 @@ export const ROLE_LABEL: Record<StaffRole, string> = {
   viewer: 'Viewer',
   logistics: 'Logistics',
   supplier_assistant: 'Supplier assistant',
+  product_registrar: 'Product registrar',
 };
 
 /** Normalises whatever the backend sent into a known role, or null. */
