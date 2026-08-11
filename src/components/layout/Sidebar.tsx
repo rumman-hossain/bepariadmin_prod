@@ -70,7 +70,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, className })
     () =>
       ROUTE_GROUPS.map((group) => ({
         ...group,
-        routes: group.routes.filter((r) => !r.roles || hasRole(user?.role, r.roles)),
+        // `hidden` first: a reachable-but-unlisted destination — /profile, behind
+        // your name in the header — is registered so RouteGuard can find it, and
+        // must not therefore appear in the rail.
+        routes: group.routes.filter(
+          (r) => !r.hidden && (!r.roles || hasRole(user?.role, r.roles)),
+        ),
       })).filter((group) => group.routes.length > 0),
     [user?.role],
   );

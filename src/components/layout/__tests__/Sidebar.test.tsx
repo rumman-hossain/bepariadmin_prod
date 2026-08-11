@@ -6,6 +6,16 @@ import { Sidebar } from '../Sidebar';
 import { ROUTE_GROUPS, ROUTES } from '@/src/app/routes';
 import { hasRole, type StaffRole } from '@/src/auth/roles';
 
+/**
+ * The entries the rail actually renders.
+ *
+ * `ROUTES` is every registered ADDRESS, which since /profile is wider than the
+ * navigation: RouteGuard resolves the first path segment against the registry,
+ * so a screen reached from somewhere other than the rail still has to be in it.
+ * Assertions about what the sidebar draws must use this, not ROUTES.
+ */
+const NAV_ROUTES = ROUTES.filter((r) => !r.hidden);
+
 /*
  * The rail filters by role, so these tests have to say who is looking.
  *
@@ -64,7 +74,7 @@ describe('the rail shows only what the viewer can reach', () => {
   });
 
   it('shows a route to a role on its list', () => {
-    for (const route of ROUTES) {
+    for (const route of NAV_ROUTES) {
       currentRole = route.roles[0]!;
       cleanup();
       renderSidebar();
@@ -72,6 +82,35 @@ describe('the rail shows only what the viewer can reach', () => {
       expect(
         within(nav).getByRole('link', { name: new RegExp(`^${route.label}`, 'i') }),
       ).toBeTruthy();
+    }
+  });
+
+  /*
+   * THE REGISTRY IS WIDER THAN THE RAIL.
+   *
+   * `hidden` entries are registered so RouteGuard can resolve them — it treats
+   * this file as the list of addresses that exist, and answers "There is
+   * nothing here" for anything absent — but they are reached from somewhere
+   * other than the nav. /profile lives behind your name in the header.
+   *
+   * Asserted rather than assumed, because the failure is silent in both
+   * directions: a hidden route that leaks into the rail is clutter, and a rail
+   * entry accidentally marked hidden simply disappears.
+   */
+  it('keeps hidden destinations out of the rail', () => {
+    const hidden = ROUTES.filter((r) => r.hidden);
+    expect(hidden.length, 'no hidden routes left to check — has /profile moved?').toBeGreaterThan(0);
+
+    // A super admin: nothing here is being filtered by role.
+    currentRole = 'super_admin';
+    cleanup();
+    renderSidebar();
+    const nav = screen.getByLabelText('Main navigation');
+    for (const route of hidden) {
+      expect(
+        within(nav).queryByRole('link', { name: new RegExp(`^${route.label}`, 'i') }),
+        `${route.id} is hidden but appears in the rail`,
+      ).toBeNull();
     }
   });
 
@@ -125,7 +164,7 @@ describe('Sidebar navigation', () => {
   it('renders every route in the registry', () => {
     renderSidebar();
     const nav = screen.getByLabelText('Main navigation');
-    for (const route of ROUTES) {
+    for (const route of NAV_ROUTES) {
       /*
        * Anchored at the start, not a bare substring. Four labels now contain
        * the word "Settings" — Reward Settings, Coupon Settings, Referral
@@ -149,8 +188,11 @@ describe('Sidebar navigation', () => {
      * labels nothing. If grouping returns, every group must be headed.
      */
     renderSidebar();
-    if (ROUTE_GROUPS.length <= 1) {
-      expect(ROUTE_GROUPS[0]?.label).toBeUndefined();
+    // Groups whose every route is hidden render nothing, so they have no
+    // heading to find — the "Personal" group holding /profile is one.
+    const visibleGroups = ROUTE_GROUPS.filter((g) => g.routes.some((r) => !r.hidden));
+    if (visibleGroups.length <= 1) {
+      expect(visibleGroups[0]?.label).toBeUndefined();
       return;
     }
     for (const group of ROUTE_GROUPS) {

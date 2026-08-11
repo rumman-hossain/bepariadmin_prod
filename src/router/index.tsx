@@ -561,7 +561,8 @@ export const router = createBrowserRouter([
       // reads its status and note from the registry rather than claiming a
       // migration that is not happening.
       ...ROUTES.filter(
-        (r) => !['dashboard', 'wholesalers', 'products', 'orders', 'retailers', 'analytics', 'coupons', 'payments', 'accounting', 'rewards', 'referrals', 'settings', 'messages', 'manufacturing', 'logistics', 'sales-brain'].includes(r.id),
+        (r) => !r.hidden &&
+          !['dashboard', 'wholesalers', 'products', 'orders', 'retailers', 'analytics', 'coupons', 'payments', 'accounting', 'rewards', 'referrals', 'settings', 'messages', 'manufacturing', 'logistics', 'sales-brain'].includes(r.id),
       ).map((route) => ({
         path: route.id,
         element: <NotBuiltPage routeId={route.id} />,

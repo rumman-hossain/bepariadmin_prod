@@ -27,7 +27,7 @@
  */
 
 import type { StaffRole } from "@/src/auth/roles";
-import { ADMIN_STAFF, FINANCE, LOGISTICS, SUPPLIER_DESK } from "@/src/auth/roles";
+import { ADMIN_STAFF, ANY_STAFF, FINANCE, LOGISTICS, SUPPLIER_DESK } from "@/src/auth/roles";
 import {
   LayoutDashboard,
   Users,
@@ -45,6 +45,7 @@ import {
   MessageSquare,
   BarChart2,
   Brain,
+  UserCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -55,6 +56,21 @@ export interface Route {
   label: string;
   icon: LucideIcon;
   status: RouteStatus;
+  /**
+   * A destination that is REACHABLE but not listed in the rail.
+   *
+   * This concept was missing, and its absence was a bug rather than a gap:
+   * `RouteGuard` resolves the first path segment against this registry and
+   * shows "There is nothing here" when it finds nothing. So the registry is not
+   * only the nav — it is the list of addresses that exist at all, and a screen
+   * left out of it is unreachable however carefully it is wired into the
+   * router.
+   *
+   * /profile is the case that found this. It belongs behind your name in the
+   * header, not as a nineteenth entry in a rail of work; without a way to say
+   * that, the choice was between cluttering the nav and a page nobody can open.
+   */
+  hidden?: boolean;
   /** Shown on the placeholder. Says what is missing, not merely that it is. */
   note?: string;
   /**
@@ -208,6 +224,39 @@ export const ROUTE_GROUPS: RouteGroup[] = [
         status: "live",
         note: 'Segments are computed from delivered orders. "Browsing not buying" is absent — nothing records product views.',
         roles: ADMIN_STAFF,
+      },
+    ],
+  },
+
+  /*
+   * REACHABLE, BUT NOT IN THE RAIL.
+   *
+   * A group of its own rather than an entry tacked onto another, so nothing
+   * about it can be mistaken for navigation. Every route here is `hidden`, and
+   * the Sidebar drops them.
+   *
+   * They still have to be REGISTERED, because RouteGuard treats this file as
+   * the list of addresses that exist — a screen missing from it answers "There
+   * is nothing here" no matter how it is wired into the router. That is exactly
+   * what /profile did on dev before this group existed.
+   */
+  {
+    id: "personal",
+    label: "Personal",
+    routes: [
+      {
+        id: "profile",
+        label: "Your profile",
+        icon: UserCircle,
+        status: "live",
+        hidden: true,
+        /*
+         * ANY_STAFF, not ADMIN_STAFF. Every signed-in person has a profile,
+         * including the two department roles that can see almost nothing else —
+         * and a logistics account being unable to open its own details, or
+         * change its own password, would be a strange thing to ship.
+         */
+        roles: ANY_STAFF,
       },
     ],
   },
