@@ -8,6 +8,7 @@ import { setAccessToken, clearAccessToken } from './memoryTokenStore';
 import { apiGetMe } from '../api/auth';
 import { forceRefreshAccessToken } from '../api/client';
 import type { AuthUser } from '../types/auth';
+import { mapUser } from './mapUser';
 
 export type SessionRestoreOutcome =
   | { ok: true; accessToken: string; user: AuthUser }
@@ -68,20 +69,6 @@ async function fetchWithTimeout(
  */
 async function refreshForBoot(): Promise<string | null> {
   return forceRefreshAccessToken();
-}
-
-function mapUser(me: Record<string, unknown>): AuthUser {
-  return {
-    id: me.id as string,
-    name: (me.name as string) || '',
-    email: (me.email as string) || '',
-    role: (me.role as string) || '',
-    phone: (me.phone as string) || undefined,
-    shopName: (me.shopName as string) || undefined,
-    logoUrl: (me.logoUrl as string) || undefined,
-    code: (me.code as string) || undefined,
-    emailVerified: (me.emailVerified as boolean) !== false,
-  };
 }
 
 async function loadProfile(accessToken: string): Promise<AuthUser | null> {

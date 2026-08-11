@@ -13,6 +13,7 @@
 
 import React, { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { AuthContext, type AuthContextValue } from './context';
+import { mapUser } from './mapUser';
 import { authReducer, initialAuthState, isAuthenticated } from './authMachine';
 import { hashForLogin, hashErrorMessage } from './passwordHasher';
 import {
@@ -85,20 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const clearError = useCallback(() => dispatch({ type: 'error/cleared' }), []);
 
   // Map API user to AuthUser
-  const mapUser = useCallback(function mapUser(me: Record<string, unknown>): AuthUser {
-    return {
-      id: me.id as string,
-      name: (me.name as string) || '',
-      email: (me.email as string) || '',
-      role: (me.role as string) || '',
-      phone: (me.phone as string) || undefined,
-      secondaryEmail: (me.secondaryEmail as string) || undefined,
-      shopName: (me.shopName as string) || undefined,
-      logoUrl: (me.logoUrl as string) || undefined,
-      code: (me.code as string) || undefined,
-      emailVerified: (me.emailVerified as boolean) !== false,
-    };
-  }, []);
 
   /**
    * Fetch the profile once a token is in hand.
@@ -133,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const me = (meRes.data as unknown as Record<string, unknown>).data as Record<string, unknown>;
     return mapUser(me);
-  }, [mapUser]);
+  }, []);
 
   // ═══════════════════════════════════════════════════════════
   // LOGIN
