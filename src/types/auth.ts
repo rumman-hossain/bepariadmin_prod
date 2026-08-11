@@ -48,6 +48,14 @@ export interface AuthUser {
   email: string;
   role: string;
   phone?: string;
+  /**
+   * A CONTACT address. Never a credential.
+   *
+   * Set unverified from the profile screen; nothing signs in with it and no
+   * password reset is sent to it. See migration 000106 — if that ever changes,
+   * editing a profile becomes an account-takeover primitive.
+   */
+  secondaryEmail?: string;
   shopName?: string;
   logoUrl?: string;
   code?: string;

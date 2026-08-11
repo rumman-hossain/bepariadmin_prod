@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { homeFor, ADMIN_STAFF, LOGISTICS, ANY_STAFF } from '../roles';
+import { homeFor, ADMIN_STAFF, ANY_STAFF } from '../roles';
+import { findRoute } from '@/src/app/routes';
 
 /**
  * Where each role lands after signing in.
@@ -46,12 +47,22 @@ describe('homeFor', () => {
      * The property, rather than the cases. If a role is added later and nobody
      * updates homeFor, it lands on the dashboard — and this fails unless that
      * role is genuinely allowed there.
+     *
+     * THE ALLOWED LIST IS READ FROM THE REGISTRY, not from a ternary here.
+     *
+     * It used to be `home === '/logistics' ? LOGISTICS : ADMIN_STAFF`, which
+     * quietly assumed there would only ever be two destinations. Adding
+     * `supplier_assistant` — which lands on /wholesalers — failed this test
+     * against entirely correct code, because the test could not know about a
+     * third. Hardcoding a third branch would only move the same failure to the
+     * fourth role. The registry is where the answer actually lives.
      */
     for (const role of ANY_STAFF) {
       const home = homeFor(role);
-      const allowed = home === '/logistics' ? LOGISTICS : ADMIN_STAFF;
+      const entry = findRoute(home.replace(/^\//, ''));
+      expect(entry, `homeFor(${role}) returned ${home}, which is not a nav destination`).toBeTruthy();
       expect(
-        (allowed as readonly string[]).includes(role),
+        (entry!.roles as readonly string[]).includes(role),
         `${role} lands on ${home}, which its own role cannot see`,
       ).toBe(true);
     }

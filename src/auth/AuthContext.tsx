@@ -92,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: (me.email as string) || '',
       role: (me.role as string) || '',
       phone: (me.phone as string) || undefined,
+      secondaryEmail: (me.secondaryEmail as string) || undefined,
       shopName: (me.shopName as string) || undefined,
       logoUrl: (me.logoUrl as string) || undefined,
       code: (me.code as string) || undefined,
@@ -385,6 +386,24 @@ const SESSION_ENDED_NOTICE = 'Your session ended. Please sign in again.';
   // ═══════════════════════════════════════════════════════════
 
 
+  /**
+   * Re-read the signed-in user after they have changed their own details.
+   *
+   * The header shows the name and the role badge from this same object, so
+   * without it a profile save leaves the old name in the corner of every screen
+   * until the next reload — the change appearing not to have taken.
+   *
+   * Re-fetches rather than merging the PATCH response into state: /auth/me is
+   * the one shape the rest of the app already trusts, and a second mapping of
+   * the same payload is a second place for the two to disagree.
+   */
+  const refreshUser = useCallback(async () => {
+    const token = getAccessToken();
+    if (!token) return;
+    const profile = await fetchProfile(token);
+    if (profile) dispatch({ type: 'session/established', user: profile });
+  }, [fetchProfile]);
+
   // ═══════════════════════════════════════════════════════════
   // VALUE
   // ═══════════════════════════════════════════════════════════
@@ -404,6 +423,7 @@ const SESSION_ENDED_NOTICE = 'Your session ended. Please sign in again.';
     logout,
     bootstrap,
     clearError,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

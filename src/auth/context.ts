@@ -16,6 +16,14 @@ export interface AuthContextValue extends AuthState {
   logout: () => Promise<void>;
   bootstrap: () => Promise<void>;
   clearError: () => void;
+  /**
+   * Re-read the signed-in user, after they have edited their own details.
+   *
+   * The header renders the name and role from this object, so a profile save
+   * without it leaves a stale name in the corner of every screen and reads as
+   * a change that did not take.
+   */
+  refreshUser: () => Promise<void>;
   /** True only during explicit login/OTP submit, NOT during bootstrap */
   submitting: boolean;
 }
@@ -39,4 +47,5 @@ export const AuthContext = createContext<AuthContextValue>({
   logout: async () => {},
   bootstrap: async () => {},
   clearError: () => {},
+  refreshUser: async () => {},
 });

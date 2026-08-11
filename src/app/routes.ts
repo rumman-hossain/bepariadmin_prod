@@ -27,7 +27,7 @@
  */
 
 import type { StaffRole } from "@/src/auth/roles";
-import { ADMIN_STAFF, FINANCE, LOGISTICS } from "@/src/auth/roles";
+import { ADMIN_STAFF, FINANCE, LOGISTICS, SUPPLIER_DESK } from "@/src/auth/roles";
 import {
   LayoutDashboard,
   Users,
@@ -108,14 +108,14 @@ export const ROUTE_GROUPS: RouteGroup[] = [
         label: "Suppliers",
         icon: ShoppingBag,
         status: "live",
-        roles: ADMIN_STAFF,
+        roles: SUPPLIER_DESK,
       },
       {
         id: "products",
         label: "Products",
         icon: ShoppingCart,
         status: "live",
-        roles: ADMIN_STAFF,
+        roles: SUPPLIER_DESK,
       },
       {
         id: "orders",

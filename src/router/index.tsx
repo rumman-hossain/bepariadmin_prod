@@ -106,6 +106,12 @@ const LazyManufacturing = React.lazy(() =>
 const LazyMessages = React.lazy(() =>
   import('@/src/features/messages/pages/MessagesPage').then((m) => ({ default: m.MessagesPage })),
 );
+const LazyProfile = React.lazy(() =>
+  import('@/src/features/profile/pages/ProfilePage').then((m) => ({ default: m.ProfilePage })),
+);
+const LazyStaffCreate = React.lazy(() =>
+  import('@/src/features/settings/pages/StaffCreatePage').then((m) => ({ default: m.StaffCreatePage })),
+);
 const LazySettings = React.lazy(() =>
   import('@/src/features/settings/pages/SettingsPage').then((m) => ({ default: m.SettingsPage })),
 );
@@ -514,6 +520,24 @@ export const router = createBrowserRouter([
       // Settings. Readable by any staff role; changing access and the platform
       // margin is super-admin only, gated inside the screen and on the server.
       { path: 'settings', element: <LazyPage><LazySettings /></LazyPage> },
+      /*
+       * Creating a staff account. Under /settings because that is where the
+       * access list lives and where the operator comes from — the screen itself
+       * refuses anyone who is not a super admin, matching SuperAdminOnly on the
+       * endpoint.
+       */
+      { path: 'settings/staff/new', element: <LazyPage><LazyStaffCreate /></LazyPage> },
+
+      /*
+       * Your own details. Deliberately NOT in the nav registry: it is reached
+       * from your name in the header, the way every console does it, and a
+       * nineteenth rail entry for a page about yourself would compete with the
+       * work.
+       *
+       * No role gate — every signed-in staff member has a profile, including
+       * the two department roles that can see almost nothing else.
+       */
+      { path: 'profile', element: <LazyPage><LazyProfile /></LazyPage> },
 
       // Referral Settings — a view onto the same loyalty programme as /rewards,
       // sharing its settings row and its points ledger.

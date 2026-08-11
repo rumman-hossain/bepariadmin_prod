@@ -21,6 +21,7 @@ const STAFF_ROLES = [
   'operations',
   'viewer',
   'logistics',
+  'supplier_assistant',
 ] as const;
 
 export type StaffRole = (typeof STAFF_ROLES)[number];
@@ -62,13 +63,38 @@ export const ADMIN_STAFF: readonly StaffRole[] = [
 export const LOGISTICS: readonly StaffRole[] = [...ADMIN_STAFF, 'logistics'];
 
 /**
+ * The supplier desk.
+ *
+ * `supplier_assistant` works a supplier's account and their catalogue, so it
+ * sees the Suppliers and Products sections and nothing else — two destinations
+ * in a rail of nineteen. Admin roles are included for the same reason they are
+ * in LOGISTICS: the department sees only its desk, admin sees everything.
+ *
+ * Mirrors `middleware.SupplierDeskOnly`. The server is read-only for this role
+ * today — it may open a supplier and the catalogue queue, not approve, suspend
+ * or edit — so any control this list reveals must be a read. A nav entry whose
+ * screen then 403s is worse than no entry at all.
+ */
+export const SUPPLIER_DESK: readonly StaffRole[] = [...ADMIN_STAFF, 'supplier_assistant'];
+
+/**
  * Where a role lands after signing in.
  *
  * `/dashboard` was hardcoded in two places. A logistics user would have landed
  * on a screen their own role cannot see — a login that appears to fail.
  */
 export function homeFor(role: string | undefined | null): string {
-  return asStaffRole(role) === 'logistics' ? '/logistics' : '/dashboard';
+  switch (asStaffRole(role)) {
+    case 'logistics':
+      return '/logistics';
+    // The assistant cannot see /dashboard either. Same failure as logistics
+    // had: landing on a screen your own role hides reads as a login that did
+    // not work.
+    case 'supplier_assistant':
+      return '/wholesalers';
+    default:
+      return '/dashboard';
+  }
 }
 
 /** Can mutate users, wholesalers and the product catalogue. `StrictAdminOnly`. */
@@ -93,6 +119,28 @@ export const SUPER_ADMIN_ONLY: readonly StaffRole[] = ['super_admin'];
  * the API is the one that decides.
  */
 export const FINANCE: readonly StaffRole[] = ['super_admin', 'finance'];
+
+/**
+ * What each role is called on screen.
+ *
+ * ONE map, because the copy in Header.tsx had already drifted: it listed five
+ * roles and `logistics` had been a real console role since migration 000089, so
+ * that department's own header badge read "Unknown role". A second copy of a
+ * role list is how the two disagree, and it always disagrees quietly.
+ *
+ * Typed by StaffRole rather than by string, so adding a role to STAFF_ROLES
+ * without naming it here is a compile error instead of another silent
+ * "Unknown role".
+ */
+export const ROLE_LABEL: Record<StaffRole, string> = {
+  super_admin: 'Super admin',
+  admin: 'Admin',
+  finance: 'Finance',
+  operations: 'Operations',
+  viewer: 'Viewer',
+  logistics: 'Logistics',
+  supplier_assistant: 'Supplier assistant',
+};
 
 /** Normalises whatever the backend sent into a known role, or null. */
 export function asStaffRole(role: string | undefined | null): StaffRole | null {

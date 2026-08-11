@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { UserPlus } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Page, Panel, Row } from '@/src/components/layout/primitives';
 import { DataTable, Text, StatusBadge, formatDate } from '@/src/components/data';
 import type { Column } from '@/src/components/data';
@@ -46,6 +47,7 @@ const roleLabel = (role: string) =>
  * operator can act on.
  */
 export function SettingsPage() {
+  const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const raw = params.get('tab');
   const tab: Tab = TABS.includes(raw as Tab) ? (raw as Tab) : 'access';
@@ -173,19 +175,41 @@ export function SettingsPage() {
         title="Settings"
         subtitle="Who has access, and the levers that are not owned by another screen"
         actions={
-          <SegmentedControl<Tab>
-            label="View"
-            value={tab}
-            onChange={(t) => {
-              const p = new URLSearchParams(params);
-              p.set('tab', t);
-              setParams(p, { replace: true });
-            }}
-            options={[
-              { value: 'access', label: 'Access' },
-              { value: 'commercial', label: 'Commercial' },
-            ]}
-          />
+          <Row gap="sm" className="items-center">
+            {/*
+              The control that was missing entirely. `POST
+              /auth/admin/create-staff` has existed all along with nothing on
+              any screen calling it, so every colleague on this console was
+              added with curl or by hand in SQL.
+
+              Only on the tab it belongs to, and only for the role the server
+              admits — SuperAdminOnly, mirrored here so nobody is offered a
+              button that answers 403.
+            */}
+            {tab === 'access' && canChange && (
+              <Button
+                variant="primary"
+                size="sm"
+                iconLeft={UserPlus}
+                onClick={() => navigate('/settings/staff/new')}
+              >
+                New staff
+              </Button>
+            )}
+            <SegmentedControl<Tab>
+              label="View"
+              value={tab}
+              onChange={(t) => {
+                const p = new URLSearchParams(params);
+                p.set('tab', t);
+                setParams(p, { replace: true });
+              }}
+              options={[
+                { value: 'access', label: 'Access' },
+                { value: 'commercial', label: 'Commercial' },
+              ]}
+            />
+          </Row>
         }
       />
 
