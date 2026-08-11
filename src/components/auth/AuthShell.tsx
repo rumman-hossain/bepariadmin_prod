@@ -27,7 +27,7 @@ interface AuthShellProps {
  * ledger motif and the wordmark খাতা. **That was wrong and it is gone.** "Khata"
  * was an internal codename for the colour tokens; it is not this product's
  * identity, and putting it on the sign-in screen branded the console as
- * something it is not. The only names here are BepariBD and Admin Control
+ * something it is not. The only names here are Bepari-BD and Admin Control
  * Tower, which are the product's own.
  *
  * The shell owns the viewport rather than being centred by a parent, so every
@@ -47,7 +47,7 @@ export function AuthShell({ title, subtitle, children, footer }: AuthShellProps)
             >
               B
             </span>
-            <span className="text-2xl font-semibold tracking-tight text-ink">BepariBD</span>
+            <span className="text-2xl font-semibold tracking-tight text-ink">Bepari-BD</span>
           </div>
           <p className="text-sm text-ink-3">Admin Control Tower</p>
         </div>

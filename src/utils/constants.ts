@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 /**
- * Base URL for the BepariBD API.
+ * Base URL for the Bepari-BD API.
  * 
  * Empty string = relative paths. With Firebase proxy rewrites,
  * all /api/* and /health requests are forwarded to Cloud Run

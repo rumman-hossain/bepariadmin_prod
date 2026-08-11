@@ -151,7 +151,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, className })
           </span>
           {isOpen && (
             <span className="truncate text-md font-semibold tracking-tight text-ink">
-              BepariBD
+              Bepari-BD
             </span>
           )}
         </div>
