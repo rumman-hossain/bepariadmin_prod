@@ -1,4 +1,5 @@
 import type { AuthUser } from '../types/auth';
+import type { ErrorKind } from '../utils/errors';
 
 /**
  * Authentication as a state machine.
@@ -45,6 +46,16 @@ export interface AuthState {
   submitting: boolean;
   error: string | null;
   /**
+   * What KIND of failure `error` describes, so a screen can react to it rather
+   * than only print it.
+   *
+   * The OTP screen had no way to tell a 503 on our side from a wrong code, so
+   * it offered the same remedy to both — and the remedy for a wrong code is to
+   * resend, which spends one of three paid SMS an hour. Null whenever `error`
+   * is null; the two always move together.
+   */
+  errorKind: ErrorKind | null;
+  /**
    * An explanation for why the user is looking at the login form, when there is
    * one. Distinct from `error`: nothing went wrong and nobody mistyped anything
    * — a session ended. Rendering it as an error would blame the user for the
@@ -71,6 +82,7 @@ export const initialAuthState: AuthState = {
   isLoading: true,
   submitting: false,
   error: null,
+  errorKind: null,
   notice: null,
   user: null,
   isServerReachable: true,
@@ -83,7 +95,12 @@ export type AuthAction =
   | { type: 'bootstrap/anonymous'; serverUp: boolean; notice?: string }
   | { type: 'bootstrap/failed' }
   | { type: 'request/start' }
-  | { type: 'request/failed'; error: string }
+  /**
+   * `kind` is optional so that the many call sites with nothing useful to say
+   * stay as they are; it defaults to `user`, which claims nothing. Only the
+   * paths that ask `errorKind(res)` pass it.
+   */
+  | { type: 'request/failed'; error: string; kind?: ErrorKind }
   | { type: 'login/otpRequired'; identifier: string; userType: string; otpNonce?: string }
   /**
    * A replacement code was issued, superseding the one the user was sent.
@@ -117,6 +134,10 @@ function signedOut(state: AuthState, error: string | null = null, notice: string
     isLoading: false,
     submitting: false,
     error,
+    // Held to the invariant: a kind exists exactly when an error does. Nothing
+    // on the login form branches on it, but leaving a stale `service` behind
+    // would outlive the screen that meant it.
+    errorKind: error === null ? null : 'user',
     notice,
     user: null,
     pendingLogin: null,
@@ -134,6 +155,7 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
         step: 'dashboard',
         isLoading: false,
         error: null,
+        errorKind: null,
         user: action.user,
         isServerReachable: action.serverUp,
       };
@@ -152,10 +174,13 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
     case 'request/start':
       // The notice goes too: once they are typing, "your session ended" has
       // served its purpose and would otherwise sit under a spinner.
-      return { ...state, submitting: true, error: null, notice: null };
+      return { ...state, submitting: true, error: null, errorKind: null, notice: null };
 
     case 'request/failed':
-      return { ...state, submitting: false, error: action.error };
+      // `?? 'user'` rather than `?? null`, so the invariant holds for the call
+      // sites that pass no kind: an error always has one, and `user` is the
+      // reading that claims nothing about whose fault it was.
+      return { ...state, submitting: false, error: action.error, errorKind: action.kind ?? 'user' };
 
     case 'login/otpRequired':
       return {
@@ -210,6 +235,7 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
         submitting: false,
         isLoading: false,
         error: null,
+        errorKind: null,
         notice: null,
         user: action.user,
         pendingLogin: null,
@@ -219,10 +245,14 @@ export function authReducer(state: AuthState, action: AuthAction): AuthState {
       return signedOut(state, null, action.notice ?? null);
 
     case 'error/cleared':
-      return state.error === null ? state : { ...state, error: null };
+      // Both halves checked, or the referential-stability guarantee would be a
+      // lie for a state carrying a kind without a message.
+      return state.error === null && state.errorKind === null
+        ? state
+        : { ...state, error: null, errorKind: null };
 
     case 'navigate':
-      return { ...state, step: action.step, error: null, notice: null };
+      return { ...state, step: action.step, error: null, errorKind: null, notice: null };
 
     default: {
       // Exhaustiveness: adding an action without a case fails the build here

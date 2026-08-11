@@ -36,9 +36,46 @@ export function friendlyError(response: { ok: boolean; data: unknown }): string 
       // the assertion was /incorrect/i.
       return 'The email or password you entered is incorrect.';
     case 'INVALID_CODE':
-      return 'The verification code you entered is incorrect. Please check and try again.';
+      /*
+       * The server counts down; this used to throw the count away.
+       *
+       * `attemptsRemainingMessage` in internal/auth/service.go sends "Incorrect
+       * code. 2 attempts remaining." — and it is a function precisely so that
+       * the last one reads "1 attempt remaining", a singular that reached
+       * production wrong once. Replacing all of that with one fixed sentence
+       * meant the operator never learned they were one guess from losing the
+       * code, on the screen where that warning is the only thing that would
+       * have saved them.
+       *
+       * The fallback is for the other INVALID_CODE site — the unbound-nonce
+       * branch sends "Invalid verification code." with no count — and for a
+       * server that sends nothing at all.
+       */
+      return serverMessageOr(msg, 'The verification code you entered is incorrect. Please check and try again.');
     case 'EXPIRED_CODE':
-      return 'This verification code has expired. A new one has been sent.';
+      /*
+       * This said "A new one has been sent." NOTHING SENDS ONE.
+       *
+       * The user sat waiting for an email that was never coming, on the screen
+       * where they are already worried about being locked out. It is the same
+       * failure as F-40 one state over: an instruction that cannot be followed.
+       *
+       * The server's own sentence is correct and actionable — see
+       * `expiredOrLockedMessage` in internal/auth/service.go, which names BOTH
+       * remedies (request another, and the hour after the first request) and is
+       * written to be true of all four states this code covers: never issued,
+       * already used, expired, and locked out a moment ago. So it is passed
+       * through rather than restated here.
+       *
+       * The fallback mirrors it for a server that sends no message, and its one
+       * hard requirement is the one the old string broke: it must never claim a
+       * code was sent. Pinned by a named test.
+       */
+      return serverMessageOr(
+        msg,
+        'This code is no longer valid. Request a new one. If you have run out, more become ' +
+          'available an hour after your first request, or contact the admin team.',
+      );
     case 'USER_NOT_FOUND':
       return 'No account found with this email.';
     case 'ALREADY_REGISTERED':
@@ -76,6 +113,37 @@ export function friendlyError(response: { ok: boolean; data: unknown }): string 
        * and this says so in the app's own voice rather than the database's.
        */
       return 'Too many incorrect attempts with that code. Send a new code to try again.';
+    case 'TOO_MANY_REQUESTS':
+      /*
+       * Had no case, so it fell through to `fallbackMessage`. The wording that
+       * reached the screen was accidentally fine — it was the server's — but
+       * nothing could BRANCH on it, so a spent send budget was one more
+       * undifferentiated failure on a screen full of them.
+       *
+       * The fallback names no interval, and that is the whole care here. The
+       * backend raises this from three places with three different waits:
+       * service.go:270 (hourly send budget), :979 (max resends) and :982 (a
+       * 60-second cooldown). A fallback borrowing the "an hour after your first
+       * request" wording would be plainly FALSE for the cooldown — telling
+       * someone to wait an hour when the answer is one minute. The interval
+       * reaches the screen only when the server itself supplied it.
+       */
+      return serverMessageOr(msg, 'Too many requests. Please wait before trying again.');
+    case 'OTP_STORE_UNAVAILABLE':
+      /*
+       * A 503. This is OURS, and it is retryable.
+       *
+       * Also had no case. It looked identical to a wrong code, so the operator
+       * did the reasonable thing and pressed Resend — spending one of three
+       * PAID SMS an hour on an outage that was not their fault. verifyOTP in
+       * service.go is explicit that a store it cannot reach is a 503 and never
+       * "your code is wrong", and it charges no attempt: the code in their hand
+       * is still good and still has its full guess budget.
+       *
+       * So the copy must not blame the code, and `errorKind` below reports it as
+       * `service` so the screen can stop offering to spend an SMS on it.
+       */
+      return serverMessageOr(msg, 'Verification is temporarily unavailable. Please try again in a moment.');
     case 'RATE_LIMITED':
       return 'Too many attempts. Please wait a moment and try again.';
     case 'PAYMENT_REQUIRED':
@@ -120,8 +188,60 @@ export function friendlyError(response: { ok: boolean; data: unknown }): string 
  * The allowlisted `code` cases above are still preferred; this only governs
  * what happens when there is no code to map.
  */
+const GENERIC_MESSAGE = 'Something went wrong. Please try again.';
+
+/**
+ * Prefer the sentence the server sent; keep a client one only as a floor.
+ *
+ * This is the actual fix, and the three bugs above were three symptoms of not
+ * having it. A mapped `case` that returns a hardcoded string is a claim that
+ * this file knows the situation better than the service that produced it — and
+ * it does not. The countdown, the singular at one attempt, whether the wait is
+ * an hour or a minute, whether a code was sent: all of that lives in
+ * internal/auth/service.go and none of it can be reconstructed from a code
+ * alone. Guessing produced "A new one has been sent."
+ *
+ * The server's text still goes through `fallbackMessage`, so the Postgres-text
+ * guard applies here exactly as it does to an unmapped code — a mapped code is
+ * not a reason to trust a message that mentions a constraint name. When that
+ * guard rejects the text, or there was none, the caller's own sentence is used
+ * rather than the generic: on these screens "Something went wrong" is barely
+ * better than silence.
+ */
+function serverMessageOr(msg: string, fallback: string): string {
+  const cleaned = fallbackMessage(msg);
+  return cleaned === GENERIC_MESSAGE ? fallback : cleaned;
+}
+
+/**
+ * Whether a failure is ours, a limit, or something the caller can act on.
+ *
+ * `friendlyError` answers "what do I show"; this answers "what KIND of thing
+ * happened", which is the question the OTP screen could not previously ask.
+ * Every failure looked the same there, so a 503 on our side and a mistyped
+ * digit produced the same red banner and the same advice.
+ *
+ * `user` is the default and deliberately does NOT mean "the user's fault" — it
+ * means we have no evidence it is ours, so we make no claim either way.
+ */
+export type ErrorKind = 'service' | 'limit' | 'user';
+
+/** Ours. Retryable, and never to be reported as bad input. */
+const SERVICE_CODES = new Set(['OTP_STORE_UNAVAILABLE', 'INTERNAL_ERROR']);
+
+/** A budget or a cooldown. Not a network fault, and not a wrong code. */
+const LIMIT_CODES = new Set(['TOO_MANY_REQUESTS', 'RATE_LIMITED']);
+
+export function errorKind(response: { ok: boolean; data: unknown }): ErrorKind {
+  const code = errorCode(response);
+  if (code === null) return 'user';
+  if (SERVICE_CODES.has(code)) return 'service';
+  if (LIMIT_CODES.has(code)) return 'limit';
+  return 'user';
+}
+
 function fallbackMessage(msg: string): string {
-  const generic = 'Something went wrong. Please try again.';
+  const generic = GENERIC_MESSAGE;
   if (!msg) return generic;
 
   const looksInternal =

@@ -16,7 +16,7 @@ const RESEND_SECONDS = 60;
 const MAX_RESENDS = 5;
 
 export function OtpVerification() {
-  const { verifyOtp, resendOtp, submitting, error, clearError } = useAuth();
+  const { verifyOtp, resendOtp, submitting, error, errorKind, clearError } = useAuth();
   const [otp, setOtp] = useState('');
   const [resendCount, setResendCount] = useState(0);
   const [cooldown, setCooldown] = useState(0);
@@ -38,7 +38,25 @@ export function OtpVerification() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cooldown > 0]);
 
-  const canResend = cooldown === 0 && resendCount < MAX_RESENDS;
+  /*
+   * Whether the last failure was OURS.
+   *
+   * `OTP_STORE_UNAVAILABLE` is a 503 and charges no attempt, so the code in the
+   * operator's hand is still live with its full guess budget — the only useful
+   * action is to try the same code again. Offering "Resend code" here was
+   * actively expensive: it reads as the obvious remedy, and it spends one of
+   * three PAID SMS an hour on an outage the user did not cause.
+   *
+   * `limit` covers the other half — the server has just refused to send, so a
+   * resend button is an invitation to be refused again. Its own sentence is
+   * already in the banner above, so nothing further is said here.
+   */
+  const serviceOutage = errorKind === 'service';
+  const sendRefused = errorKind === 'limit';
+  /** True when the failure was not about the digits they typed. */
+  const notYourCode = serviceOutage || sendRefused;
+
+  const canResend = cooldown === 0 && resendCount < MAX_RESENDS && !notYourCode;
   const maxReached = resendCount >= MAX_RESENDS;
 
   const verify = useCallback(
@@ -68,7 +86,13 @@ export function OtpVerification() {
 
   return (
     <Stack gap="md">
-      {error && <Alert tone="bad">{error}</Alert>}
+      {/*
+        Red says "your code"; amber says "not you". Both keep role="alert", so
+        nothing is lost for a screen reader — what changes is the claim being
+        made. Reporting our own 503 in the same red as a mistyped digit is how
+        the operator came to believe they had fumbled the code.
+      */}
+      {error && <Alert tone={notYourCode ? 'warn' : 'bad'}>{error}</Alert>}
 
       <div className="flex flex-col gap-1">
         <label htmlFor="otp-code" className="text-sm font-medium text-ink-2">
@@ -114,6 +138,22 @@ export function OtpVerification() {
           <p className="text-xs text-ink-3">
             Maximum resend attempts reached. Go back and sign in again to get a new code.
           </p>
+        ) : serviceOutage ? (
+          /*
+           * The one sentence added here, and it only restates what service.go
+           * already guarantees: verification failed to REACH the store, so no
+           * attempt was charged and the code is untouched. It does not promise
+           * the code still works — that is the store's business and the store is
+           * the thing that is down — only that this was not their mistake.
+           */
+          <p className="text-xs text-ink-3">
+            This is a problem on our side, not your code. Try again in a moment.
+          </p>
+        ) : sendRefused ? (
+          // Nothing: the server's own sentence is already in the banner above,
+          // and inventing a second explanation is how these screens started
+          // contradicting the backend in the first place.
+          null
         ) : canResend ? (
           <button
             type="button"

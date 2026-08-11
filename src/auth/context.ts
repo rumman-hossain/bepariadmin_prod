@@ -1,5 +1,6 @@
 import { createContext } from 'react';
 import type { AuthState } from '../types/auth';
+import type { ErrorKind } from '../utils/errors';
 
 /**
  * The auth context object, split out of `AuthContext.tsx`.
@@ -26,6 +27,13 @@ export interface AuthContextValue extends AuthState {
   refreshUser: () => Promise<void>;
   /** True only during explicit login/OTP submit, NOT during bootstrap */
   submitting: boolean;
+  /**
+   * What kind of failure `error` is: ours and retryable, a limit, or something
+   * to act on. Declared here rather than on `types/auth.ts`'s `AuthState`,
+   * which `defaultState` below is typed against and which is a narrower,
+   * older shape than the machine's.
+   */
+  errorKind: ErrorKind | null;
 }
 
 const defaultState: Omit<AuthState, 'accessToken'> = {
@@ -41,6 +49,7 @@ export const AuthContext = createContext<AuthContextValue>({
   ...defaultState,
   accessToken: null,
   submitting: false,
+  errorKind: null,
   login: async () => {},
   verifyOtp: async () => {},
   resendOtp: async () => {},

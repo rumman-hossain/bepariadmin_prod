@@ -280,6 +280,58 @@ describe('auth machine — sign out', () => {
   });
 });
 
+/**
+ * A failure carries what KIND of failure it was, not just its text.
+ *
+ * The OTP screen needs to tell "our store is down, retry" from "that code is
+ * wrong", because the remedies differ and one of them costs a paid SMS. The
+ * message alone cannot answer that — it is prose — so the kind rides beside it.
+ */
+describe('auth machine — what kind of failure it was', () => {
+  it('carries the kind when the caller knows it', () => {
+    const state = authReducer(initialAuthState, {
+      type: 'request/failed',
+      error: 'Verification is temporarily unavailable. Please try again.',
+      kind: 'service',
+    });
+    expect(state.errorKind).toBe('service');
+  });
+
+  it('defaults to a kind that claims nothing', () => {
+    // Most call sites pass no kind. `user` means "no evidence this is ours",
+    // not "your fault".
+    const state = authReducer(initialAuthState, { type: 'request/failed', error: 'x' });
+    expect(state.errorKind).toBe('user');
+  });
+
+  it('never leaves a kind behind without a message', () => {
+    const failed = authReducer(initialAuthState, {
+      type: 'request/failed',
+      error: 'down',
+      kind: 'service',
+    });
+
+    for (const action of [
+      { type: 'request/start' },
+      { type: 'error/cleared' },
+      { type: 'navigate', step: 'login_form' },
+      { type: 'session/established', user: USER },
+      { type: 'session/ended' },
+    ] satisfies AuthAction[]) {
+      const state = authReducer(failed, action);
+      expect(state.error).toBeNull();
+      // A stale `service` would outlive the screen that meant it, and the next
+      // failure would be read through it.
+      expect(state.errorKind).toBeNull();
+    }
+  });
+
+  it('still returns the same object when there is nothing to clear', () => {
+    // Referential stability, now that `error/cleared` checks two fields.
+    expect(authReducer(initialAuthState, { type: 'error/cleared' })).toBe(initialAuthState);
+  });
+});
+
 describe('auth machine — hygiene', () => {
   it('returns the same object when clearing an already-clear error', () => {
     // Referential stability: a no-op dispatch must not re-render the app.

@@ -34,7 +34,10 @@ import {
 import { readOtpNonce } from './otpProof';
 import { restoreSession, checkServerHealth } from './sessionRestore';
 import { shouldAttemptRestore } from './sessionHint';
-import { friendlyError, errorCode } from '../utils/errors';
+// `errorKind` is aliased because the state field destructured below carries the
+// same name; unaliased, the field would shadow the function inside this
+// component and `errorKind(res)` would be a call on a string.
+import { friendlyError, errorCode, errorKind as classifyError } from '../utils/errors';
 import type { AuthUser } from '../types/auth';
 
 // ═══════════════════════════════════════════════════════════════
@@ -54,7 +57,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * See authMachine.ts. The transitions are pure and tested without React.
    */
   const [state, dispatch] = useReducer(authReducer, initialAuthState);
-  const { step, isLoading, submitting, error, notice, user, isServerReachable } = state;
+  const { step, isLoading, submitting, error, errorKind, notice, user, isServerReachable } = state;
 
   // Bumped whenever the token changes, so consumers reading `accessToken`
   // through context re-render. The token itself lives in memoryTokenStore, not
@@ -140,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
 
         if (!res.ok) {
-          dispatch({ type: 'request/failed', error: friendlyError(res) });
+          dispatch({ type: 'request/failed', error: friendlyError(res), kind: classifyError(res) });
           return;
         }
 
@@ -199,10 +202,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!res.ok) {
+        /*
+         * The message is the SERVER'S, in both branches.
+         *
+         * This branch used to dispatch a hardcoded "That code has expired.
+         * Please sign in again." — so fixing the EXPIRED_CODE copy in
+         * utils/errors.ts alone would have left this screen, the login OTP
+         * step, still saying something the server did not say. The server's
+         * sentence names both remedies and is true of all four states the code
+         * covers, including "you were locked out a moment ago", which "expired"
+         * is not.
+         *
+         * The transition is unchanged: an expired code still returns the
+         * operator to the login form, which on this console is how another code
+         * is requested.
+         */
         if (errorCode(res) === 'EXPIRED_CODE') {
-          dispatch({ type: 'login/expired', error: 'That code has expired. Please sign in again.' });
+          dispatch({ type: 'login/expired', error: friendlyError(res) });
         } else {
-          dispatch({ type: 'request/failed', error: friendlyError(res) });
+          dispatch({ type: 'request/failed', error: friendlyError(res), kind: classifyError(res) });
         }
         return;
       }
@@ -253,6 +271,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
        */
       if (res.ok) {
         dispatch({ type: 'login/otpResent', otpNonce: readOtpNonce(res.data) });
+      } else {
+        /*
+         * A REFUSED RESEND WAS SILENT, which is the same lie as "a new one has
+         * been sent" told by omission.
+         *
+         * This dispatched only on success, so a 429 — the hourly send budget
+         * spent, or the 60-second cooldown — changed nothing on screen. The
+         * caller then started its cooldown and incremented its counter exactly
+         * as it does for a real send, so a refusal was indistinguishable from a
+         * delivery: the operator waited for an SMS the server had already
+         * declined to send.
+         *
+         * The nonce is deliberately NOT touched here, for the reason above: a
+         * refused resend issued nothing, so the code in their inbox and the
+         * nonce bound to it are still the live pair.
+         */
+        dispatch({ type: 'request/failed', error: friendlyError(res), kind: classifyError(res) });
       }
     } catch (err) {
       // Was `catch { // Silent }`. A user clicking "Resend code" on a failed
@@ -428,6 +463,7 @@ const SESSION_ENDED_NOTICE = 'Your session ended. Please sign in again.';
     step,
     isLoading,
     error,
+    errorKind,
     notice,
     user,
     accessToken,
