@@ -5,7 +5,7 @@
 import { useState } from 'react';
 import { MailCheck } from 'lucide-react';
 import { apiForgotPassword } from '../../api/auth';
-import { readOtpNonce } from '../../auth/otpProof';
+import { readOtpNonce } from 'nextgen-password';
 import { validateEmail } from '../../utils/validation';
 import { friendlyError } from '../../utils/errors';
 import { Button, Input } from '@/src/components/controls';
@@ -25,17 +25,20 @@ export function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
   /**
    * The nonce issued with the reset code, to hand to the screen that spends it.
    *
-   * Empty today, and correctly so: `/auth/forgot-password` answers with a fixed
-   * message whether or not the account exists — that is what stops this form
-   * being an account-enumeration oracle — and a nonce present for real addresses
-   * and absent for invented ones would be exactly the tell it refuses to give.
-   * So the reset path currently sends its digest unbound, which the server still
-   * accepts.
+   * `/auth/forgot-password` returns one — `otpNonce`, inside `data`. It did not
+   * always, and the enumeration objection that used to be recorded here (a nonce
+   * for real addresses and none for invented ones is exactly the tell the fixed
+   * 200 exists to withhold) was answered rather than ignored: `decoyNonce()` in
+   * `internal/auth/service.go` returns 32 random hex characters from every
+   * silent branch too, so the body has the same shape whether the account
+   * exists, may not sign in, or has no delivery channel. A decoy binds to
+   * nothing because no code was ever stored beside it.
    *
-   * Read and carried anyway rather than left for later. The threading is the
-   * hard part and it is the part that goes wrong quietly; wiring it now means
-   * the day the backend has somewhere safe to return a nonce, the console binds
-   * without anybody having to remember this screen exists.
+   * This screen only READS it. The value has to survive a navigation to reach
+   * the screen that spends it, and it travels in router state — see the
+   * `navigate` call below and the `location.state` reader in ResetPasswordForm.
+   * Never a query parameter: a nonce is half of a credential and the URL is
+   * written to browser history and to hosting access logs.
    */
   const [otpNonce, setOtpNonce] = useState<string | undefined>(undefined);
 

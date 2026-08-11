@@ -8,7 +8,23 @@
 
 import { request } from './client';
 import { clearAccessToken } from '../auth/memoryTokenStore';
-import { otpFields } from '../auth/otpProof';
+/*
+ * The OTP wire shape comes from the shared package and is built NOWHERE ELSE in
+ * this app.
+ *
+ * `otpRequestFields` used to be a local `otpFields` in `src/auth/otpProof.ts`,
+ * and near-identical copies lived in the wholesale client and the retailer app.
+ * The three had already drifted — the field spellings, whether the digits were
+ * still sent, and what to do with no nonce were each decided three times from
+ * the same Go structs. None of that is console-specific: it is the backend
+ * contract, and `nextgen-password` is the one thing already verified against it.
+ *
+ * The trimming that IS ours stays at the input boundary, not in here — see
+ * ResetPasswordForm, which trims before calling. `otpRequestFields` passes the
+ * code through byte-for-byte on purpose, so normalising twice cannot produce two
+ * digests for one keystroke.
+ */
+import { otpRequestFields } from 'nextgen-password';
 import type {
   ApiResponse,
   LoginPayload,
@@ -40,7 +56,7 @@ export async function apiVerifyLoginOtp(
 ): Promise<ApiResponse<LoginResponseData>> {
   const { code, otpNonce, ...rest } = payload;
   return request<LoginResponseData>('POST', '/api/v1/auth/verify-login', {
-    body: { ...rest, ...(await otpFields(code, otpNonce)) },
+    body: { ...rest, ...(await otpRequestFields(code, otpNonce)) },
   });
 }
 
@@ -74,8 +90,13 @@ export function apiForgotPassword(
  * `otpNonce` is whatever forgot-password returned when it issued this code. It
  * has to be the SAME value apiResetPassword then sends: this call leaves the
  * code live rather than spending it, so one issuance — and therefore one nonce —
- * has to survive both requests. It is optional because the endpoint that issues
- * reset codes does not currently return one; see readOtpNonce.
+ * has to survive both requests.
+ *
+ * Forgot-password DOES return a nonce now — `otpNonce` inside `data`, on every
+ * response including the silent ones — so the normal reset arrives bound. The
+ * parameter stays optional for the arrivals that carry nothing: an old
+ * `?email=` link, or someone opening `/reset-password` directly. Those send the
+ * digest unbound, which the server accepts, rather than binding to a guess.
  */
 export async function apiVerifyResetOtp(
   email: string,
@@ -83,7 +104,7 @@ export async function apiVerifyResetOtp(
   otpNonce?: string
 ): Promise<ApiResponse<{ message: string }>> {
   return request<{ message: string }>('POST', '/api/v1/auth/verify-reset-otp', {
-    body: { email, ...(await otpFields(code, otpNonce)) },
+    body: { email, ...(await otpRequestFields(code, otpNonce)) },
   });
 }
 
@@ -105,7 +126,7 @@ export async function apiResetPassword(
   otpNonce?: string
 ): Promise<ApiResponse<ResetPasswordResponseData>> {
   return request<ResetPasswordResponseData>('POST', '/api/v1/auth/reset-password', {
-    body: { email, ...(await otpFields(code, otpNonce)), new_password_hash: newPasswordHash },
+    body: { email, ...(await otpRequestFields(code, otpNonce)), new_password_hash: newPasswordHash },
   });
 }
 

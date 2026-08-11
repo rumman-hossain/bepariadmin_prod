@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import vectors from 'nextgen-password/vectors.json';
+import { otpRequestFields } from 'nextgen-password';
 
 /**
  * What each OTP endpoint actually puts in its request body.
@@ -128,8 +129,9 @@ describe('the reset pair sends ONE issuance across TWO requests', () => {
   });
 
   it('still sends the password hash when the reset runs unbound', async () => {
-    // The shape the console actually produces today, because forgot-password
-    // returns no nonce. Unbound, but a complete and valid reset.
+    // The shape produced when nothing carried a nonce this far — an old
+    // `?email=` link, or a direct visit to /reset-password. Unbound, but a
+    // complete and valid reset.
     const { apiResetPassword } = await import('../auth');
 
     await apiResetPassword('karim@bepari-bd.com', VECTOR.code, 'pbkdf2v3:deadbeef');
@@ -158,5 +160,106 @@ describe('the endpoints that issue codes rather than verify them', () => {
 
     expect(sentPath()).toBe('/api/v1/auth/login/resend-otp');
     expect(sentBody()).toEqual({ identifier: 'karim@bepari-bd.com', user_type: 'staff' });
+  });
+});
+
+/**
+ * The OTP fields are the PACKAGE'S output verbatim, not the console's rendering
+ * of the same idea.
+ *
+ * The tests above pin the wire against golden vectors, which is the right check
+ * for "does the server accept this". It is not the check that catches somebody
+ * writing the fields out by hand again — a local `{ code, otp_hash: await
+ * hashOtp(code), ... }` reproducing today's bytes passes every one of them, and
+ * then drifts the first time the contract moves. That is exactly how this logic
+ * ended up living in three apps at once, with the copies disagreeing about
+ * whether to trim the code before hashing — which changes the digest, so one
+ * app's correct entry is another app's "incorrect code".
+ *
+ * So these compare SERIALISED forms. Key order and key set are part of the
+ * comparison, not just the values: reintroducing a local `otp_mac: ''` on the
+ * unbound path, or reordering the fields around a hand-written spread, shows up
+ * here even when every individual value still matches.
+ */
+describe('the console emits otpRequestFields byte for byte', () => {
+  const OTP_KEYS = ['code', 'otp_hash', 'otp_nonce', 'otp_mac'];
+
+  /**
+   * The OTP half of the last body, in the order it was written into the object.
+   *
+   * Insertion order survives because every call site spreads the package's
+   * result in one go; a hand-built payload almost never reproduces it.
+   */
+  function sentOtpJson(): string {
+    const body = sentBody();
+    const picked: Record<string, unknown> = {};
+    for (const key of Object.keys(body)) {
+      if (OTP_KEYS.includes(key)) picked[key] = body[key];
+    }
+    return JSON.stringify(picked);
+  }
+
+  async function expectedJson(code: string, nonce?: string): Promise<string> {
+    return JSON.stringify(await otpRequestFields(code, nonce));
+  }
+
+  it('matches on verify-login, bound', async () => {
+    const { apiVerifyLoginOtp } = await import('../auth');
+    await apiVerifyLoginOtp({
+      identifier: 'karim@bepari-bd.com',
+      code: VECTOR.code,
+      user_type: 'staff',
+      otpNonce: VECTOR.nonce,
+    });
+
+    expect(sentOtpJson()).toBe(await expectedJson(VECTOR.code, VECTOR.nonce));
+  });
+
+  it('matches on verify-reset-otp, bound', async () => {
+    const { apiVerifyResetOtp } = await import('../auth');
+    await apiVerifyResetOtp('karim@bepari-bd.com', VECTOR.code, VECTOR.nonce);
+
+    expect(sentOtpJson()).toBe(await expectedJson(VECTOR.code, VECTOR.nonce));
+  });
+
+  it('matches on reset-password, bound', async () => {
+    const { apiResetPassword } = await import('../auth');
+    await apiResetPassword('karim@bepari-bd.com', VECTOR.code, 'pbkdf2v3:deadbeef', VECTOR.nonce);
+
+    expect(sentOtpJson()).toBe(await expectedJson(VECTOR.code, VECTOR.nonce));
+  });
+
+  /*
+   * The unbound path is the one worth guarding hardest. Its correct output is
+   * defined by what it does NOT contain, and an absent key is the single easiest
+   * thing for a reimplementation to get wrong — `otp_mac: ''` looks tidier and
+   * costs the user one of three attempts, reported as a wrong code.
+   */
+  it('matches on verify-login with no nonce, omitting both binding fields', async () => {
+    const { apiVerifyLoginOtp } = await import('../auth');
+    await apiVerifyLoginOtp({
+      identifier: 'karim@bepari-bd.com',
+      code: VECTOR.code,
+      user_type: 'staff',
+    });
+
+    expect(sentOtpJson()).toBe(await expectedJson(VECTOR.code, undefined));
+    expect(Object.keys(JSON.parse(sentOtpJson()))).toEqual(['code', 'otp_hash']);
+  });
+
+  it('matches on reset-password with no nonce, omitting both binding fields', async () => {
+    const { apiResetPassword } = await import('../auth');
+    await apiResetPassword('karim@bepari-bd.com', VECTOR.code, 'pbkdf2v3:deadbeef');
+
+    expect(sentOtpJson()).toBe(await expectedJson(VECTOR.code, undefined));
+    expect(Object.keys(JSON.parse(sentOtpJson()))).toEqual(['code', 'otp_hash']);
+  });
+
+  it('matches on verify-reset-otp with no nonce, omitting both binding fields', async () => {
+    const { apiVerifyResetOtp } = await import('../auth');
+    await apiVerifyResetOtp('karim@bepari-bd.com', VECTOR.code);
+
+    expect(sentOtpJson()).toBe(await expectedJson(VECTOR.code, undefined));
+    expect(Object.keys(JSON.parse(sentOtpJson()))).toEqual(['code', 'otp_hash']);
   });
 });

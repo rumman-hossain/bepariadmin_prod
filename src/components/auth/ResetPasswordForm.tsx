@@ -18,7 +18,7 @@ import { CheckCircle2 } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { apiForgotPassword, apiResetPassword, apiVerifyResetOtp } from '../../api/auth';
-import { readOtpNonce } from '../../auth/otpProof';
+import { readOtpNonce } from 'nextgen-password';
 import { hashPassword, hashErrorMessage } from '../../auth/passwordHasher';
 import { validateEmail, validatePassword, validatePasswordMatch } from '../../utils/validation';
 import { friendlyError } from '../../utils/errors';
@@ -52,12 +52,18 @@ export function ResetPasswordForm() {
    * final request to nothing and lose the password the user just typed to a
    * message reading "incorrect code".
    *
-   * Undefined is a supported state, not a bug: forgot-password does not return a
-   * nonce today (it must answer identically for addresses that do not exist), a
-   * legacy `?email=` link never carried one, and someone who opens this route
-   * directly has none either. Those all send the digest unbound, which the
-   * server accepts while OTP_REQUIRE_BINDING is false — the same posture as the
-   * raw digits this replaced.
+   * Forgot-password returns a nonce on every response, so the ordinary arrival
+   * — through the form, carrying router state — is bound. It answers identically
+   * for addresses that do not exist by handing back a decoy (`decoyNonce()` in
+   * `internal/auth/service.go`) rather than by withholding the field, so the
+   * enumeration objection that once justified omitting it no longer holds.
+   *
+   * Undefined is still a supported state, not a bug: a legacy `?email=` link
+   * never carried one, someone who opens this route directly has none, and a
+   * reload that loses history state has none. Those send the digest unbound,
+   * which the server accepts while OTP_REQUIRE_BINDING is false — the same
+   * posture as the raw digits this replaced, and strictly better than binding to
+   * a placeholder, which the store counts as a wrong guess.
    */
   const [otpNonce, setOtpNonce] = useState<string | undefined>(undefined);
 

@@ -31,7 +31,7 @@ import {
   apiLogoutSession,
   apiResendLoginOtp,
 } from '../api/auth';
-import { readOtpNonce } from './otpProof';
+import { readOtpNonce } from 'nextgen-password';
 import { restoreSession, checkServerHealth } from './sessionRestore';
 import { shouldAttemptRestore } from './sessionHint';
 // `errorKind` is aliased because the state field destructured below carries the
