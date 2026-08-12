@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/src/app/queryClient';
 
@@ -47,10 +47,17 @@ export function useMediaToken(src: string) {
    * Reset on a new source. Rows are reused as a list re-renders, so without
    * this a replaced image inherits the previous one's verdict and a product
    * whose photograph was just repaired still shows as broken.
+   *
+   * The previous source is held in STATE, not a ref. A ref written during
+   * render is what `react-hooks/refs` refuses, and it is right to: React makes
+   * no promise about when a render is discarded, so a ref mutated on the way
+   * through can retain a value from a render that never committed. The
+   * adjust-state-during-render form below is the one React documents, and it
+   * re-renders immediately without ever painting the stale verdict.
    */
-  const lastSrc = useRef(src);
-  if (lastSrc.current !== src) {
-    lastSrc.current = src;
+  const [lastSrc, setLastSrc] = useState(src);
+  if (lastSrc !== src) {
+    setLastSrc(src);
     if (state !== 'ok') setState('ok');
   }
 

@@ -188,12 +188,16 @@ function MediaTile({
    *
    * Reset on a new file, because the slot is reused: without this, replacing a
    * broken clip with a good one leaves the warning up.
+   *
+   * The previous source is held in STATE, not a ref — see the same note in
+   * useMediaToken.ts. A ref written during render is what `react-hooks/refs`
+   * refuses; this is the adjust-state-during-render form React documents.
    */
   const [undecodable, setUndecodable] = useState(false);
   const previewSrc = slot.localUri || slot.uploadedUrl;
-  const lastSrc = useRef(previewSrc);
-  if (lastSrc.current !== previewSrc) {
-    lastSrc.current = previewSrc;
+  const [lastSrc, setLastSrc] = useState(previewSrc);
+  if (lastSrc !== previewSrc) {
+    setLastSrc(previewSrc);
     if (undecodable) setUndecodable(false);
   }
 
