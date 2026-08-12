@@ -2,6 +2,7 @@ import { Building, MapPin, Package, Smartphone, UserCheck, Image as ImageIcon } 
 import { Text } from '@/src/components/data';
 import { mediaDisplayUrl } from '@/src/utils/mediaUrl';
 import type { Wholesaler } from '@/src/types/domain';
+import { None } from './None';
 
 /**
  * The supplier record, as data.
@@ -26,11 +27,6 @@ import type { Wholesaler } from '@/src/types/domain';
  * produces. Only `mock-gcs://`, the fake-GCS emulator's scheme, is genuinely
  * unloadable.
  */
-
-/** Nothing recorded — said in words, never as an empty cell. */
-function None({ children = 'Not added' }: { children?: string }) {
-  return <span className="italic text-ink-3">{children}</span>;
-}
 
 export function businessProfileSections(w: Wholesaler) {
   const logo = mediaDisplayUrl(w.logoUrl);

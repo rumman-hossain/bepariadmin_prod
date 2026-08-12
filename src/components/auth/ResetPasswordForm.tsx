@@ -140,6 +140,29 @@ export function ResetPasswordForm() {
         `${window.location.pathname}${query ? `?${query}` : ''}`,
       );
     }
+    /*
+     * MOUNT ONLY, and `location.state` must NOT be a dependency.
+     *
+     * exhaustive-deps asks for it. Adding it would be a regression, not a
+     * tidy-up: resendCode() below replaces `otpNonce` with the one the resend
+     * response carried, and re-running this effect afterwards would overwrite
+     * that fresh nonce with the stale one still sitting in router state. The
+     * server reports a stale nonce exactly as it reports a wrong code — three
+     * of those and the real code is destroyed. That is the trap the long note
+     * in resendCode exists to describe, and this would walk straight into it
+     * from the other side. It would also re-lock an email the user had edited.
+     *
+     * Mount-only is SOUND here rather than merely convenient: /forgot-password
+     * and /reset-password are different routes (router/index.tsx), so arriving
+     * here mounts this component fresh and the effect sees that navigation's
+     * state. Nothing navigates to /reset-password from /reset-password —
+     * resendCode updates in place and does not navigate — so there is no path
+     * on which state changes while this stays mounted.
+     *
+     * If a future change adds one, this comment is wrong and the fix is to make
+     * the nonce flow through props or a reducer, NOT to add the dependency.
+     */
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**

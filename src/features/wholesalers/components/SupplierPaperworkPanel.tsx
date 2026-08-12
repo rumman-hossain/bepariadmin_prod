@@ -2,6 +2,7 @@ import { Panel } from '@/src/components/layout/primitives';
 import { DocumentVault } from '@/src/components/documents/DocumentVault';
 import { getWholesalerDocumentUrl } from '../api/wholesalerApi';
 import { REQUIRED_DOC_SLOTS } from '../constants/documents';
+import { supplierDocLabel } from './supplierDocLabel';
 import type { Wholesaler } from '@/src/types/domain';
 
 /**
@@ -69,17 +70,4 @@ export function SupplierPaperworkPanel({ supplier }: { supplier: Wholesaler }) {
       />
     </Panel>
   );
-}
-
-/**
- * A stored doc_type turned into the words on screen.
- *
- * Reads REQUIRED_DOC_SLOTS — the same list the onboarding form renders and the
- * schema validates against — so a certificate cannot be called one thing when
- * it is uploaded and another when it is read back. An unrecognised type keeps
- * its raw code rather than vanishing: dropping the row would lose a document
- * somebody uploaded.
- */
-export function supplierDocLabel(docType: string): string {
-  return REQUIRED_DOC_SLOTS.find((s) => s.purpose === docType)?.label ?? docType;
 }

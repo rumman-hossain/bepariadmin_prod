@@ -34,7 +34,7 @@ import {
 import { useRetailerDetail, useRetailerActions } from '../hooks/useRetailers';
 import { lifecycleFor } from '../utils/deleteAffordance';
 import { useRetailerNavigation } from '../hooks/useRetailerNavigation';
-import { splitCategories } from '../components/RetailerForm';
+import { splitCategories } from '../utils/splitCategories';
 
 /**
  * One shop, everything known about it, and the three things staff can do to it.

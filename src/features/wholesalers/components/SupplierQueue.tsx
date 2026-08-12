@@ -1,5 +1,6 @@
 import { cn } from '@/src/design-system/utils/cn';
 import type { SupplierStatusCounts } from '../api/wholesalerApi';
+import { SUPPLIER_STATUS_FILTERS, type SupplierStatusKey } from './supplierStatusFilters';
 
 /**
  * How many suppliers sit in each state, and the primary way to filter by one.
@@ -21,16 +22,6 @@ import type { SupplierStatusCounts } from '../api/wholesalerApi';
  * dashed edge says so without needing a legend, and without it a soft delete
  * would be indistinguishable from a permanent one — which is what it was.
  */
-
-export const SUPPLIER_STATUS_FILTERS = {
-  review: 'PENDING_REVIEW',
-  active: 'APPROVED',
-  suspended: 'SUSPENDED',
-  rejected: 'REJECTED',
-  removed: 'REMOVED',
-} as const;
-
-export type SupplierStatusKey = keyof typeof SUPPLIER_STATUS_FILTERS;
 
 interface SupplierQueueProps {
   counts: SupplierStatusCounts;

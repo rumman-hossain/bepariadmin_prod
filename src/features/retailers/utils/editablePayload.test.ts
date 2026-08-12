@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { toEditablePayload, CREDENTIAL_FIELDS } from './editablePayload';
-import { splitCategories } from '../components/RetailerForm';
+import { splitCategories } from './splitCategories';
 
 describe('toEditablePayload', () => {
   it('removes the sign-in credentials', () => {

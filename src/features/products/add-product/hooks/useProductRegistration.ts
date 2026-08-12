@@ -236,7 +236,22 @@ export function useProductRegistration(editingProductId?: string | null) {
     } finally {
       setIsLoading(false);
     }
-  }, [editingProductId, navigate]);
+    /*
+     * `routeProductId` IS a dependency, and leaving it out was a real hole
+     * rather than a lint nit.
+     *
+     * The guard above compares the ROUTE's opinion against the lifecycle hook's
+     * and refuses to save when they disagree — that mismatch is the failed
+     * hydrate, and saving through it creates a SECOND copy of a product that
+     * already exists. Omitted from this list, the memoised callback keeps
+     * whatever `routeProductId` held when it was last rebuilt, so the guard can
+     * compare a stale URL against a current `editingProductId` and wave through
+     * exactly the case it exists to stop.
+     *
+     * It only rebuilds the callback when the route changes, which is what a
+     * submit handler should do anyway.
+     */
+  }, [editingProductId, routeProductId, navigate]);
 
   return {
     registrationState,

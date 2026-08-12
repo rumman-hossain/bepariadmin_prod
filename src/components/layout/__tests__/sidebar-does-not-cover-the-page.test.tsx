@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { sidebarStartsOpen } from '../AppLayout';
+import { sidebarStartsOpen } from '../sidebarStartsOpen';
 
 /**
  * ON A PHONE, EVERY PAGE LOADED WITH THE MENU OVER IT.

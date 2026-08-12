@@ -9,6 +9,7 @@ import { FinancialSection } from './form/FinancialSection';
 import { DocumentsSection } from './form/DocumentsSection';
 import type { PendingDoc } from '../hooks/useRetailerAssets';
 import type { RetailerDocument } from '../schemas/retailerSchema';
+import { splitCategories } from '../utils/splitCategories';
 
 /**
  * The retailer form — used by both Add and Edit.
@@ -18,20 +19,6 @@ import type { RetailerDocument } from '../schemas/retailerSchema';
  * edit screen would quietly lose a field somebody added to create, and nobody
  * would notice until an operator could not fix a phone number.
  */
-
-/**
- * The stored `category` is a comma-joined string; the picker works in a list.
- *
- * Trims and drops blanks, so "Fashion, , FMCG" and a trailing comma both come
- * back as two clean categories rather than three with an empty one that the
- * picker would then try to match against nothing.
- */
-export function splitCategories(joined: string): string[] {
-  return joined
-    .split(',')
-    .map((c) => c.trim())
-    .filter(Boolean);
-}
 
 /** A credential shown but not offered for editing. */
 function ReadOnlyField({ label, value, hint }: { label: string; value: string; hint: string }) {

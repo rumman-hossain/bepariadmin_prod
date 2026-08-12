@@ -14,6 +14,7 @@ import { cn } from '@/src/design-system/utils/cn';
 import { Sidebar } from '@/src/components/layout/Sidebar';
 import { Header } from '@/src/components/layout/Header';
 import { useAuth } from '@/src/hooks/useAuth';
+import { sidebarStartsOpen } from '@/src/components/layout/sidebarStartsOpen';
 
 // ─── Types ───────────────────────────────────────────────
 
@@ -66,24 +67,6 @@ function useFullBleed(): boolean {
  * The breakpoint Sidebar itself uses in `closeOnMobile`. Below it the sidebar is
  * a drawer over the page; at or above it, a docked column beside the page.
  */
-const DOCKED_FROM = 1024;
-
-/**
- * Whether the sidebar should start open, given the viewport width.
- *
- * Exported so the rule can be tested on its own. Rendering AppLayout to assert
- * one boolean drags in the router's data APIs and the theme provider, and a
- * test that heavy tends to be deleted the first time it breaks for an unrelated
- * reason.
- *
- * `>=`, matching Sidebar's `closeOnMobile` which closes below 1024. Two
- * components disagreeing by a pixel is how a drawer ends up open on the one
- * width nobody checks.
- */
-export function sidebarStartsOpen(viewportWidth: number): boolean {
-  return viewportWidth >= DOCKED_FROM;
-}
-
 export const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   /*
    * OPEN MEANS TWO DIFFERENT THINGS, AND THIS STARTED TRUE FOR BOTH.
