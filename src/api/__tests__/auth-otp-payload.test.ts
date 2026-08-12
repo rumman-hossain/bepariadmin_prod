@@ -50,11 +50,35 @@ describe('verify-login sends a bound proof', () => {
     expect(sentBody()).toEqual({
       identifier: 'karim@bepari-bd.com',
       user_type: 'staff',
-      code: VECTOR.code,
       otp_hash: VECTOR.hash,
       otp_nonce: VECTOR.nonce,
       otp_mac: VECTOR.mac,
     });
+  });
+
+  /*
+   * THE DIGITS DO NOT LEAVE THIS APP.
+   *
+   * Asserted on its own rather than left implicit in the toEqual above, because
+   * the two fail differently. A toEqual that gains a `code` key reads as "the
+   * payload changed"; this reads as what it is. The console sends `sendRawCode:
+   * false` (see OTP_WIRE in ../auth), and the value of that is entirely in the
+   * absence — a digest sitting next to the digits it hashes protects nobody.
+   *
+   * Note this requires a backend that accepts a body with no `code`. Before
+   * 6348d8f every one of these was a 422.
+   */
+  it('sends no raw code at all', async () => {
+    const { apiVerifyLoginOtp } = await import('../auth');
+
+    await apiVerifyLoginOtp({
+      identifier: 'karim@bepari-bd.com',
+      code: VECTOR.code,
+      user_type: 'staff',
+      otpNonce: VECTOR.nonce,
+    });
+
+    expect(sentBody()).not.toHaveProperty('code');
   });
 
   it('never leaks otpNonce as a body field of its own', async () => {
@@ -85,6 +109,7 @@ describe('verify-login sends a bound proof', () => {
     const body = sentBody();
     expect(body.otp_hash).toBe(VECTOR.hash);
     expect(body).not.toHaveProperty('otp_mac');
+    expect(body).not.toHaveProperty('code');
   });
 });
 
@@ -113,14 +138,12 @@ describe('the reset pair sends ONE issuance across TWO requests', () => {
 
     expect(verifyBody).toEqual({
       email: 'karim@bepari-bd.com',
-      code: VECTOR.code,
       otp_hash: VECTOR.hash,
       otp_nonce: VECTOR.nonce,
       otp_mac: VECTOR.mac,
     });
     expect(resetBody).toEqual({
       email: 'karim@bepari-bd.com',
-      code: VECTOR.code,
       otp_hash: VECTOR.hash,
       otp_nonce: VECTOR.nonce,
       otp_mac: VECTOR.mac,
@@ -138,7 +161,6 @@ describe('the reset pair sends ONE issuance across TWO requests', () => {
 
     expect(sentBody()).toEqual({
       email: 'karim@bepari-bd.com',
-      code: VECTOR.code,
       otp_hash: VECTOR.hash,
       new_password_hash: 'pbkdf2v3:deadbeef',
     });
@@ -182,6 +204,13 @@ describe('the endpoints that issue codes rather than verify them', () => {
  * here even when every individual value still matches.
  */
 describe('the console emits otpRequestFields byte for byte', () => {
+  /*
+   * `code` stays in this list even though the console no longer sends it, and
+   * that is the point: sentOtpJson picks these keys OUT OF THE BODY, so leaving
+   * it here makes a reintroduced `code` show up in the comparison instead of
+   * being quietly filtered away. Removing it from the list would turn this
+   * suite blind to the exact regression it now exists to catch.
+   */
   const OTP_KEYS = ['code', 'otp_hash', 'otp_nonce', 'otp_mac'];
 
   /**
@@ -199,8 +228,13 @@ describe('the console emits otpRequestFields byte for byte', () => {
     return JSON.stringify(picked);
   }
 
+  /*
+   * The option must match what ../auth passes (OTP_WIRE). If the console's flag
+   * and this one ever disagree the suite goes green while the wire is wrong,
+   * which is the failure this whole describe block was written to prevent.
+   */
   async function expectedJson(code: string, nonce?: string): Promise<string> {
-    return JSON.stringify(await otpRequestFields(code, nonce));
+    return JSON.stringify(await otpRequestFields(code, nonce, { sendRawCode: false }));
   }
 
   it('matches on verify-login, bound', async () => {
@@ -244,7 +278,7 @@ describe('the console emits otpRequestFields byte for byte', () => {
     });
 
     expect(sentOtpJson()).toBe(await expectedJson(VECTOR.code, undefined));
-    expect(Object.keys(JSON.parse(sentOtpJson()))).toEqual(['code', 'otp_hash']);
+    expect(Object.keys(JSON.parse(sentOtpJson()))).toEqual(['otp_hash']);
   });
 
   it('matches on reset-password with no nonce, omitting both binding fields', async () => {
@@ -252,7 +286,7 @@ describe('the console emits otpRequestFields byte for byte', () => {
     await apiResetPassword('karim@bepari-bd.com', VECTOR.code, 'pbkdf2v3:deadbeef');
 
     expect(sentOtpJson()).toBe(await expectedJson(VECTOR.code, undefined));
-    expect(Object.keys(JSON.parse(sentOtpJson()))).toEqual(['code', 'otp_hash']);
+    expect(Object.keys(JSON.parse(sentOtpJson()))).toEqual(['otp_hash']);
   });
 
   it('matches on verify-reset-otp with no nonce, omitting both binding fields', async () => {
@@ -260,6 +294,6 @@ describe('the console emits otpRequestFields byte for byte', () => {
     await apiVerifyResetOtp('karim@bepari-bd.com', VECTOR.code);
 
     expect(sentOtpJson()).toBe(await expectedJson(VECTOR.code, undefined));
-    expect(Object.keys(JSON.parse(sentOtpJson()))).toEqual(['code', 'otp_hash']);
+    expect(Object.keys(JSON.parse(sentOtpJson()))).toEqual(['otp_hash']);
   });
 });

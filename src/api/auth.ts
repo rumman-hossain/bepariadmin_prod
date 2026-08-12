@@ -25,6 +25,30 @@ import { clearAccessToken } from '../auth/memoryTokenStore';
  * digests for one keystroke.
  */
 import { otpRequestFields } from 'nextgen-password';
+
+/*
+ * NO RAW DIGITS ON THE WIRE, FROM THIS APP.
+ *
+ * `otpRequestFields` still defaults to sending `code` alongside the digest, and
+ * that default is deliberate: the two React Native apps ship through stores, so
+ * an install from last month is still posting six digits and the server still
+ * has to take them. This console does not have that problem — it reloads.
+ *
+ * What this does NOT do is make anything safer on its own. The digest is a hash
+ * of six digits, so anyone holding it can replay it exactly as they could the
+ * digits; the backend says so about itself in pkg/otp/digest.go. The defence is
+ * the NONCE binding, and dropping `code` is what makes that binding the only way
+ * in from here rather than one of two.
+ *
+ * The hole stays open until OTP_REQUIRE_BINDING is on server-side — until then
+ * an attacker simply posts raw digits and never touches this code path. This is
+ * a prerequisite for that flag, not a substitute for it.
+ *
+ * Requires the backend to accept a body with no `code`, which it does from
+ * 6348d8f (`required_without=OtpHash`). Sending this against anything older is
+ * a 422 on every login.
+ */
+const OTP_WIRE = { sendRawCode: false } as const;
 import type {
   ApiResponse,
   LoginPayload,
@@ -56,7 +80,7 @@ export async function apiVerifyLoginOtp(
 ): Promise<ApiResponse<LoginResponseData>> {
   const { code, otpNonce, ...rest } = payload;
   return request<LoginResponseData>('POST', '/api/v1/auth/verify-login', {
-    body: { ...rest, ...(await otpRequestFields(code, otpNonce)) },
+    body: { ...rest, ...(await otpRequestFields(code, otpNonce, OTP_WIRE)) },
   });
 }
 
@@ -104,7 +128,7 @@ export async function apiVerifyResetOtp(
   otpNonce?: string
 ): Promise<ApiResponse<{ message: string }>> {
   return request<{ message: string }>('POST', '/api/v1/auth/verify-reset-otp', {
-    body: { email, ...(await otpRequestFields(code, otpNonce)) },
+    body: { email, ...(await otpRequestFields(code, otpNonce, OTP_WIRE)) },
   });
 }
 
@@ -126,7 +150,7 @@ export async function apiResetPassword(
   otpNonce?: string
 ): Promise<ApiResponse<ResetPasswordResponseData>> {
   return request<ResetPasswordResponseData>('POST', '/api/v1/auth/reset-password', {
-    body: { email, ...(await otpRequestFields(code, otpNonce)), new_password_hash: newPasswordHash },
+    body: { email, ...(await otpRequestFields(code, otpNonce, OTP_WIRE)), new_password_hash: newPasswordHash },
   });
 }
 
