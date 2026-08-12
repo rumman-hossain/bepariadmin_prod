@@ -137,13 +137,13 @@ describe('the reset pair sends ONE issuance across TWO requests', () => {
     expect(sentPath()).toBe('/api/v1/auth/reset-password');
 
     expect(verifyBody).toEqual({
-      email: 'karim@bepari-bd.com',
+      identifier: 'karim@bepari-bd.com',
       otp_hash: VECTOR.hash,
       otp_nonce: VECTOR.nonce,
       otp_mac: VECTOR.mac,
     });
     expect(resetBody).toEqual({
-      email: 'karim@bepari-bd.com',
+      identifier: 'karim@bepari-bd.com',
       otp_hash: VECTOR.hash,
       otp_nonce: VECTOR.nonce,
       otp_mac: VECTOR.mac,
@@ -160,7 +160,7 @@ describe('the reset pair sends ONE issuance across TWO requests', () => {
     await apiResetPassword('karim@bepari-bd.com', VECTOR.code, 'pbkdf2v3:deadbeef');
 
     expect(sentBody()).toEqual({
-      email: 'karim@bepari-bd.com',
+      identifier: 'karim@bepari-bd.com',
       otp_hash: VECTOR.hash,
       new_password_hash: 'pbkdf2v3:deadbeef',
     });
@@ -173,7 +173,7 @@ describe('the endpoints that issue codes rather than verify them', () => {
     await apiForgotPassword('karim@bepari-bd.com');
 
     expect(sentPath()).toBe('/api/v1/auth/forgot-password');
-    expect(sentBody()).toEqual({ email: 'karim@bepari-bd.com' });
+    expect(sentBody()).toEqual({ identifier: 'karim@bepari-bd.com' });
   });
 
   it('resend carries no proof — there is no code to prove yet', async () => {

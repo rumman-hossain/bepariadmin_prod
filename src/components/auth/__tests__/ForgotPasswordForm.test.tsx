@@ -31,7 +31,7 @@ function renderForm() {
 /** Request a code and land on the confirmation panel. */
 async function requestCode() {
   renderForm();
-  fireEvent.change(screen.getByLabelText(/email address/i), {
+  fireEvent.change(screen.getByLabelText(/email or mobile/i), {
     target: { value: 'Someone@Example.com' },
   });
   fireEvent.click(screen.getByRole('button', { name: /send reset code/i }));
@@ -59,7 +59,11 @@ describe('ForgotPasswordForm — handing the issuance to the reset screen', () =
     fireEvent.click(screen.getByRole('button', { name: /enter the code/i }));
 
     expect(navigateMock).toHaveBeenCalledWith('/reset-password', {
-      state: { email: 'someone@example.com', otpNonce: 'n-issued' },
+      state: {
+        identifier: 'someone@example.com',
+        email: 'someone@example.com',
+        otpNonce: 'n-issued',
+      },
     });
   });
 
@@ -77,7 +81,11 @@ describe('ForgotPasswordForm — handing the issuance to the reset screen', () =
     fireEvent.click(screen.getByRole('button', { name: /enter the code/i }));
 
     expect(navigateMock).toHaveBeenCalledWith('/reset-password', {
-      state: { email: 'someone@example.com', otpNonce: 'n-nested' },
+      state: {
+        identifier: 'someone@example.com',
+        email: 'someone@example.com',
+        otpNonce: 'n-nested',
+      },
     });
   });
 
@@ -93,7 +101,13 @@ describe('ForgotPasswordForm — handing the issuance to the reset screen', () =
     fireEvent.click(screen.getByRole('button', { name: /enter the code/i }));
 
     expect(navigateMock).toHaveBeenCalledWith('/reset-password', {
-      state: { email: 'someone@example.com', otpNonce: undefined },
+      state: {
+        // `identifier` is the real name; `email` rides along for one release
+        // so a tab opened before the deploy still prefills.
+        identifier: 'someone@example.com',
+        email: 'someone@example.com',
+        otpNonce: undefined,
+      },
     });
   });
 
@@ -113,5 +127,46 @@ describe('ForgotPasswordForm — handing the issuance to the reset screen', () =
     const [path] = navigateMock.mock.calls[0] as [string, unknown];
     expect(path).toBe('/reset-password');
     expect(path).not.toContain('?');
+  });
+});
+
+/*
+ * A MOBILE NUMBER MUST SURVIVE THIS FORM.
+ *
+ * The regression these guard is invisible to every test above, because every
+ * test above types an email address.
+ *
+ * The field was `type="email"` and the submit handler called `validateEmail`.
+ * Between them a mobile number could not leave the screen: the browser refused
+ * to submit, or the validator answered "Please enter a valid email address". No
+ * request was made, so there was nothing in the network tab and nothing in the
+ * server logs — while the backend had been matching
+ * `phone_hash = $1 OR email = $2` and texting the code the whole time.
+ */
+describe('ForgotPasswordForm — a mobile number is a first-class identifier', () => {
+  it('sends a mobile number to the server unchanged', async () => {
+    renderForm();
+    fireEvent.change(screen.getByLabelText(/email or mobile/i), {
+      target: { value: '01712345678' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send reset code/i }));
+
+    await waitFor(() => expect(apiMock.forgot).toHaveBeenCalled());
+    // Unchanged: no +880, no dashes stripped or added. The server canonicalises
+    // the number itself, and a second opinion here would hash to something else.
+    expect(apiMock.forgot).toHaveBeenCalledWith('01712345678');
+  });
+
+  it('rejects something that is neither, naming both', async () => {
+    renderForm();
+    fireEvent.change(screen.getByLabelText(/email or mobile/i), {
+      target: { value: 'not-an-identifier' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /send reset code/i }));
+
+    await waitFor(() => expect(screen.getByText(/valid email address or/i)).toBeTruthy());
+    // The old message said "Please enter a valid email address" for a phone
+    // number, which named the wrong field and offered no way forward.
+    expect(apiMock.forgot).not.toHaveBeenCalled();
   });
 });

@@ -69,7 +69,7 @@ describe('ResetPasswordForm — the email is fixed once it is known', () => {
 
   it('locks the email when forgot-password passed it along', () => {
     renderAt('?email=someone%40example.com');
-    const email = screen.getByLabelText(/email address/i) as HTMLInputElement;
+    const email = screen.getByLabelText(/email or mobile/i) as HTMLInputElement;
 
     expect(email.value).toBe('someone@example.com');
     expect(email.readOnly).toBe(true);
@@ -83,7 +83,7 @@ describe('ResetPasswordForm — the email is fixed once it is known', () => {
      * where I think?" — so it must stay focusable and announced.
      */
     renderAt('?email=someone%40example.com');
-    const email = screen.getByLabelText(/email address/i) as HTMLInputElement;
+    const email = screen.getByLabelText(/email or mobile/i) as HTMLInputElement;
 
     expect(email.disabled).toBe(false);
     expect(email.readOnly).toBe(true);
@@ -91,14 +91,15 @@ describe('ResetPasswordForm — the email is fixed once it is known', () => {
 
   it('says where the code went', () => {
     renderAt('?email=someone%40example.com');
-    expect(screen.getByText(/the code was sent to this address/i)).toBeTruthy();
+    // Not "to this address" any more: the code may have been texted.
+    expect(screen.getByText(/the code was sent here/i)).toBeTruthy();
   });
 
   it('leaves the field editable when opened directly', () => {
     // No email in the URL: the user has to say who they are, so locking an
     // empty field would make the screen impossible to complete.
     renderAt('');
-    const email = screen.getByLabelText(/email address/i) as HTMLInputElement;
+    const email = screen.getByLabelText(/email or mobile/i) as HTMLInputElement;
 
     expect(email.value).toBe('');
     expect(email.readOnly).toBe(false);
@@ -120,7 +121,7 @@ describe('ResetPasswordForm — the address does not linger in the URL', () => {
 
     expect(window.location.search).toBe('');
     // ...without losing it: the field is still filled and still locked.
-    const email = screen.getByLabelText(/email address/i) as HTMLInputElement;
+    const email = screen.getByLabelText(/email or mobile/i) as HTMLInputElement;
     expect(email.value).toBe('someone@example.com');
     expect(email.readOnly).toBe(true);
   });
@@ -130,7 +131,7 @@ describe('ResetPasswordForm — the address does not linger in the URL', () => {
     renderWithState({ email: 'someone@example.com' });
 
     expect(window.location.search).toBe('');
-    const email = screen.getByLabelText(/email address/i) as HTMLInputElement;
+    const email = screen.getByLabelText(/email or mobile/i) as HTMLInputElement;
     expect(email.value).toBe('someone@example.com');
     expect(email.readOnly).toBe(true);
   });

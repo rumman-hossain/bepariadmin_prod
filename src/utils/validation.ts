@@ -12,12 +12,43 @@ function isValidEmail(value: string): boolean {
   return value.includes('@') && value.includes('.');
 }
 
-/*
- * There was a `isValidBDPhone` / `isValidIdentifier` pair here, accepting either
- * an email or an 11-digit BD mobile number. Nothing calls them any more: staff
- * sign in with an email, and the identifier field stopped offering phone to
- * staff. Wholesaler phone validation lives with the wholesaler schema.
+/**
+ * An 11-digit Bangladeshi mobile number, matching the server's own rule.
+ *
+ * Kept byte-compatible with `BangladeshiMobileRegex` in
+ * beparibd-backend/pkg/validator: `01`, then an operator digit 3-9, then eight
+ * more. A looser rule here would accept numbers the server then rejects, and the
+ * user would read that as the site being broken rather than the number being
+ * wrong.
  */
+function isValidBDMobile(value: string): boolean {
+  return /^01[3-9]\d{8}$/.test(value.replace(/[^0-9]/g, ''));
+}
+
+/**
+ * An identifier is an email address OR a mobile number, and both are real.
+ *
+ * This pair was deleted once, with a note saying "staff sign in with an email,
+ * and the identifier field stopped offering phone to staff". That premise no
+ * longer holds: the server matches `phone_hash = $1 OR email = $2` in all three
+ * account tables and sends the one-time code to whichever channel the identifier
+ * names, so a number is a first-class way in — for staff too.
+ *
+ * WHY VALIDATE AT ALL, rather than let the server decide. A blank field and an
+ * obvious typo are worth catching before a round trip. What this must NOT do is
+ * be stricter than the server: `validateEmail` was doing exactly that here, and
+ * a mobile number came back as "Please enter a valid email address" — an error
+ * that names the wrong thing and offers no way forward.
+ */
+export function validateIdentifier(value: string): { valid: boolean; message: string } {
+  const trimmed = value.trim();
+  if (!trimmed) return { valid: false, message: 'Email or mobile number is required' };
+  if (isValidEmail(trimmed) || isValidBDMobile(trimmed)) return { valid: true, message: '' };
+  return {
+    valid: false,
+    message: 'Enter a valid email address or 11-digit mobile number',
+  };
+}
 
 /**
  * Password rules come from the shared `nextgen-password` package, never from
@@ -47,12 +78,22 @@ export function isValidOtp(value: string): boolean {
   return /^\d{6}$/.test(value);
 }
 
-/** Email validation result with message */
-export function validateEmail(value: string): { valid: boolean; message: string } {
-  if (!value) return { valid: false, message: 'Email is required' };
-  if (!isValidEmail(value)) return { valid: false, message: 'Please enter a valid email address' };
-  return { valid: true, message: '' };
-}
+/*
+ * `validateEmail` WAS HERE AND IS DELETED ON PURPOSE.
+ *
+ * It rejected anything without an `@`, which is correct for an address and wrong
+ * for an identifier. It was called on both reset screens, and it is why a mobile
+ * number came back as "Please enter a valid email address" — a refusal naming
+ * the wrong field, for a credential the server would have accepted.
+ *
+ * Nothing calls it now. It is removed rather than left exported because the two
+ * names sit next to each other in one file and differ by one word: the next
+ * person adding an identifier field would reach for the wrong one, which is
+ * exactly what happened here — three separate times, on three screens.
+ *
+ * Use `validateIdentifier`. If you genuinely need to check an ADDRESS and not an
+ * identifier — a contact field, say — `isValidEmail` above is still here.
+ */
 
 /** Confirm password match validation */
 export function validatePasswordMatch(

@@ -98,18 +98,34 @@ export function apiLogoutSession(): Promise<ApiResponse<string>> {
   return request<string>('POST', '/api/v1/auth/logout-session');
 }
 
+/**
+ * Ask for a reset code, by email address OR mobile number.
+ *
+ * `identifier`, not `email`, and the difference is not cosmetic. The server
+ * matches on `phone_hash = $1 OR email = $2` in all three account tables, and
+ * `resolveDelivery` sends the code to WHICHEVER of the two was typed — a number
+ * gets a text, an address gets mail. Sending this under the `email` key still
+ * works (the server reads it as a deprecated alias) but names the value wrongly
+ * the moment somebody types a phone number, which is now the point of the field.
+ *
+ * The server canonicalises the number itself, so nothing here should try to
+ * reshape `01712345678` into `+880…`.
+ */
 export function apiForgotPassword(
-  email: string
+  identifier: string
 ): Promise<ApiResponse<ForgotPasswordResponseData>> {
   return request<ForgotPasswordResponseData>('POST', '/api/v1/auth/forgot-password', {
-    body: { email },
+    body: { identifier },
   });
 }
 
 /**
- * Confirm an emailed reset code WITHOUT consuming it, so the UI can advance to
- * the set-new-password step and report a bad code before the user types a
- * password. The code is consumed later, by apiResetPassword.
+ * Confirm a reset code WITHOUT consuming it, so the UI can advance to the
+ * set-new-password step and report a bad code before the user types a password.
+ * The code is consumed later, by apiResetPassword.
+ *
+ * "Emailed" would be wrong here: the code goes to whichever channel the
+ * identifier named, so it may have arrived as a text.
  *
  * `otpNonce` is whatever forgot-password returned when it issued this code. It
  * has to be the SAME value apiResetPassword then sends: this call leaves the
@@ -123,34 +139,39 @@ export function apiForgotPassword(
  * digest unbound, which the server accepts, rather than binding to a guess.
  */
 export async function apiVerifyResetOtp(
-  email: string,
+  identifier: string,
   code: string,
   otpNonce?: string
 ): Promise<ApiResponse<{ message: string }>> {
   return request<{ message: string }>('POST', '/api/v1/auth/verify-reset-otp', {
-    body: { email, ...(await otpRequestFields(code, otpNonce, OTP_WIRE)) },
+    body: { identifier, ...(await otpRequestFields(code, otpNonce, OTP_WIRE)) },
   });
 }
 
 /**
- * Set a new password using the emailed OTP.
+ * Set a new password using the OTP, whichever channel delivered it.
  *
  * This previously sent `{ token, new_password_hash }`, matching a server-rendered
  * reset page. That path was already broken: nothing on the backend ever issued a
  * token, so every submission failed with INVALID_TOKEN. Both the page and the
- * token branch have since been removed, and email + code is the only reset path.
+ * token branch have since been removed, and identifier + code is the only reset
+ * path.
  *
  * `otpNonce` must be the one apiVerifyResetOtp was given — the pre-check did not
  * consume the code, so this is the second request against a single issuance.
  */
 export async function apiResetPassword(
-  email: string,
+  identifier: string,
   code: string,
   newPasswordHash: string,
   otpNonce?: string
 ): Promise<ApiResponse<ResetPasswordResponseData>> {
   return request<ResetPasswordResponseData>('POST', '/api/v1/auth/reset-password', {
-    body: { email, ...(await otpRequestFields(code, otpNonce, OTP_WIRE)), new_password_hash: newPasswordHash },
+    body: {
+      identifier,
+      ...(await otpRequestFields(code, otpNonce, OTP_WIRE)),
+      new_password_hash: newPasswordHash,
+    },
   });
 }
 

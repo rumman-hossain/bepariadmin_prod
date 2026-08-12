@@ -65,7 +65,7 @@ describe('LoginForm validation', () => {
   it('marks the invalid field for assistive technology', () => {
     renderForm();
     submit();
-    expect(screen.getByLabelText(/^email$/i).getAttribute('aria-invalid')).toBe('true');
+    expect(screen.getByLabelText(/email or mobile/i).getAttribute('aria-invalid')).toBe('true');
   });
 
   it('clears a field error as soon as the user starts fixing it', () => {
@@ -75,25 +75,46 @@ describe('LoginForm validation', () => {
     submit();
     expect(screen.getByText(/enter your email/i)).toBeTruthy();
 
-    type(/^email$/i, 'a');
+    type(/email or mobile/i, 'a');
     expect(screen.queryByText(/enter your email/i)).toBeNull();
   });
 
-  it('no longer offers a phone number staff cannot sign in with', () => {
+  it('offers a mobile number, because staff can sign in with one', () => {
     /*
-     * The field said "Email or mobile number" and the validator accepted a BD
-     * phone — but the staff lookup is email-only server-side (no phone_hash
-     * clause, unlike retailer and wholesaler), so a phone number produced a
-     * silent 401 that read as a wrong password.
+     * THIS TEST USED TO ASSERT THE OPPOSITE, and its reasoning was:
+     *
+     *   "the staff lookup is email-only server-side (no phone_hash clause,
+     *    unlike retailer and wholesaler), so a phone number produced a silent
+     *    401 that read as a wrong password"
+     *
+     * That is not true. `GetUserByCredential` matches
+     * `WHERE (phone_hash = $1 OR email = $2)` in ALL THREE branches — staff has
+     * the clause, `users.staff.phone_hash` is indexed (migration 000091), and
+     * the login OTP then follows whichever identifier was used, texting when it
+     * is a number.
+     *
+     * So the field was narrowed on a premise that was either wrong when written
+     * or went stale when the staff clause landed, and the narrowing is what made
+     * mobile sign-in unreachable from this screen. Asserting the presence rather
+     * than the absence is what stops it being "tidied away" again.
      */
     renderForm();
-    expect(screen.queryByLabelText(/mobile/i)).toBeNull();
-    expect(screen.getByLabelText(/^email$/i)).toBeTruthy();
+    expect(screen.getByLabelText(/email or mobile/i)).toBeTruthy();
+  });
+
+  it('accepts a mobile number as the identifier', () => {
+    // The regression the old assertion protected: typing digits here must reach
+    // `login` unchanged. No normalising into +880 — the server canonicalises.
+    renderForm();
+    type(/email or mobile/i, '01712345678');
+    type(/^password$/i, 'Password1');
+    submit();
+    expect(login).toHaveBeenCalledWith('01712345678', 'Password1');
   });
 
   it('submits a valid email and password', () => {
     renderForm();
-    type(/^email$/i, 'admin@bepari-bd.com');
+    type(/email or mobile/i, 'admin@bepari-bd.com');
     type(/^password$/i, 'Password1');
     submit();
     expect(login).toHaveBeenCalledWith('admin@bepari-bd.com', 'Password1');
@@ -113,7 +134,7 @@ describe('LoginForm validation', () => {
      * ResetPasswordForm and ChangePasswordForm.
      */
     renderForm();
-    type(/^email$/i, 'admin@bepari-bd.com');
+    type(/email or mobile/i, 'admin@bepari-bd.com');
     type(/^password$/i, 'alllowercase');
     submit();
     expect(login).toHaveBeenCalledWith('admin@bepari-bd.com', 'alllowercase');
@@ -128,7 +149,7 @@ describe('LoginForm validation', () => {
   it('gives both inputs a name so browsers can autofill them', () => {
     // The console reported "a form field element should have an id or name".
     renderForm();
-    expect(screen.getByLabelText(/^email$/i).getAttribute('name')).toBe('identifier');
+    expect(screen.getByLabelText(/email or mobile/i).getAttribute('name')).toBe('identifier');
     expect(screen.getByLabelText(/^password$/i).getAttribute('name')).toBe('password');
   });
 });

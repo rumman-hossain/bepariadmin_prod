@@ -35,11 +35,22 @@ export function LoginForm() {
 
     const next: FieldErrors = {};
 
-    // Email only. Staff are looked up by email alone server-side — there is no
-    // phone_hash clause for the staff table, unlike retailer and wholesaler — so
-    // accepting a phone number here just produced a confusing 401.
+    /*
+     * PRESENCE ONLY — an email or a mobile number both belong here.
+     *
+     * This comment used to read "Email only. Staff are looked up by email alone
+     * server-side — there is no phone_hash clause for the staff table". That is
+     * no longer true: GetUserByCredential matches
+     * `WHERE (phone_hash = $1 OR email = $2)` in ALL THREE branches, staff
+     * included, and the one-time code then follows whichever was typed.
+     *
+     * No format check is added on the way past. The server decides what a valid
+     * identifier is; a second opinion here can only be stricter than the real
+     * one, and being stricter means refusing a credential that would have
+     * worked — with a message blaming the user for it.
+     */
     if (!identifier.trim()) {
-      next.identifier = 'Enter your email address.';
+      next.identifier = 'Enter your email address or mobile number.';
     }
 
     /*
@@ -87,7 +98,14 @@ export function LoginForm() {
         id="login-identifier"
         name="identifier"
         type="text"
-        label="Email"
+        /*
+          "Email" was a lie by omission. This field has always been `type="text"`
+          with no format check, and the server matches `phone_hash = $1 OR
+          email = $2` in all three account tables — so a mobile number has always
+          worked here. Only the label said otherwise, which is why nobody tried.
+        */
+        label="Email or mobile number"
+        placeholder="you@example.com or 01712345678"
         value={identifier}
         onChange={(e) => {
           setIdentifier(e.target.value);

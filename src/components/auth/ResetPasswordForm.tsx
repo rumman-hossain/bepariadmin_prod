@@ -1,5 +1,5 @@
 /**
- * ResetPasswordForm — set a new password using the 6-digit code emailed by
+ * ResetPasswordForm — set a new password using the 6-digit code sent by
  * forgot-password.
  *
  * This used to read a `?token=` query parameter from a reset LINK. That flow
@@ -20,7 +20,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { apiForgotPassword, apiResetPassword, apiVerifyResetOtp } from '../../api/auth';
 import { readOtpNonce } from 'nextgen-password';
 import { hashPassword, hashErrorMessage } from '../../auth/passwordHasher';
-import { validateEmail, validatePassword, validatePasswordMatch } from '../../utils/validation';
+import { validateIdentifier, validatePassword, validatePasswordMatch } from '../../utils/validation';
 import { friendlyError } from '../../utils/errors';
 import { Button, Input } from '@/src/components/controls';
 import { Alert } from '@/src/components/feedback';
@@ -32,7 +32,7 @@ export function ResetPasswordForm() {
   const { clearError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  // 'code' collects and verifies the emailed OTP; 'password' sets the new one.
+  // 'code' collects and verifies the OTP; 'password' sets the new one.
   const [step, setStep] = useState<'code' | 'password'>('code');
   const [code, setCode] = useState('');
   const [email, setEmail] = useState('');
@@ -108,10 +108,23 @@ export function ResetPasswordForm() {
    * once and stripped.
    */
   useEffect(() => {
-    const state = location.state as { email?: string; otpNonce?: string } | null;
-    const fromState = state?.email;
+    /*
+     * `identifier` first, `email` second, and BOTH are read on purpose.
+     *
+     * The field accepts a mobile number now, so `email` is the wrong name for
+     * what it carries — but a tab opened before this deploy still has router
+     * state spelled the old way, and an emailed `?email=` link may be days old.
+     * Reading both costs one `??` and avoids a prefill silently going blank for
+     * anyone mid-flow across the deploy.
+     */
+    const state = location.state as {
+      identifier?: string;
+      email?: string;
+      otpNonce?: string;
+    } | null;
+    const fromState = state?.identifier ?? state?.email;
     const params = new URLSearchParams(window.location.search);
-    const fromUrl = params.get('email');
+    const fromUrl = params.get('identifier') ?? params.get('email');
     const value = fromState ?? fromUrl;
 
     if (value) {
@@ -133,6 +146,7 @@ export function ResetPasswordForm() {
 
     if (fromUrl) {
       params.delete('email');
+      params.delete('identifier');
       const query = params.toString();
       window.history.replaceState(
         window.history.state,
@@ -197,7 +211,7 @@ export function ResetPasswordForm() {
          * endpoint into an oracle for who is mid-reset. "The most recent" is
          * true in both branches and leaks nothing.
          */
-        setResendNote('Sent. Use the most recent code in your email.');
+        setResendNote('Sent. Use the most recent code you were sent.');
         setCode('');
         /*
          * The nonce follows the code, and it follows it EVEN INTO UNDEFINED.
@@ -227,13 +241,17 @@ export function ResetPasswordForm() {
     setError(null);
     clearError();
 
-    const emailResult = validateEmail(email);
-    if (!emailResult.valid) {
-      setError(emailResult.message);
+    // validateIdentifier, not validateEmail. This screen is reached by SMS as
+    // often as by mail now, and validateEmail rejected a mobile number with
+    // "Please enter a valid email address" — refusing the very credential the
+    // code had just been texted to.
+    const identifierResult = validateIdentifier(email);
+    if (!identifierResult.valid) {
+      setError(identifierResult.message);
       return;
     }
     if (!/^\d{6}$/.test(code.trim())) {
-      setError('Enter the 6-digit code from your email.');
+      setError('Enter the 6-digit code you were sent.');
       return;
     }
 
@@ -340,23 +358,29 @@ export function ResetPasswordForm() {
 
       {onCodeStep ? (
         <>
+          {/*
+            `type="text"`, matching ForgotPasswordForm — see the note there.
+            `type="email"` made the browser refuse a mobile number outright, so
+            somebody who requested their code by SMS could not type the number
+            back in to spend it.
+          */}
           <Input
-            type="email"
-            name="email"
-            label="Email address"
-            placeholder="you@example.com"
-            autoComplete="email"
+            type="text"
+            name="identifier"
+            label="Email or mobile number"
+            placeholder="you@example.com or 01712345678"
+            autoComplete="username"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             disabled={isSubmitting}
             /*
               `readOnly`, not `disabled`. Disabled would drop the field out of
               the tab order, so a keyboard or screen-reader user could not read
-              back which address the code went to — on the one screen where
-              that is the thing they most need to confirm.
+              back where the code went — on the one screen where that is the
+              thing they most need to confirm.
             */
             readOnly={emailLocked}
-            hint={emailLocked ? 'The code was sent to this address.' : undefined}
+            hint={emailLocked ? 'The code was sent here.' : undefined}
             required
           />
           <Input
