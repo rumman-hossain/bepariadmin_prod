@@ -10,6 +10,7 @@ import { useRetailerNavigation } from '../hooks/useRetailerNavigation';
 import { useCreateRetailer } from '../hooks/useRetailers';
 import { saveRetailerChildren } from '../hooks/useSaveRetailerChildren';
 import { districtFromAddresses } from '../utils/districtFromAddresses';
+import { submissionSummary } from '../utils/submissionSummary';
 import type { RetailerUpdate } from '../schemas/retailerSchema';
 
 /**
@@ -119,15 +120,14 @@ export function CreatePage() {
       )}
 
       {showSummary && (
-        <Alert tone="warn" title="Some details need fixing">
+        <Alert tone="warn" title="Not submitted — some details need fixing">
           {/*
-            Counted, and every one of them marked on its own field below. A
-            summary that says "some fields are invalid" without saying how many
-            leaves the operator scrolling to find out.
+            Counts the DOCUMENTS as well as the fields. Counting only the fields
+            produced "0 fields need attention" whenever a required document was
+            the sole problem — a refusal that claimed there was nothing to
+            refuse over. See submissionSummary.
           */}
-          {Object.keys(errors).length === 1
-            ? 'One field needs attention — it is marked below.'
-            : `${Object.keys(errors).length} fields need attention — they are marked below.`}
+          {submissionSummary(Object.keys(errors).length, missingRequired)}
         </Alert>
       )}
 
