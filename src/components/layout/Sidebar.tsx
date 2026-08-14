@@ -117,9 +117,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onToggle, className })
         onClick={onToggle}
         aria-hidden="true"
         className={cn(
-          'fixed inset-0 z-(--z-overlay) bg-sheet-inverse/30 backdrop-blur-sm lg:hidden',
+          /*
+           * BELOW THE NAV, NOT ABOVE IT — this is the real cause of the
+           * full-screen blur on mobile.
+           *
+           * The scrim was `z-(--z-overlay)` = 40 while the sidebar is
+           * `z-(--z-nav)` = 30, so the scrim covered the very thing it exists to
+           * set apart. Opening the menu blurred the MENU, and because the scrim
+           * closes on click, every tap on a nav item hit the scrim instead and
+           * shut the drawer. The nav was unreadable and unusable at once.
+           *
+           * `--z-sticky` = 20 sits above the page content and below the nav,
+           * which is the whole job of a scrim.
+           */
+          'fixed inset-0 z-(--z-sticky) bg-sheet-inverse/30 lg:hidden',
           'transition-opacity duration-200 ease-out',
-          isOpen ? 'opacity-100' : 'pointer-events-none opacity-0',
+          /*
+           * THE BLUR IS ATTACHED ONLY WHILE THE SCRIM IS OPEN, and that is the
+           * whole fix for a full-screen blur on mobile.
+           *
+           * `backdrop-blur-sm` used to sit on the base class, with `opacity-0`
+           * relied on to hide it. Opacity hides the element's OWN paint — its
+           * background tint — but Chrome on Android keeps applying
+           * `backdrop-filter` regardless. So a scrim nobody could see was
+           * blurring the entire page behind it, permanently, on every mobile
+           * load: the dashboard rendered as an unreadable smear with no visible
+           * cause. Reported on a Pixel 7.
+           *
+           * `pointer-events-none` had made it worse to find, not better — the
+           * page still responded to taps, so it looked like a rendering fault
+           * rather than something covering the screen.
+           */
+          isOpen
+            ? 'opacity-100 backdrop-blur-sm'
+            : 'pointer-events-none opacity-0',
         )}
       />
 

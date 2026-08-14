@@ -1,13 +1,11 @@
 import React, { useState } from 'react';
-import { KeyRound, PanelLeft, Moon, Sun, LogOut } from 'lucide-react';
+import {  PanelLeft, Moon, Sun, LogOut } from 'lucide-react';
 import { Dialog } from '@/src/components/feedback';
 import { ChangePasswordForm } from '@/src/components/auth/ChangePasswordForm';
 import { useToast } from '@/src/components/feedback/useToast';
 import type { AuthUser } from '@/src/types/auth';
 import { useTheme } from '@/src/design-system';
 import { cn } from '@/src/design-system/utils/cn';
-import { Link } from 'react-router-dom';
-import { asStaffRole, ROLE_LABEL } from '@/src/auth/roles';
 
 export interface HeaderProps {
   toggleSidebar: () => void;
@@ -26,11 +24,7 @@ const ICON_BUTTON = cn(
   'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rule-focus',
 );
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return '?';
-  return (parts[0]![0]! + (parts.length > 1 ? parts[parts.length - 1]![0]! : '')).toUpperCase();
-}
+
 
 /**
  * Who you are signed in as.
@@ -40,58 +34,11 @@ function initials(name: string): string {
  * whether a control was missing because of their permissions or because it was
  * never built.
  */
-function UserBadge({ user, onChangePassword }: { user: AuthUser; onChangePassword: () => void }) {
-  const role = asStaffRole(user.role);
-  return (
-    <div className="ml-1 flex items-center gap-2 border-l border-rule-subtle pl-3">
-      <button
-        type="button"
-        onClick={onChangePassword}
-        aria-label="Change your password"
-        title="Change your password"
-        className={cn(ICON_BUTTON, 'mr-0.5')}
-      >
-        <KeyRound className="h-[18px] w-[18px]" aria-hidden="true" />
-      </button>
-      {/* The same destination as the name beside it. On a narrow screen the
-          name is hidden, so without this there is no way to a profile at all
-          below the `sm` breakpoint. */}
-      <Link
-        to="/profile"
-        aria-label="Your profile"
-        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brass-wash text-2xs font-semibold text-brass focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rule-focus"
-      >
-        {initials(user.name || user.email)}
-      </Link>
-      {/*
-        Your name is the way to your own details.
-        
-        Every console puts the profile behind the name in the corner, and there
-        was nowhere to go from here at all — the account had no page. A link
-        rather than a menu: there is exactly one destination, and a dropdown
-        holding one item is a click nobody needed.
-      */}
-      <Link
-        to="/profile"
-        className="hidden max-w-[16ch] rounded-md px-1 py-0.5 leading-tight hover:bg-sheet-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-rule-focus sm:block"
-        title="Your profile"
-      >
-        <span className="block truncate text-sm font-medium text-ink">
-          {user.name || user.email}
-        </span>
-        <span className="block text-2xs text-ink-3">
-          {/* An unrecognised role is named as such rather than shown raw or blank. */}
-          {role ? ROLE_LABEL[role] : 'Unknown role'}
-        </span>
-      </Link>
-    </div>
-  );
-}
+
 
 export const Header: React.FC<HeaderProps> = ({
   toggleSidebar,
   onLogout,
-  user,
   className,
 }) => {
   /*
@@ -146,9 +93,9 @@ export const Header: React.FC<HeaderProps> = ({
           )}
         </button>
 
-        {user && (
+        {/* {user && (
           <UserBadge user={user} onChangePassword={() => setChangingPassword(true)} />
-        )}
+        )} */}
 
         {onLogout && (
           <button
