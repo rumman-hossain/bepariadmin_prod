@@ -27,6 +27,7 @@ import { cn } from '@/src/design-system/utils/cn';
 import { useDashboardStats } from '../hooks/useDashboardStats';
 import { CHART_COLORS, CHART_GRID_COLOR } from '../constants';
 import type { Kpi, DashboardAlert, RecentOrder, ChartDataPoint } from '../types';
+import { SmsBalanceCard } from '../components/SmsBalanceCard';
 
 /**
  * Keyed on the KPI's stable `key`, never its label.
@@ -305,6 +306,14 @@ export function DashboardPage() {
           detail: kpi.trend == null ? undefined : <Trend value={kpi.trend} />,
         }))}
       />
+
+      {/*
+        Directly under the KPIs, because it is read the same way — a number
+        checked at a glance — and because a low balance needs to be seen before
+        anything else on this screen matters. It loads on its own request, so a
+        slow or unreachable gateway never holds up the figures above it.
+      */}
+      <SmsBalanceCard />
 
       <Columns
         aside={

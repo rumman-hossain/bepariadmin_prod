@@ -4,6 +4,22 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, cleanup, screen } from '@testing-library/react';
 import { DashboardPage } from '../pages/DashboardPage';
 import type { DashboardStats } from '../types';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+/*
+ * The page now carries the SMS-balance card, which fetches on its own request —
+ * so rendering it needs a QueryClient. Its own request is the point: the figure
+ * comes from an external provider, and sharing the summary's call would put that
+ * on the critical path of every KPI on the screen.
+ */
+const renderDashboard = () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <DashboardPage />
+    </QueryClientProvider>,
+  );
+};
 
 /**
  * What the KPI tiles actually say.
@@ -72,7 +88,7 @@ describe('dashboard KPI tiles', () => {
       { key: 'retailers', label: 'Active retailers', value: '3' },
       { key: 'wholesalers', label: 'Active wholesalers', value: '2' },
     ]);
-    render(<DashboardPage />);
+    renderDashboard();
 
     const icons = [
       iconOf('GMV (30 days)'),
@@ -91,12 +107,12 @@ describe('dashboard KPI tiles', () => {
      * keyed on labels, as long as the labels happened to match — this does not.
      */
     loaded([{ key: 'gmv', label: 'GMV (30 days)', value: '1000' }]);
-    render(<DashboardPage />);
+    renderDashboard();
     const before = iconOf('GMV (30 days)');
     cleanup();
 
     loaded([{ key: 'gmv', label: 'Gross merchandise value, last 30 days', value: '1000' }]);
-    render(<DashboardPage />);
+    renderDashboard();
     expect(iconOf('Gross merchandise value, last 30 days')).toBe(before);
   });
 
@@ -107,7 +123,7 @@ describe('dashboard KPI tiles', () => {
      * for "unknown" — so they showed +0% growth.
      */
     loaded([{ key: 'retailers', label: 'Active retailers', value: '3' }]);
-    render(<DashboardPage />);
+    renderDashboard();
 
     expect(screen.queryByText(/vs last month/)).toBeNull();
     expect(screen.queryByText(/%/)).toBeNull();
@@ -115,7 +131,7 @@ describe('dashboard KPI tiles', () => {
 
   it('shows the trend when there IS a prior period', () => {
     loaded([{ key: 'orders', label: 'Orders (30 days)', value: '12', trend: 12.3 }]);
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getByText(/vs last month/)).toBeTruthy();
     expect(screen.getByText(/\+12\.3%/)).toBeTruthy();
   });
@@ -124,7 +140,7 @@ describe('dashboard KPI tiles', () => {
     // The other half of the nullable trend: zero is a real, measured reading
     // and must still be shown. Modelling "unknown" as 0 lost this distinction.
     loaded([{ key: 'orders', label: 'Orders (30 days)', value: '12', trend: 0 }]);
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getByText(/vs last month/)).toBeTruthy();
   });
 
@@ -136,7 +152,7 @@ describe('dashboard KPI tiles', () => {
      * erases — and it did.
      */
     loaded([{ key: 'orders', label: 'Orders (30 days)', value: '12', trend: 12.3 }]);
-    const { container } = render(<DashboardPage />);
+    const { container } = renderDashboard();
     // Asserted on the rendered text, not on DOM node adjacency — the reader of
     // the screen sees a string, and that is the thing that was wrong.
     expect(container.textContent).toContain('+12.3% vs last month');
@@ -145,7 +161,7 @@ describe('dashboard KPI tiles', () => {
 
   it('renders a negative trend without a stray plus sign', () => {
     loaded([{ key: 'orders', label: 'Orders (30 days)', value: '12', trend: -8.4 }]);
-    render(<DashboardPage />);
+    renderDashboard();
     expect(screen.getByText(/-8\.4%/)).toBeTruthy();
     expect(screen.queryByText(/\+-/)).toBeNull();
   });
