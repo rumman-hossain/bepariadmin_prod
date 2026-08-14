@@ -1,29 +1,41 @@
 import { useState } from 'react';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, Pencil, Trash2 } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader, Page, Panel, Row } from '@/src/components/layout/primitives';
 import { DataTable, Text, StatusBadge, formatDate } from '@/src/components/data';
 import type { Column } from '@/src/components/data';
 import { EmptyState, ErrorState, SkeletonPage, Alert, ConfirmDialog } from '@/src/components/feedback';
-import { Button, SegmentedControl, Select, Input } from '@/src/components/controls';
+import { Button, SegmentedControl, IconButton } from '@/src/components/controls';
 import { hasRole, SUPER_ADMIN_ONLY } from '@/src/auth/roles';
 import { useAuth } from '@/src/hooks/useAuth';
 import {
   useStaff,
-  usePlatformMargin,
-  useSetStaffRole,
   useSetStaffStatus,
-  useSetPlatformMargin,
+  useDeleteStaff,
 } from '../hooks/useSettings';
-import { STAFF_ROLES, type StaffAccount } from '../api/settingsApi';
+import { labelForRole, type StaffAccount } from '../api/settingsApi';
+
+/**
+ * WHO MAY ACT ON WHOM — the same rule the server enforces.
+ *
+ * A super admin reaches everyone. An admin reaches everyone except a super
+ * admin. Anyone else may read this screen and change nothing on it.
+ *
+ * Duplicated here ONLY to decide which controls to draw. The refusal that counts
+ * is the server's, inside the transaction that locks the target row — a check in
+ * a browser is a hint, never a permission.
+ */
+export function mayManage(actorRole: string | undefined, targetRole: string): boolean {
+  if (actorRole === 'super_admin') return true;
+  if (actorRole === 'admin') return targetRole !== 'super_admin';
+  return false;
+}
 
 const TABS = ['access', 'commercial'] as const;
 type Tab = (typeof TABS)[number];
 
 type StaffRow = Record<string, unknown> & StaffAccount;
 
-const roleLabel = (role: string) =>
-  STAFF_ROLES.find((r) => r.value === role)?.label ?? role;
 
 /**
  * Settings — platform administration.
@@ -52,11 +64,11 @@ export function SettingsPage() {
   const raw = params.get('tab');
   const tab: Tab = TABS.includes(raw as Tab) ? (raw as Tab) : 'access';
   const { user } = useAuth();
+  const [removing, setRemoving] = useState<StaffAccount | null>(null);
+  const deleteStaffM = useDeleteStaff();
   const canChange = hasRole(user?.role, SUPER_ADMIN_ONLY);
 
   const staff = useStaff();
-  const margin = usePlatformMargin();
-  const setRole = useSetStaffRole();
   const setStatus = useSetStaffStatus();
 
   const [disabling, setDisabling] = useState<StaffRow | null>(null);
@@ -88,40 +100,18 @@ export function SettingsPage() {
     {
       key: 'role',
       header: 'Role',
-      render: (a) => {
-        const isSelf = a.id === user?.id;
-        const locked = !canChange || isSelf || isLastSuperAdmin(a);
-        if (locked) {
-          return (
-            <div className="flex flex-col">
-              <Text>{roleLabel(a.role)}</Text>
-              {/* Say WHY it cannot be changed. A control that is simply absent
-                  reads as an oversight; a reason reads as a rule. */}
-              {canChange && (
-                <Text variant="caption">
-                  {isSelf ? 'Your own account' : 'The last super admin'}
-                </Text>
-              )}
-            </div>
-          );
-        }
-        return (
-          <Select
-            label="Role"
-            hideLabel
-            options={STAFF_ROLES.map((r) => ({ value: r.value, label: r.label }))}
-            value={a.role}
-            disabled={setRole.isPending}
-            onChange={(e) => {
-              setFailure(null);
-              setRole.mutate(
-                { id: a.id, role: e.target.value },
-                { onError: (err) => setFailure(err instanceof Error ? err.message : 'Not changed') },
-              );
-            }}
-          />
-        );
-      },
+      /*
+       * DISPLAYED, NEVER CHOSEN.
+       *
+       * This was a <select> of every role the database allows. There is now one
+       * live super admin and one live admin, enforced by a unique index, and the
+       * server refuses both the creation and the granting of a super admin — so
+       * every option a picker could offer is one the server would reject.
+       *
+       * To move a role: delete the account holding it, which revokes access
+       * immediately, and create the replacement.
+       */
+      render: (a) => <Text>{labelForRole(a.role)}</Text>,
     },
     { key: 'status', header: 'Status', render: (a) => <StatusBadge status={a.status} /> },
     {
@@ -136,38 +126,88 @@ export function SettingsPage() {
     },
     {
       key: 'action',
-      header: '',
+      header: 'Action',
+      /*
+       * EVERY ACTION IN ONE PLACE, AT THE END OF THE ROW.
+       *
+       * These were split — edit and remove sat mid-table, revoke sat here — so
+       * an operator scanned past the controls to reach a control. One column
+       * after Added, read left to right in order of severity: change access,
+       * change details, remove entirely.
+       *
+       * Revoke keeps its words because it is the ambiguous one — an icon for
+       * "revoke" and an icon for "delete" would look alike and mean very
+       * different things. Edit and remove are icons: their meanings are settled,
+       * and each carries a label for a screen reader and a tooltip for everyone
+       * else.
+       *
+       * WHAT IS OFFERED MIRRORS WHAT THE SERVER ALLOWS: a super admin acts on
+       * anyone, an admin on anyone but a super admin, nobody removes themselves,
+       * and the last active super admin is protected. The mirror is a courtesy —
+       * every call is checked again server-side, inside the transaction that
+       * locks the row — so its job is to avoid offering a button whose only
+       * outcome is a refusal.
+       */
       render: (a) => {
-        if (!canChange) return null;
-        if (a.status === 'inactive') {
-          return (
-            <Button
-              variant="ghost"
-              size="sm"
-              loading={setStatus.isPending}
-              onClick={() => {
-                setFailure(null);
-                setStatus.mutate(
-                  { id: a.id, status: 'active' },
-                  { onError: (err) => setFailure(err instanceof Error ? err.message : 'Not changed') },
-                );
-              }}
-            >
-              Restore access
-            </Button>
-          );
+        const reach = mayManage(user?.role, a.role);
+        if (!reach) {
+          return <Text variant="caption">Super admin only</Text>;
         }
-        if (a.id === user?.id || isLastSuperAdmin(a)) return null;
+
+        const isSelf = a.id === user?.id;
+        const protectedRow = isSelf || isLastSuperAdmin(a);
+
         return (
-          <Button variant="ghost" size="sm" onClick={() => { setFailure(null); setDisabling(a); }}>
-            Revoke access
-          </Button>
+          <div className="flex items-center justify-end gap-1">
+            {a.status === 'inactive' ? (
+              <Button
+                variant="ghost"
+                size="sm"
+                loading={setStatus.isPending}
+                onClick={() => {
+                  setFailure(null);
+                  setStatus.mutate(
+                    { id: a.id, status: 'active' },
+                    { onError: (err) => setFailure(err instanceof Error ? err.message : 'Not changed') },
+                  );
+                }}
+              >
+                Restore access
+              </Button>
+            ) : protectedRow ? (
+              /* Say WHY rather than leaving a gap. An absent control reads as an
+                 oversight; a reason reads as a rule. */
+              <Text variant="caption">{isSelf ? 'Your own account' : 'Last super admin'}</Text>
+            ) : (
+              <Button variant="ghost" size="sm" onClick={() => { setFailure(null); setDisabling(a); }}>
+                Revoke access
+              </Button>
+            )}
+
+            <IconButton
+              icon={Pencil}
+              size="sm"
+              label={`Edit ${a.name}`}
+              onClick={() => navigate(`/settings/staff/${a.id}/edit`)}
+            />
+            {/* Removal is withheld on the same rows revoke is: you cannot remove
+                yourself, and the last super admin must remain. */}
+            {!protectedRow && (
+              <IconButton
+                icon={Trash2}
+                size="sm"
+                variant="danger"
+                label={`Remove ${a.name}`}
+                onClick={() => setRemoving(a)}
+              />
+            )}
+          </div>
         );
       },
     },
   ];
 
-  if (staff.isPending && margin.isPending) return <SkeletonPage shape="dashboard" />;
+  if (staff.isPending) return <SkeletonPage shape="dashboard" />;
 
   return (
     <Page>
@@ -206,7 +246,6 @@ export function SettingsPage() {
               }}
               options={[
                 { value: 'access', label: 'Access' },
-                { value: 'commercial', label: 'Commercial' },
               ]}
             />
           </Row>
@@ -252,7 +291,33 @@ export function SettingsPage() {
         </>
       )}
 
-      {tab === 'commercial' && <CommercialTab canChange={canChange} />}
+
+
+
+      <ConfirmDialog
+        open={removing !== null}
+        title="Remove this account?"
+        /* Says what actually happens, both halves of it. "Delete" alone would
+           imply the history goes too, and would not mention that access stops
+           the moment this is confirmed. */
+        message={
+          removing
+            ? `${removing.name} will lose access immediately, on every device. ` +
+              `Their record is kept so past approvals stay attributable, but the ` +
+              `account will no longer appear here.`
+            : ''
+        }
+        confirmLabel="Remove"
+        loading={deleteStaffM.isPending}
+        onConfirm={() => {
+          if (!removing) return;
+          deleteStaffM.mutate({ id: removing.id }, {
+            onSuccess: () => setRemoving(null),
+            onError: (err) => setFailure(err instanceof Error ? err.message : 'Not removed'),
+          });
+        }}
+        onClose={() => setRemoving(null)}
+      />
 
       <ConfirmDialog
         open={disabling !== null}
@@ -278,7 +343,7 @@ export function SettingsPage() {
           disabling && (
             <span className="block space-y-2">
               <span className="block">
-                <strong>{disabling.name}</strong> ({roleLabel(disabling.role)}) will no longer
+                <strong>{disabling.name}</strong> ({labelForRole(disabling.role)}) will no longer
                 be able to sign in.
               </span>
               <span className="block text-ink-3">
@@ -293,95 +358,3 @@ export function SettingsPage() {
   );
 }
 
-/**
- * The platform margin.
- *
- * Separated out because it is one field with a long explanation, and inlining it
- * would have made the page component about two unrelated things.
- */
-function CommercialTab({ canChange }: { canChange: boolean }) {
-  const margin = usePlatformMargin();
-  const save = useSetPlatformMargin();
-  const [value, setValue] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
-
-  const current = margin.data;
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSaved(false);
-    // At most two decimals — the column is numeric(5,2), so anything finer is
-    // silently rounded by the database and the operator never learns.
-    if (!/^\d+(\.\d{1,2})?$/.test(value.trim())) {
-      return setError('Enter a percentage with at most two decimal places');
-    }
-    const pct = Number(value.trim());
-    if (pct <= 0 || pct >= 100) return setError('A margin must be above 0 and below 100');
-
-    save.mutate(pct, {
-      onSuccess: () => {
-        setSaved(true);
-        setValue('');
-      },
-      onError: (err) => setError(err instanceof Error ? err.message : 'Not saved'),
-    });
-  };
-
-  return (
-    <Panel title="Platform margin">
-      {margin.isError ? (
-        <ErrorState title="The margin could not be loaded" onRetry={() => void margin.refetch()} />
-      ) : (
-        <div className="space-y-4">
-          <dl>
-            <dt className="text-xs text-ink-3">Currently</dt>
-            <dd className="text-lg tabular-nums text-ink">
-              {current === undefined ? '—' : `${current}%`}
-            </dd>
-          </dl>
-
-          <Alert tone="info" title="Changing this does not re-price anything already sold">
-            Every order records its own commission rate at the moment of sale, so past orders
-            and pending settlements keep the terms they were agreed on. Only products listed
-            after the change use the new figure.
-          </Alert>
-
-          {saved && (
-            <Alert tone="ok" title="Saved">
-              New listings will use this margin.
-            </Alert>
-          )}
-
-          {canChange ? (
-            <form onSubmit={submit} className="space-y-3">
-              {error && (
-                <Alert tone="bad" title="Not saved">
-                  {error}
-                </Alert>
-              )}
-              <Input
-                label="New margin (%)"
-                inputMode="decimal"
-                placeholder={current === undefined ? '' : String(current)}
-                value={value}
-                onChange={(e) => setValue(e.target.value)}
-                hint="Two decimal places at most"
-              />
-              <Row justify="end">
-                <Button variant="primary" type="submit" loading={save.isPending} disabled={!value}>
-                  Save margin
-                </Button>
-              </Row>
-            </form>
-          ) : (
-            <Text variant="caption">
-              Only a super admin can change the platform margin.
-            </Text>
-          )}
-        </div>
-      )}
-    </Panel>
-  );
-}

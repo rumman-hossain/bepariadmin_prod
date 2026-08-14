@@ -33,11 +33,18 @@ export interface NewStaff {
 /**
  * The roles this form may create, with what each one actually does.
  *
+ * ADMIN ONLY, now that this console recognises two roles.
+ *
  * `super_admin` is absent and the server refuses it too: the tier that creates
  * staff and sets the platform margin should not be mintable from a form.
  *
- * Ordered widest-first, so the list reads as a descent in authority rather than
- * as the arbitrary order of a database CHECK.
+ * The other five — finance, operations, supplier_assistant, product_registrar,
+ * logistics, viewer — are still real roles that still route other services. They
+ * are simply not created from here any more.
+ *
+ * And there may be only ONE live admin: a unique index enforces it (migration
+ * 000117), so creating a second is refused with "There is already an admin.
+ * Delete that account first…" rather than quietly succeeding.
  */
 export const CREATABLE_ROLES: ReadonlyArray<{
   value: StaffRole;
@@ -45,12 +52,6 @@ export const CREATABLE_ROLES: ReadonlyArray<{
   hint: string;
 }> = [
   { value: 'admin', label: 'Admin', hint: 'Suppliers, retailers and the catalogue — but not the books' },
-  { value: 'finance', label: 'Finance', hint: 'The cash book, settlements and point adjustments' },
-  { value: 'operations', label: 'Operations', hint: 'Orders and the day-to-day running' },
-  { value: 'supplier_assistant', label: 'Supplier assistant', hint: 'Reads suppliers and the catalogue queue. Cannot approve, suspend or edit' },
-  { value: 'product_registrar', label: 'Product registrar', hint: 'The product registration app only — cannot sign in to this console' },
-  { value: 'logistics', label: 'Logistics', hint: 'The shipping desk only — couriers, rates and shipments' },
-  { value: 'viewer', label: 'Viewer', hint: 'Read-only across the back office' },
 ];
 
 export async function createStaff(staff: NewStaff): Promise<CreatedStaff> {

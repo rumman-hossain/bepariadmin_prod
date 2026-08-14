@@ -2,9 +2,10 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, cleanup, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { StaffCreatePage } from '../pages/StaffCreatePage';
 import { CREATABLE_ROLES, type NewStaff } from '../api/staffCreateApi';
-import { STAFF_ROLES } from '../api/settingsApi';
+import { labelForRole } from '../api/settingsApi';
 import { STAFF_ROLES_FOR_TEST } from './role-list';
 
 /**
@@ -57,12 +58,25 @@ vi.mock('@/src/components/feedback', async (importOriginal) => ({
   useToast: () => toast,
 }));
 
-const renderPage = () =>
-  render(
-    <MemoryRouter>
-      <StaffCreatePage />
-    </MemoryRouter>,
+/*
+ * A QueryClient is needed now that this screen also EDITS.
+ *
+ * The page looks the account up in the staff list to learn its role, because who
+ * may open it depends on that: creating is super-admin only, editing follows the
+ * server's rule that an admin may edit anyone but a super admin. On the create
+ * route there is no id to find, so the query resolves to nothing and the page
+ * behaves exactly as it always did — but the provider still has to be there.
+ */
+const renderPage = () => {
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
+  return render(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <StaffCreatePage />
+      </MemoryRouter>
+    </QueryClientProvider>,
   );
+};
 
 /**
  * Fills everything except the role, which each test chooses.
@@ -124,45 +138,51 @@ describe('the roles on offer', () => {
    * were absent from the create endpoint's validator — so those two departments
    * could not be staffed at all except by hand in SQL.
    */
-  it('offers every other role the database allows', () => {
-    renderPage();
-    for (const role of STAFF_ROLES_FOR_TEST) {
-      if (role === 'super_admin') continue;
-      expect(
-        CREATABLE_ROLES.some((r) => r.value === role),
-        `${role} cannot be created, so that department is unstaffable from the console`,
-      ).toBe(true);
-    }
+  it('offers ONLY admin — no other role is creatable here', () => {
+    /*
+     * This asserted the opposite: that every role the database allows below
+     * super_admin was offered, because `logistics` had once sat in the schema
+     * with no way to staff it.
+     *
+     * The rule changed by instruction. The platform runs on one super admin and
+     * one admin, both singletons enforced by a unique index (migration 000117),
+     * and the other roles — finance, operations, viewer, logistics,
+     * supplier_assistant, product_registrar — are no longer created from this
+     * console. They still EXIST and still route other services; they are simply
+     * not this screen's business.
+     */
+    expect(CREATABLE_ROLES.map((r) => r.value)).toEqual(['admin']);
   });
 
-  it('says what each role can reach, not just its name', () => {
+  it('states what the account will be able to reach', () => {
+    /*
+     * There is no longer a choice to inform — the form always creates an admin —
+     * but the operator still needs to know what they are handing over before
+     * they hand it over.
+     */
     renderPage();
-    // Choosing wrongly here is either a colleague who cannot work or one who
-    // can see the cash book, so the name alone is not enough to choose by.
-    for (const r of CREATABLE_ROLES) {
-      expect(screen.getByText(r.hint)).toBeTruthy();
-    }
+    expect(screen.getByText(/suppliers, retailers and the catalogue/i)).toBeTruthy();
+    expect(screen.getByText(/there can be only one/i)).toBeTruthy();
   });
 });
 
 describe('creating the account', () => {
-  it('stays disabled until every field and a role are given', () => {
+  it('stays disabled until every field is given', () => {
+    /*
+     * The role is no longer one of the things to supply — it is fixed to admin —
+     * so the gate is the detail fields alone.
+     */
     renderPage();
     const btn = () => screen.getByRole('button', { name: /create account/i }) as HTMLButtonElement;
     expect(btn().disabled).toBe(true);
 
     fillDetails();
-    // Everything but the role.
-    expect(btn().disabled).toBe(true);
-
-    fireEvent.click(screen.getByRole('button', { name: /^Operations/ }));
     expect(btn().disabled).toBe(false);
   });
 
   it('refuses to submit when the two passwords differ', () => {
     renderPage();
     fillDetails();
-    fireEvent.click(screen.getByRole('button', { name: /^Operations/ }));
     fireEvent.change(screen.getByLabelText(/confirm password/i), { target: { value: 'Different1' } });
 
     expect(screen.getByText(/do not match/i)).toBeTruthy();
@@ -180,7 +200,6 @@ describe('creating the account', () => {
   it('sends a hash and never the password itself', async () => {
     renderPage();
     fillDetails('Jamuna7Bridge!');
-    fireEvent.click(screen.getByRole('button', { name: /^Operations/ }));
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     await waitFor(() => expect(createStaff).toHaveBeenCalledTimes(1));
@@ -191,13 +210,12 @@ describe('creating the account', () => {
     // And the mobile goes with it — the field the server demanded and dropped
     // until migration 000106.
     expect(sent.mobile).toBe('01711000000');
-    expect(sent.role).toBe('operations');
+    expect(sent.role).toBe('admin');
   });
 
   it('returns to the access list and names the person', async () => {
     renderPage();
     fillDetails();
-    fireEvent.click(screen.getByRole('button', { name: /^Operations/ }));
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     await waitFor(() => expect(navigate).toHaveBeenCalledWith('/settings?tab=access'));
@@ -210,7 +228,6 @@ describe('creating the account', () => {
     );
     renderPage();
     fillDetails();
-    fireEvent.click(screen.getByRole('button', { name: /^Operations/ }));
     fireEvent.click(screen.getByRole('button', { name: /create account/i }));
 
     expect(await screen.findByText(/already exists/i)).toBeTruthy();
@@ -231,22 +248,30 @@ Separate from CREATABLE_ROLES on purpose: this list is wider, because an account
 that already holds super_admin must display truthfully even though no form may
 mint one.
 */
-describe('the access list can name every role', () => {
-  it('has an option for every role the database allows', () => {
+describe('the access list names every role without offering any', () => {
+  /*
+   * There is no role <select> on the access table any more, so the old failure
+   * this guarded — a role with no matching option displaying as the FIRST one,
+   * once reporting a logistics account as SUPER ADMIN — is unreachable by
+   * construction rather than by coverage.
+   *
+   * What remains worth asserting is the other half: every role the database
+   * allows must still have a NAME, because an account holding one is displayed
+   * whether or not this console manages it.
+   */
+  it('has a label for every role the database allows', () => {
     for (const role of STAFF_ROLES_FOR_TEST) {
-      expect(
-        STAFF_ROLES.some((r) => r.value === role),
-        `${role} has no option, so a person holding it displays as "${STAFF_ROLES[0].label}" ` +
-          `— the first option — on the screen used to audit access`,
-      ).toBe(true);
+      const label = labelForRole(role);
+      expect(label, `${role} has no label and would render as its raw value`).not.toBe(role);
+      expect(label.length).toBeGreaterThan(0);
     }
   });
 
-  it('offers more than the create form does, and super_admin is the difference', () => {
-    const creatable = new Set(CREATABLE_ROLES.map((r) => r.value));
-    const holdable = new Set(STAFF_ROLES.map((r) => r.value));
-    expect(holdable.has('super_admin')).toBe(true);
-    expect(creatable.has('super_admin' as never)).toBe(false);
-    for (const r of creatable) expect(holdable.has(r)).toBe(true);
+  it('super admin is nameable but never offered', () => {
+    // Displayed correctly wherever an account holds it...
+    expect(labelForRole('super_admin')).toBe('Super admin');
+    // ...and absent from the one list that creates accounts, because the server
+    // refuses to mint the tier from a form.
+    expect(CREATABLE_ROLES.some((r) => r.value === 'super_admin')).toBe(false);
   });
 });

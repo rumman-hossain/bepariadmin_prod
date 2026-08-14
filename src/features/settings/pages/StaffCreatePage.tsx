@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { UserPlus } from 'lucide-react';
 import { Page, PageHeader, Panel, Stack, Row } from '@/src/components/layout/primitives';
 import { Button, Input } from '@/src/components/controls';
@@ -10,86 +10,76 @@ import { hashPassword, hashErrorMessage, validatePassword } from '@/src/auth/pas
 import { useAuth } from '@/src/hooks/useAuth';
 import { useToast } from '@/src/components/feedback';
 import { hasRole, SUPER_ADMIN_ONLY, type StaffRole } from '@/src/auth/roles';
-import { cn } from '@/src/design-system/utils/cn';
-import { CREATABLE_ROLES, createStaff } from '../api/staffCreateApi';
+import { createStaff } from '../api/staffCreateApi';
+import { useStaff, useUpdateStaff, useSetStaffPassword } from '../hooks/useSettings';
+
 
 /**
- * A NEW STAFF ACCOUNT.
+ * ONE SCREEN FOR CREATING AND FOR EDITING A STAFF ACCOUNT.
  *
- * `POST /auth/admin/create-staff` has existed for a long time with no way to
- * reach it: every colleague on this console was created with curl or by hand in
- * SQL. The Settings screen could list an account, change its role and disable
- * it, and could not make one.
+ * The same form, because it is the same information — and an operator who has
+ * learned where the fields are should not have to learn again to correct one.
+ * The route decides which it is: `/settings/staff/new` creates,
+ * `/settings/staff/:id/edit` edits.
  *
- * # A route, not a dialog
+ * # What differs, and why only these
  *
- * Six fields including a password. A dialog that loses a half-typed password to
- * a stray click outside it is a small cruelty, and this form is not something
- * you do casually beside something else.
+ *   WHO MAY BE HERE.  Creating is super-admin only, as the server has always
+ *                     enforced. EDITING is wider by instruction: an admin may
+ *                     edit anyone except a super admin, which is exactly the
+ *                     rule internal/settings/authority.go applies server-side.
  *
- * # The role picker is the screen
- *
- * A `<select>` of five words would ask the operator to already know what
- * "operations" can reach. Each role is a card carrying what it actually does,
- * because choosing wrongly here is either a colleague who cannot work or one
- * who can see the cash book.
- *
- * `super_admin` is not offered, and the server refuses it too.
- *
- * # The password never leaves as plaintext
- *
- * Hashed client-side with the same PBKDF2 the sign-in form uses, through the
- * same shared policy — so a password this screen accepts is one the login
- * screen will accept back.
+ *   THE PASSWORD.     On create it is required — the account needs one. On edit
+ *                     it is a RESET and therefore optional: left blank, the
+ *                     current password stands. Filled in, every session that
+ *                     account holds ends immediately, which is usually the point.
  */
-
-function RoleCard({
-  role,
-  label,
-  hint,
-  selected,
-  onSelect,
-}: {
-  role: StaffRole;
-  label: string;
-  hint: string;
-  selected: boolean;
-  onSelect: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onSelect}
-      aria-pressed={selected}
-      className={cn(
-        'flex w-full flex-col gap-1 rounded-xl border p-3 text-left transition-colors',
-        'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rule-focus',
-        selected
-          ? 'border-brass bg-brass-wash'
-          : 'border-rule bg-sheet hover:border-ink-4 hover:bg-sheet-hover',
-      )}
-    >
-      <span className={cn('text-sm font-semibold', selected ? 'text-brass' : 'text-ink')}>
-        {label}
-      </span>
-      <span className="text-2xs leading-snug text-ink-2">{hint}</span>
-      {/* The stored value, for anyone matching this against the database or a
-          log line. Small, because it is a reference and not the choice. */}
-      <span className="font-mono text-2xs text-ink-4">{role}</span>
-    </button>
-  );
-}
-
 export function StaffCreatePage() {
   const navigate = useNavigate();
   const toast = useToast();
   const { user } = useAuth();
+  const { id: editingId } = useParams<{ id: string }>();
+  const isEdit = Boolean(editingId);
+
+  /*
+   * Creating stays super-admin only. Editing follows the server's rule: a super
+   * admin reaches anyone, an admin reaches anyone who is not a super admin. The
+   * target's role is only known once the list has loaded, so the check below
+   * waits for it rather than guessing.
+   */
+  const staff = useStaff();
+  const target = staff.data?.find((a) => a.id === editingId);
   const canCreate = hasRole(user?.role, SUPER_ADMIN_ONLY);
+  const canEdit =
+    user?.role === 'super_admin' ||
+    (user?.role === 'admin' && target?.role !== 'super_admin');
+  const allowed = isEdit ? canEdit : canCreate;
+
+  const updateStaffM = useUpdateStaff();
+  const setPasswordM = useSetStaffPassword();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [mobile, setMobile] = useState('');
-  const [role, setRole] = useState<StaffRole | null>(null);
+
+  /*
+   * Seeded from the account being edited, once, keyed on its id — so a second
+   * account opened after a first does not inherit the first one's values.
+   */
+  const [seeded, setSeeded] = useState<string | null>(null);
+  if (target && seeded !== target.id) {
+    setSeeded(target.id);
+    setName(target.name ?? '');
+    setEmail(target.email ?? '');
+    // Seeded now that the list carries it — an empty box after a successful save
+    // is what made the save look like it had failed.
+    setMobile(target.phone ?? '');
+  }
+  /*
+   * Fixed, not chosen — see the panel below. `admin` is the only role this form
+   * can produce, so it is a constant rather than a piece of state nobody sets.
+   */
+  const role: StaffRole = 'admin';
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [saving, setSaving] = useState(false);
@@ -102,10 +92,10 @@ export function StaffCreatePage() {
    * where somebody typed the URL or followed a stale link. Saying which role is
    * needed beats a blank page or a silent redirect that looks like a bug.
    */
-  if (!canCreate) {
+  if (!allowed) {
     return (
       <Page>
-        <PageHeader title="New staff account" onBack={() => navigate('/settings?tab=access')} />
+        <PageHeader title={isEdit ? 'Edit staff account' : 'New staff account'} onBack={() => navigate('/settings?tab=access')} />
         <Alert tone="warn" title="Only a super admin can create staff accounts">
           Ask one of them to add this person, or to change your role first.
         </Alert>
@@ -115,19 +105,55 @@ export function StaffCreatePage() {
 
   const policy = validatePassword(password);
   const mismatch = confirm.length > 0 && confirm !== password;
+  /*
+   * On EDIT the password is optional — blank means "leave it alone" — so it only
+   * has to satisfy the policy when something was actually typed. Requiring it
+   * would make correcting a spelling mistake also a forced password reset, which
+   * signs the person out of every device for no reason.
+   *
+   * The mobile is likewise not re-demanded on edit: the list does not carry it,
+   * so an empty box means unchanged rather than "erase it".
+   */
+  const wantsPassword = password.length > 0 || confirm.length > 0;
+  const passwordOk = isEdit
+    ? (!wantsPassword || (policy.valid && confirm === password))
+    : (policy.valid && confirm === password);
   const ready =
     name.trim().length > 1 &&
     email.trim().length > 3 &&
-    mobile.trim().length > 0 &&
-    role !== null &&
-    policy.valid &&
-    confirm === password;
+    (isEdit || mobile.trim().length > 0) &&
+    passwordOk;
 
   const submit = async () => {
-    if (!role) return;
     setFailure(null);
     setSaving(true);
     try {
+      if (isEdit && editingId) {
+        await updateStaffM.mutateAsync({
+          id: editingId,
+          name: name.trim(),
+          email: email.trim(),
+          phone: mobile.trim(),
+        });
+        /*
+         * The password is a SECOND call, and deliberately after the details.
+         * It ends every session that account holds, so doing it first would sign
+         * the person out and then risk failing to save the change that mattered.
+         */
+        if (wantsPassword) {
+          const passwordHash = await hashPassword(password);
+          await setPasswordM.mutateAsync({ id: editingId, passwordHash });
+        }
+        toast.success(
+          'Account updated',
+          wantsPassword
+            ? `${name.trim()} has been signed out everywhere and will need the new password.`
+            : `${name.trim()}'s details were saved.`,
+        );
+        navigate('/settings?tab=access');
+        return;
+      }
+
       // Client-side, like every other password path here. The server argon2ids
       // whatever it receives; it never sees the plaintext.
       const passwordHash = await hashPassword(password);
@@ -148,7 +174,11 @@ export function StaffCreatePage() {
       // "update your browser" is not advice a 409 should produce.
       setFailure(
         hashErrorMessage(err) ??
-          (err instanceof Error ? err.message : 'The account could not be created'),
+          (err instanceof Error
+            ? err.message
+            : isEdit
+              ? 'The account could not be saved'
+              : 'The account could not be created'),
       );
     } finally {
       setSaving(false);
@@ -158,7 +188,7 @@ export function StaffCreatePage() {
   return (
     <Page>
       <PageHeader
-        title="New staff account"
+        title={isEdit ? 'Edit staff account' : 'New staff account'}
         subtitle="They can sign in as soon as you save this."
         onBack={() => navigate('/settings?tab=access')}
       />
@@ -202,30 +232,33 @@ export function StaffCreatePage() {
 
         <Panel title="What they can reach">
           <Stack gap="md">
+            {/*
+              NO CHOICE, BECAUSE THERE IS ONLY ONE.
+              
+              This offered seven roles. The platform now runs on two — one super
+              admin and one admin — and both are singletons enforced by a unique
+              index (migration 000117). A super admin cannot be created from a
+              form at all; the server has always refused it, on the grounds that
+              the most privileged tier should not be mintable.
+              
+              So the only account this form can produce is an admin, and asking
+              which role to use would be a question with one answer whose other
+              options all fail.
+            */}
             <Text variant="secondary">
-              Pick the narrowest one that lets them do their job. A super admin can
-              change it later.
+              This creates an <strong>Admin</strong> — suppliers, retailers and the
+              catalogue, but not the books. There can be only one, so if an admin
+              already exists you will need to remove that account first.
             </Text>
-            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-              {CREATABLE_ROLES.map((r) => (
-                <RoleCard
-                  key={r.value}
-                  role={r.value}
-                  label={r.label}
-                  hint={r.hint}
-                  selected={role === r.value}
-                  onSelect={() => setRole(r.value)}
-                />
-              ))}
-            </div>
           </Stack>
         </Panel>
 
-        <Panel title="Their first password">
+        <Panel title={isEdit ? 'Reset their password' : 'Their first password'}>
           <Stack gap="md">
             <Text variant="secondary">
-              Give it to them directly, and ask them to change it from their profile
-              once they are in.
+              {isEdit
+                ? 'Leave both boxes empty to keep the current password. Setting one signs them out on every device, which is usually the reason for doing it.'
+                : 'Give it to them directly, and ask them to change it from their profile once they are in.'}
             </Text>
             <div className="grid max-w-2xl gap-4 sm:grid-cols-2">
               {/* `allowGenerate`, which is exactly the case it exists for: an
@@ -267,7 +300,7 @@ export function StaffCreatePage() {
             disabled={!ready || saving}
             onClick={() => void submit()}
           >
-            {saving ? 'Creating…' : 'Create account'}
+            {saving ? (isEdit ? 'Saving…' : 'Creating…') : (isEdit ? 'Save changes' : 'Create account')}
           </Button>
         </Row>
       </Stack>

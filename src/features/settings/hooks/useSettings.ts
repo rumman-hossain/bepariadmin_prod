@@ -1,18 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  getStaff,
-  setStaffRole,
-  setStaffStatus,
-  getPlatformMargin,
-  setPlatformMargin,
-} from '../api/settingsApi';
+import { getStaff, setStaffRole, setStaffStatus, updateStaff, setStaffPassword, deleteStaff } from '../api/settingsApi';
 
 const key = ['settings'] as const;
 
 export const useStaff = () => useQuery({ queryKey: [...key, 'staff'], queryFn: getStaff });
 
-export const usePlatformMargin = () =>
-  useQuery({ queryKey: [...key, 'margin'], queryFn: getPlatformMargin });
 
 /*
  * Every mutation invalidates the whole settings tree.
@@ -39,10 +31,36 @@ export function useSetStaffStatus() {
   });
 }
 
-export function useSetPlatformMargin() {
+
+/*
+ * Editing, resetting and removing a staff account.
+ *
+ * Each invalidates the whole settings tree, like the mutations above. Removal
+ * especially: the row disappears from the list server-side, so a stale cache
+ * would keep showing an account that no longer exists and whose owner has
+ * already been signed out.
+ */
+export function useUpdateStaff() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (marginPercent: number) => setPlatformMargin(marginPercent),
+    mutationFn: (v: { id: string; name: string; email: string; phone?: string }) =>
+      updateStaff(v.id, { name: v.name, email: v.email, phone: v.phone }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+}
+
+export function useSetStaffPassword() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: string; passwordHash: string }) => setStaffPassword(v.id, v.passwordHash),
+    onSuccess: () => qc.invalidateQueries({ queryKey: key }),
+  });
+}
+
+export function useDeleteStaff() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (v: { id: string }) => deleteStaff(v.id),
     onSuccess: () => qc.invalidateQueries({ queryKey: key }),
   });
 }

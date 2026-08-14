@@ -109,7 +109,21 @@ describe('the last active super admin', () => {
     renderPage();
     await screen.findByText('Nadia');
     expect(within(rowFor('Nadia')).getByRole('button', { name: /revoke/i })).toBeTruthy();
-    expect(within(rowFor('Nadia')).getByRole('combobox')).toBeTruthy();
+    /*
+     * The role combobox is gone — roles are displayed, never chosen, now that
+     * there is one live super admin and one live admin and the server refuses
+     * every other option a picker could offer.
+     *
+     * What must still be reachable is the management the rail was protecting:
+     * an account the caller may act on still offers Edit and Password.
+     */
+    /*
+     * The controls are icons now, and their accessible name carries the person:
+     * "Edit Nadia", "Remove Nadia". A screen reader in a table of ten rows
+     * otherwise hears "Edit" ten times with nothing to tell them apart.
+     */
+    expect(within(rowFor('Nadia')).getByRole('button', { name: /edit nadia/i })).toBeTruthy();
+    expect(within(rowFor('Nadia')).getByRole('button', { name: /remove nadia/i })).toBeTruthy();
   });
 });
 
@@ -171,20 +185,42 @@ describe('a role that cannot change access', () => {
   });
 });
 
-describe('the platform margin', () => {
-  beforeEach(() => {
-    getStaff.mockResolvedValue([account()]);
+
+/*
+EVERY ACTION IN ONE COLUMN, AT THE END OF THE ROW.
+
+The controls were split — edit and remove mid-table, revoke at the end — so an
+operator scanned past controls to reach a control. The requested shape is one
+Action column after Added, reading left to right in order of severity: change
+access, change details, remove entirely.
+*/
+describe('the action column', () => {
+  it('is last, after Added', async () => {
+    renderPage();
+    await screen.findByText('Nadia');
+    const headers = screen.getAllByRole('columnheader').map((h) => h.textContent?.trim());
+    expect(headers).toContain('Action');
+    expect(headers[headers.length - 1]).toBe('Action');
+    // ...and the three that precede it are in the order asked for.
+    const order = headers.filter((h) => ['Role', 'Status', 'Added', 'Action'].includes(h ?? ''));
+    expect(order).toEqual(['Role', 'Status', 'Added', 'Action']);
   });
 
-  it('says a change does not re-price what is already sold', async () => {
-    // The expectation most likely to be wrong, and the most expensive to be
-    // wrong about — orders capture their own commission rate at sale.
-    renderPage('?tab=commercial');
-    expect(await screen.findByText(/does not re-price anything already sold/i)).toBeTruthy();
-  });
+  it('holds revoke as words, and edit and remove as icons', async () => {
+    renderPage();
+    await screen.findByText('Nadia');
+    const row = within(rowFor('Nadia'));
 
-  it('shows the current value', async () => {
-    renderPage('?tab=commercial');
-    expect(await screen.findByText('9.5%')).toBeTruthy();
+    /*
+     * Revoke keeps its label because it is the ambiguous one: an icon for
+     * "revoke access" and an icon for "delete" would look alike and mean very
+     * different things — one is reversible, the other removes the account.
+     */
+    expect(row.getByRole('button', { name: /revoke access/i })).toBeTruthy();
+
+    // The other two are icon-only, so their accessible name is all a screen
+    // reader gets — and it names the person, not just the verb.
+    expect(row.getByRole('button', { name: /edit nadia/i })).toBeTruthy();
+    expect(row.getByRole('button', { name: /remove nadia/i })).toBeTruthy();
   });
 });

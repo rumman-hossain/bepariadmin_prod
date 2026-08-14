@@ -527,6 +527,14 @@ export const router = createBrowserRouter([
        * endpoint.
        */
       { path: 'settings/staff/new', element: <LazyPage><LazyStaffCreate /></LazyPage> },
+      /*
+       * The SAME screen edits an existing account. One form for one set of
+       * information — an operator who has learned where the fields are should
+       * not have to learn again to correct one. Who may open it differs, and
+       * that is decided inside: creating is super-admin only, editing follows
+       * the server's rule that an admin may edit anyone but a super admin.
+       */
+      { path: 'settings/staff/:id/edit', element: <LazyPage><LazyStaffCreate /></LazyPage> },
 
       /*
        * Your own details. Deliberately NOT in the nav registry: it is reached

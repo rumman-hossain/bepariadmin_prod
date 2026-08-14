@@ -23,6 +23,14 @@ export const staffSchema = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
+  /*
+   * DECLARED, because Zod strips what it does not name.
+   *
+   * The edit screen seeds its fields from this list. Without `phone` here the
+   * box redrew empty after every save, so a saved number looked lost — the same
+   * silent-stripping failure that once cost this codebase `objectRef`.
+   */
+  phone: z.string().optional().default(''),
   role: z.string(),
   status: z.string(),
   createdAt: z.string(),
@@ -53,47 +61,113 @@ export const setStaffRole = (id: string, role: string) =>
 export const setStaffStatus = (id: string, status: 'active' | 'inactive') =>
   patch(`${API_V1}/settings/staff/${id}/status`, { status }, 'The account could not be updated');
 
-export async function getPlatformMargin(): Promise<number> {
-  const res = await request<unknown>('GET', `${API_V1}/catalog/platform-margin`, { auth: true });
-  if (!res.ok) throw new Error('The platform margin could not be loaded');
-  const parsed = z.object({ marginPercent: z.number() }).safeParse(res.data);
-  if (!parsed.success) throw new Error('The platform margin came back in an unexpected shape');
-  return parsed.data.marginPercent;
-}
 
-export async function setPlatformMargin(marginPercent: number): Promise<void> {
-  const res = await request<unknown>('PUT', `${API_V1}/catalog/platform-margin`, {
-    auth: true,
-    body: { marginPercent },
-  });
-  if (!res.ok) {
-    const detail = (res.data as { error?: { message?: string } } | undefined)?.error?.message;
-    throw new Error(detail ?? 'The platform margin could not be saved');
-  }
+
+/**
+ * ROLES ARE SHOWN HERE, NEVER CHOSEN.
+ *
+ * This console once offered all eight roles the database allows. It now offers
+ * none, and that is the correct number rather than an omission:
+ *
+ *   - there is exactly ONE live super admin and ONE live admin, enforced by a
+ *     unique index (migration 000117);
+ *   - creating a super admin is refused by the server and always has been —
+ *     "the most privileged tier should not be mintable from a form";
+ *   - granting a second admin is refused by that index.
+ *
+ * So every option a picker could offer is one the server would reject. A control
+ * whose every choice fails is worse than no control: the operator selects, waits,
+ * and is told no.
+ *
+ * To hand a role to somebody else: delete the account holding it — which revokes
+ * their access immediately — and create the replacement.
+ *
+ * DISPLAYING a role is a different question and still matters. An account is
+ * named honestly whatever it holds, including roles this screen does not manage,
+ * because a `<select>` whose options exclude the current value silently shows the
+ * FIRST one instead — which once reported a logistics account as SUPER ADMIN on
+ * the screen used to audit access.
+ */
+const ROLE_LABELS: Record<string, string> = {
+  super_admin: 'Super admin',
+  admin: 'Admin',
+  finance: 'Finance',
+  operations: 'Operations',
+  supplier_assistant: 'Supplier assistant',
+  product_registrar: 'Product registrar',
+  logistics: 'Logistics',
+  viewer: 'Viewer',
+};
+
+/** A human name for any role. Falls back to the raw value rather than guessing. */
+export function labelForRole(role: string): string {
+  return ROLE_LABELS[role] ?? role;
 }
 
 /**
- * Every role an existing account may HOLD, in the order of the database CHECK.
+ * Change a staff member's own details.
  *
- * Wider than the list the create form offers, and deliberately so: this one
- * includes `super_admin`, because an account that already has it must display
- * as it truly is. Creating one from a form is a different question — see
- * CREATABLE_ROLES in staffCreateApi.ts.
+ * The LOGIN account in `users.staff` — not the HR record at `/hr/staff`, which
+ * is a different thing (department, salary, join date) and is left alone.
  *
- * `logistics` and `supplier_assistant` were both MISSING here, which is worse
- * than it sounds. This list feeds the role `<select>` on each row, so a person
- * holding either one had no matching option and the control fell back to
- * showing the first — reporting a logistics account as a SUPER ADMIN on the
- * screen an operator uses to audit who has access. It also meant nobody could
- * be moved into either department after the fact.
+ * Authority is the server's: a super admin may edit anyone, an admin anyone
+ * except a super admin. The UI withholds the control where it knows the answer,
+ * but the refusal that counts is the one below.
  */
-export const STAFF_ROLES = [
-  { value: 'super_admin', label: 'Super admin', hint: 'Everything, including staff accounts and the platform margin' },
-  { value: 'admin', label: 'Admin', hint: 'Suppliers, retailers and the catalogue — but not the books' },
-  { value: 'finance', label: 'Finance', hint: 'The cash book, settlements and point adjustments' },
-  { value: 'operations', label: 'Operations', hint: 'Orders and day-to-day running' },
-  { value: 'supplier_assistant', label: 'Supplier assistant', hint: 'Reads suppliers and the catalogue queue' },
-  { value: 'product_registrar', label: 'Product registrar', hint: 'The product registration app only' },
-  { value: 'logistics', label: 'Logistics', hint: 'The shipping desk only' },
-  { value: 'viewer', label: 'Viewer', hint: 'Read-only' },
-] as const;
+export async function updateStaff(
+  id: string,
+  fields: { name: string; email: string; phone?: string },
+): Promise<void> {
+  const res = await request<unknown>('PATCH', `${API_V1}/settings/staff/${encodeURIComponent(id)}`, {
+    auth: true,
+    body: { name: fields.name, email: fields.email, phone: fields.phone ?? '' },
+  });
+  if (!res.ok) throw new Error(staffErrorMessage(res, 'Could not save those details.'));
+}
+
+/**
+ * Set somebody else's password.
+ *
+ * A RESET, not a change — there is no current password here, because the person
+ * doing it is not the person who knows it. What is sent is the `pbkdf2v3:`
+ * envelope derived by nextgen-password, exactly as every other credential path
+ * in this system: the plaintext never leaves the browser.
+ *
+ * The server ends every session that account holds, since the usual reason for
+ * an administrative reset is that the old credential is not trusted.
+ */
+export async function setStaffPassword(id: string, passwordHash: string): Promise<void> {
+  const res = await request<unknown>('PUT', `${API_V1}/settings/staff/${encodeURIComponent(id)}/password`, {
+    auth: true,
+    body: { password_hash: passwordHash },
+  });
+  if (!res.ok) throw new Error(staffErrorMessage(res, 'Could not set that password.'));
+}
+
+/**
+ * Remove a staff account.
+ *
+ * SOFT on the server — the row stays so its history remains attributable — and
+ * the account disappears from this list. What is not soft is the access: the
+ * server revokes every session in the same operation, so the person is signed
+ * out on every device immediately rather than whenever their token expires.
+ */
+export async function deleteStaff(id: string): Promise<void> {
+  const res = await request<unknown>('DELETE', `${API_V1}/settings/staff/${encodeURIComponent(id)}`, {
+    auth: true,
+  });
+  if (!res.ok) throw new Error(staffErrorMessage(res, 'Could not remove that account.'));
+}
+
+/*
+ * The server's own words, where it has any.
+ *
+ * These refusals are the interesting ones — "there is already an admin", "only a
+ * super admin can change a super admin's account", "that is the last super
+ * admin" — and each tells the operator what to do next. Replacing them with a
+ * generic failure sends somebody looking for a problem that does not exist.
+ */
+function staffErrorMessage(res: { data?: unknown }, fallback: string): string {
+  const d = res.data as { error?: { message?: string }; message?: string } | undefined;
+  return d?.error?.message || d?.message || fallback;
+}
