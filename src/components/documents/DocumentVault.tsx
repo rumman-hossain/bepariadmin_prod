@@ -46,6 +46,14 @@ export interface VaultDocument {
   hasFile: boolean;
   verifiedByName?: string | null;
   verifiedAt?: string | null;
+  /**
+   * The review verdict: pending | approved | rejected | removed.
+   *
+   * OPTIONAL because only suppliers have a per-document review endpoint — the
+   * retailer vault renders the same rows without one, and a required field here
+   * would force that screen to invent a value it has no source for.
+   */
+  status?: string;
 }
 
 export interface DocumentVaultProps {
@@ -68,6 +76,15 @@ export interface DocumentVaultProps {
    * heading sits above it.
    */
   heading?: string | null;
+  /**
+   * Extra controls for one row, rendered by the CALLER.
+   *
+   * Optional and absent by default, because only suppliers have a per-document
+   * review endpoint. Baking Approve/Reject into this shared vault would put
+   * buttons on the retailer screen that no route can serve — the two vaults have
+   * already drifted apart once and this keeps the difference in one place.
+   */
+  renderRowActions?: (doc: VaultDocument) => React.ReactNode;
 }
 
 function DocumentRow({
@@ -76,12 +93,15 @@ function DocumentRow({
   fetchUrl,
   labelFor,
   onFailure,
+  actions,
 }: {
   subjectId: string;
   doc: VaultDocument;
   fetchUrl: FetchDocumentUrl;
   labelFor: (docType: string) => string;
   onFailure: (failure: DocumentOpenFailure | null) => void;
+  /** Caller-supplied controls for this row. Absent on the retailer vault. */
+  actions?: React.ReactNode;
 }) {
   // Tracked per ACTION, so pressing Download does not put the View button in a
   // loading state and leave the operator wondering which one they pressed.
@@ -211,6 +231,13 @@ function DocumentRow({
           />
         </div>
       )}
+      {/*
+        Caller-supplied controls, AFTER View and Download and outside the
+        `!missing` gate: a supplier's document can need a verdict whether or not
+        its object is readable, and the review decision is not a way of reaching
+        the file.
+      */}
+      {actions}
     </div>
   );
 }
@@ -222,6 +249,7 @@ export function DocumentVault({
   labelFor,
   emptyLabel,
   heading = 'Documents',
+  renderRowActions,
 }: DocumentVaultProps) {
   const [failure, setFailure] = React.useState<DocumentOpenFailure | null>(null);
   const headingId = React.useId();
@@ -275,6 +303,7 @@ export function DocumentVault({
               fetchUrl={fetchUrl}
               labelFor={labelFor}
               onFailure={setFailure}
+              actions={renderRowActions?.(doc)}
             />
           ))
         )}

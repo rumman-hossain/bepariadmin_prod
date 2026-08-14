@@ -421,6 +421,72 @@ export { mapProfileToWholesaler, sanitizeLogoUrlForApi } from './mapWholesaler';
  *
  * Requested at the moment somebody presses View or Download, and never stored.
  */
+/**
+ * Record a verdict on ONE of a supplier's certificates.
+ *
+ * PATCH /api/v1/admin/wholesalers/{id}/documents/{documentID}
+ *
+ * The reviewer is NOT sent — the server takes it from the token, so a decision
+ * cannot be attributed to a colleague (internal/admin/document_review.go).
+ *
+ * Approving a document that REPLACES an older one retires the older row to
+ * 'removed' server-side. That is why this is a per-document call and not part of
+ * approving the account: a supplier who re-submits a certificate after they were
+ * approved needs that one file looked at, not their whole account re-opened.
+ */
+export async function reviewWholesalerDocument(
+  wholesalerId: string,
+  documentId: string,
+  status: 'approved' | 'rejected' | 'removed',
+  note?: string,
+): Promise<void> {
+  const res = await request<unknown>(
+    'PATCH',
+    `/api/v1/admin/wholesalers/${encodeURIComponent(wholesalerId)}/documents/${encodeURIComponent(documentId)}`,
+    { auth: true, body: { status, note: note ?? '' } },
+  );
+  if (!res.ok) {
+    throw new Error(
+      status === 'approved' ? 'Could not approve that document.' : 'Could not update that document.',
+    );
+  }
+}
+
+/**
+ * SETTLE A SUPPLIER'S PROPOSED ADDRESS OR PAYOUT CHANGE.
+ *
+ * A supplier can edit their own address and the accounts they are paid into. The
+ * edit does not change anything: the server files a `pending` row beside the
+ * live one, and payouts keep going to the account already approved until
+ * somebody here decides. Without this call that queue has no consumer, and the
+ * app posts changes into a void.
+ *
+ * `kind` is one of the three words the server accepts — address, bank, bkash —
+ * and reaches a closed map on the way in, never SQL.
+ *
+ * Approving retires the entry it replaces and promotes the new one to default,
+ * in one transaction. Rejecting writes the verdict and the note and touches no
+ * live data at all.
+ */
+export async function reviewWholesalerProfileChange(
+  wholesalerId: string,
+  kind: 'address' | 'bank' | 'bkash',
+  changeId: string,
+  status: 'approved' | 'rejected' | 'removed',
+  note?: string,
+): Promise<void> {
+  const res = await request<unknown>(
+    'PATCH',
+    `/api/v1/admin/wholesalers/${encodeURIComponent(wholesalerId)}/profile-changes/${encodeURIComponent(kind)}/${encodeURIComponent(changeId)}`,
+    { auth: true, body: { status, note: note ?? '' } },
+  );
+  if (!res.ok) {
+    throw new Error(
+      status === 'approved' ? 'Could not approve that change.' : 'Could not update that change.',
+    );
+  }
+}
+
 export async function getWholesalerDocumentUrl(
   wholesalerId: string,
   documentId: string,

@@ -3,6 +3,7 @@ import { DocumentVault } from '@/src/components/documents/DocumentVault';
 import { getWholesalerDocumentUrl } from '../api/wholesalerApi';
 import { REQUIRED_DOC_SLOTS } from '../constants/documents';
 import { supplierDocLabel } from './supplierDocLabel';
+import { DocumentReviewControl } from './DocumentReviewControl';
 import type { Wholesaler } from '@/src/types/domain';
 
 /**
@@ -27,7 +28,14 @@ import type { Wholesaler } from '@/src/types/domain';
  * populates and the DETAIL endpoint does not. Reading it would show "0 of 4"
  * over four visible certificates on every detail page.
  */
-export function SupplierPaperworkPanel({ supplier }: { supplier: Wholesaler }) {
+export function SupplierPaperworkPanel({
+  supplier,
+  onReviewed,
+}: {
+  supplier: Wholesaler;
+  /** Refetch the supplier so a new verdict — and any row it retired — appears. */
+  onReviewed?: () => void;
+}) {
   const documents = supplier.documents ?? [];
   const removed = Boolean(supplier.deletedAt);
 
@@ -67,6 +75,22 @@ export function SupplierPaperworkPanel({ supplier }: { supplier: Wholesaler }) {
          * that row with still renders.
          */
         heading={null}
+        /*
+         * The verdict controls, supplier-only.
+         *
+         * A supplier can submit a REPLACEMENT from the app: it arrives as a
+         * second pending row of the same type while their current certificate
+         * stays valid, and approving it retires the old one server-side.
+         * Without this the console could not act on those submissions at all.
+         */
+        renderRowActions={(doc) => (
+          <DocumentReviewControl
+            wholesalerId={supplier.id}
+            documentId={doc.id}
+            status={doc.status}
+            onReviewed={() => onReviewed?.()}
+          />
+        )}
       />
     </Panel>
   );

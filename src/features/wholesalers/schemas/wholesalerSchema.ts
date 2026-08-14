@@ -6,6 +6,30 @@ import { REQUIRED_DOCUMENT_NAMES } from '../constants/documents';
  * Wholesaler Address schema
  */
 export const addressItemSchema = z.object({
+  /*
+   * THE REVIEW STATE OF THIS ENTRY, carried rather than stripped.
+   *
+   * A supplier can propose a new address or payout account from the app. It
+   * arrives as a `pending` row beside the live one and means nothing until an
+   * admin approves it. Zod objects drop unknown keys, so omitting these two
+   * would silently discard the only thing that distinguishes a proposal from
+   * the entry actually in force — the console would show two bank accounts and
+   * no way to tell which one is real.
+   *
+   * That exact failure has already cost this codebase once: `objectRef` was
+   * stripped the same way and product media went permanently blank.
+   */
+  status: z.string().optional(),
+  reviewNote: z.string().optional(),
+  /*
+   * WHICH ENTRY A PENDING CHANGE REPLACES, or absent for an addition.
+   *
+   * Declared for the same reason status is: Zod drops unknown keys, and without
+   * this the console cannot tell "replace the EBL account" from "add a second
+   * account" — it would show an unrelated account as the one being replaced,
+   * and an operator would approve on that basis.
+   */
+  supersedesId: z.string().optional(),
   id: z.string().optional(),
   addressType: z.enum(['primary', 'warehouse', 'return', 'billing']).default('primary'),
   division: z.string().optional(),
@@ -19,6 +43,30 @@ export const addressItemSchema = z.object({
  * Wholesaler Bank Detail schema
  */
 export const bankItemSchema = z.object({
+  /*
+   * THE REVIEW STATE OF THIS ENTRY, carried rather than stripped.
+   *
+   * A supplier can propose a new address or payout account from the app. It
+   * arrives as a `pending` row beside the live one and means nothing until an
+   * admin approves it. Zod objects drop unknown keys, so omitting these two
+   * would silently discard the only thing that distinguishes a proposal from
+   * the entry actually in force — the console would show two bank accounts and
+   * no way to tell which one is real.
+   *
+   * That exact failure has already cost this codebase once: `objectRef` was
+   * stripped the same way and product media went permanently blank.
+   */
+  status: z.string().optional(),
+  reviewNote: z.string().optional(),
+  /*
+   * WHICH ENTRY A PENDING CHANGE REPLACES, or absent for an addition.
+   *
+   * Declared for the same reason status is: Zod drops unknown keys, and without
+   * this the console cannot tell "replace the EBL account" from "add a second
+   * account" — it would show an unrelated account as the one being replaced,
+   * and an operator would approve on that basis.
+   */
+  supersedesId: z.string().optional(),
   id: z.string().optional(),
   bankName: z.string().min(1, 'Bank name is required'),
   accountName: z.string().min(1, 'Account name is required'),
@@ -32,6 +80,30 @@ export const bankItemSchema = z.object({
  * Wholesaler Mobile Wallet schema
  */
 export const walletItemSchema = z.object({
+  /*
+   * THE REVIEW STATE OF THIS ENTRY, carried rather than stripped.
+   *
+   * A supplier can propose a new address or payout account from the app. It
+   * arrives as a `pending` row beside the live one and means nothing until an
+   * admin approves it. Zod objects drop unknown keys, so omitting these two
+   * would silently discard the only thing that distinguishes a proposal from
+   * the entry actually in force — the console would show two bank accounts and
+   * no way to tell which one is real.
+   *
+   * That exact failure has already cost this codebase once: `objectRef` was
+   * stripped the same way and product media went permanently blank.
+   */
+  status: z.string().optional(),
+  reviewNote: z.string().optional(),
+  /*
+   * WHICH ENTRY A PENDING CHANGE REPLACES, or absent for an addition.
+   *
+   * Declared for the same reason status is: Zod drops unknown keys, and without
+   * this the console cannot tell "replace the EBL account" from "add a second
+   * account" — it would show an unrelated account as the one being replaced,
+   * and an operator would approve on that basis.
+   */
+  supersedesId: z.string().optional(),
   id: z.string().optional(),
   walletType: z.enum(['bkash', 'nagad', 'rocket', 'upay']).default('bkash'),
   accountNumber: z

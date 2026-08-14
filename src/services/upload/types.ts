@@ -70,7 +70,17 @@ export interface PublishDraftRequest {
 
 export interface MediaAsset {
   id: number;
+  /** A ~15-minute proxy token. For DISPLAY only — the server refuses to store it. */
   cdnUrl: string;
+  /**
+   * The durable `gs://bucket/object` reference — the only shape a product write
+   * may carry (`internal/product/media_reference_guard.go`).
+   *
+   * Optional because it arrives only from a backend new enough to send it; the
+   * caller falls back to the other fields and then to the slot's own reference.
+   */
+  gcsUri?: string;
+  /** A bare object name, no scheme and no bucket. Not storable on its own. */
   gcsRawPath: string;
   filename: string;
   mediaType: MediaType;

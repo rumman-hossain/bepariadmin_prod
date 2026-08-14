@@ -177,11 +177,34 @@ export function useProductRegistration(editingProductId?: string | null) {
         if (!publishRes.success) throw new Error(publishRes.message || 'Failed to publish media draft');
       }
 
-      // The publish response is authoritative for the video: it carries the CDN
-      // URL, where the store still holds the direct upload URL.
-      const publishedVideoUrl = publishRes.mediaAssets?.find(
+      /*
+       * THE DURABLE REFERENCE, NOT THE DISPLAY TOKEN.
+       *
+       * This read `.cdnUrl`, which is the same mistake this file already
+       * documents for IMAGES in `useProductFormLifecycle.ts` — sending a proxy
+       * token back on save "wrote /api/v1/file/lscRDFAi-VrKND4ovAfDow into
+       * products.product_media and blanked a live product's images a quarter of
+       * an hour later". Images learned; video did not.
+       *
+       * `videoUrl` is checked by the identical guard
+       * (`media_reference_guard.go:135`), so registering a product WITH a video
+       * from this console fails with the same 400. It has stayed hidden only
+       * because a product without a video never reaches this line.
+       *
+       * Only `gcsUri` can qualify — `gcsRawPath` and `cdnUrl` are checked by
+       * the same predicate and never pass it, so they are not consulted. When
+       * nothing durable is available the video is omitted rather than sent as
+       * something the server will reject, which is what turned a missing field
+       * into a failed product registration.
+       */
+      const publishedVideoAsset = publishRes.mediaAssets?.find(
         (m: MediaAsset) => m.purpose?.startsWith('product') && m.mediaType === 'video',
-      )?.cdnUrl;
+      );
+      const isDurable = (v?: string | null) =>
+        !!v && (v.startsWith('gs://') || v.startsWith('https://storage.googleapis.com/'));
+      const publishedVideoUrl = isDurable(publishedVideoAsset?.gcsUri)
+        ? publishedVideoAsset?.gcsUri
+        : undefined;
 
       // ~130 lines of wizard-state-to-payload transform used to live here.
       // See utils/buildProductPayload.ts — it is pure, and tested.

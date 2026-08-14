@@ -6,6 +6,7 @@ import { EntityDetailsCard } from '@/src/components/shared/EntityDetailsCard';
 import { StatusBadge } from '@/src/components/data/StatusBadge';
 import { ReasonDialog, ConfirmDialog, Alert } from '@/src/components/feedback';
 import { SupplierPaperworkPanel } from '../components/SupplierPaperworkPanel';
+import { ProfileChangeReviewPanel } from '../components/ProfileChangeReviewPanel';
 import { businessProfileSections, financialSections } from './supplierDetailSections';
 import { useWholesalerDetail } from '../hooks/useWholesalerDetail';
 import {
@@ -391,7 +392,31 @@ export function DetailsPage() {
       */}
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-2">
         {/* Paperwork leads. Reviewing it is why this screen is opened. */}
-        <SupplierPaperworkPanel supplier={w} />
+        <SupplierPaperworkPanel
+          supplier={w}
+          /*
+           * Refetch after a verdict. Approving a REPLACEMENT retires the older
+           * row server-side, so without this the panel keeps showing both — the
+           * superseded certificate and its successor — and the reviewer cannot
+           * tell whether their click landed.
+           */
+          onReviewed={() => void refetch()}
+        />
+
+        {/*
+          Requested changes sit directly under the paperwork, and above the
+          record itself. A supplier's proposed bank account is a decision
+          waiting on this operator — the same class of work as a pending
+          certificate — and it renders nothing at all when there is none, so it
+          costs no space on the suppliers who have not asked for anything.
+        */}
+        <ProfileChangeReviewPanel
+          wholesalerId={w.id}
+          addresses={w.addresses ?? []}
+          bankAccounts={w.bankDetailsList ?? []}
+          wallets={w.digitalWallets ?? []}
+          onReviewed={() => void refetch()}
+        />
 
         <EntityDetailsCard title="Business profile" sections={businessProfileSections(w)} />
 

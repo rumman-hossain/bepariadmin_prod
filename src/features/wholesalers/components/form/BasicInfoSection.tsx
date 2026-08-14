@@ -6,6 +6,7 @@ import { FormField } from '@/src/components/forms/FormField';
 import { useCategoryOptions } from '@/src/hooks/useCategoryOptions';
 import { useWholesalerFormContext } from './useWholesalerFormContext';
 import { Text } from '@/src/components/data';
+import { acceptAttribute } from '@/src/services/upload/useUpload';
 
 /**
  * Company identity, contact and trading categories.
@@ -149,7 +150,7 @@ export function BasicInfoSection() {
           type="file"
           ref={logoInputRef}
           onChange={onLogoSelected}
-          accept="image/*"
+          accept={acceptAttribute('image')}
           className="hidden"
         />
         <div
