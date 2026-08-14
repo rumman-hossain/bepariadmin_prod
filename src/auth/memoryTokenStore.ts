@@ -57,7 +57,26 @@ export function setAccessToken(token: string | null): void {
   for (const fn of subscribers) fn(token);
 }
 
+/*
+ * NOTIFIES ONLY ON A REAL TRANSITION.
+ *
+ * This used to notify unconditionally — a change event announcing no change —
+ * and that turned a subscriber which ends the session into an infinite loop:
+ *
+ *   clearAccessToken() → notify(null) → subscriber ends the session
+ *                      → clearAccessToken() → notify(null) → …
+ *
+ * The subscriber in AuthContext guards on `isAuthenticatedRef`, but that ref is
+ * written in a `useEffect`, and React cannot render during a synchronous
+ * recursion — so every level read `true` and the stack ran out. It surfaced as
+ * an unhandled `RangeError`, not a failing assertion, which is exactly the kind
+ * of thing a green summary line hides.
+ *
+ * Clearing a token that is already null is a no-op, so it should say nothing.
+ * Anyone genuinely interested in "it is null" can read `getAccessToken()`.
+ */
 export function clearAccessToken(): void {
+  if (accessToken === null && localExpiresAt === 0) return;
   accessToken = null;
   localExpiresAt = 0;
   for (const fn of subscribers) fn(null);

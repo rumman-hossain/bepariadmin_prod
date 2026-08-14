@@ -44,6 +44,27 @@ import type { AuthUser } from '../types/auth';
 // Provider
 // ═══════════════════════════════════════════════════════════════
 
+const SESSION_ENDED_NOTICE = 'Your session ended. Please sign in again.';
+
+/*
+ * Shown when we could not confirm the session was ended ON THE SERVER.
+ *
+ * Deliberately actionable rather than reassuring: on a shared machine the right
+ * response is to close the browser, and the operator can only choose that if we
+ * admit what we do not know.
+ */
+const REVOKE_FAILED_NOTICE =
+  'Signed out on this device, but we could not reach the server to end the session. ' +
+  'If this is a shared computer, close the browser.';
+
+/*
+ * Both notices live at MODULE scope. They were written flush-left inside the
+ * component, which reads as module scope but is not — so every render built a
+ * fresh binding and the hook linter, correctly, wanted one of them declared as a
+ * dependency of `logout`. Constants that never change should not be able to
+ * invalidate a callback.
+ */
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   /*
    * One reducer, not six `useState`s.
@@ -77,6 +98,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     isAuthenticatedRef.current = isAuthenticated(state);
   }, [state]);
+
+  // True only while a session end is in flight. Set and read within one tick —
+  // see endSessionLocally, which is where it earns its keep.
+  const endingSessionRef = useRef(false);
 
   const pendingLoginRef = useRef(initialAuthState.pendingLogin);
   useEffect(() => {
@@ -308,28 +333,84 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // LOGOUT
   // ═══════════════════════════════════════════════════════════
 
+  /*
+   * END THE SESSION HERE, IN THIS TAB ONLY. Says nothing to the server.
+   *
+   * THE ONE EXIT. `logout`, `forceLogout` and the cross-tab broadcast all land
+   * here rather than each repeating the clear-and-dispatch, so there is a single
+   * place where a session ends and a single place to raise the in-flight flag.
+   * Defined above its callers because `logout` names it in a dependency array.
+   *
+   * The broadcast lands here rather than on `forceLogout` deliberately: the tab
+   * that ended the session has already revoked it, and three other tabs revoking
+   * the same dead cookie is noise, not safety.
+   */
+  const endSessionLocally = useCallback((notice?: string) => {
+    /*
+     * RAISE THE FLAG BEFORE TOUCHING THE TOKEN.
+     *
+     * `clearAccessToken()` below notifies the token subscriber, which ends the
+     * session too — so without this, a single logout revokes TWICE, and the
+     * subscriber's `session/ended` overwrites this one's notice with "your
+     * session ended", hiding a failed revoke behind a routine message.
+     *
+     * `forceLogout` is where the flag is read; this is the only place that
+     * raises it. Deliberately NOT `isAuthenticatedRef`: that one is written in
+     * a `useEffect`, so during a synchronous re-entry React has not rendered
+     * and it still reads the pre-logout value. This is set and read in the same
+     * tick, which is the only thing that works here.
+     *
+     * No early-return of its own: nothing can re-enter this function once
+     * `forceLogout` is gated, and mutation testing confirmed a guard here
+     * changed no outcome. Unprovable code is code nobody can maintain.
+     */
+    endingSessionRef.current = true;
+    try {
+      clearAccessToken();
+      setTokenVersion((v) => v + 1);
+      dispatch({ type: 'session/ended', notice });
+    } finally {
+      endingSessionRef.current = false;
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await apiLogout();
     } catch {
-      // Bearer logout may fail when access token is expired — fall through.
-    } finally {
-      try {
-        await apiLogoutSession();
-      } catch {
-        // Cookie-only logout is best-effort; local state is cleared regardless.
-      }
+      // Bearer logout may fail when access token is expired — fall through to
+      // the cookie route, which does not need it.
     }
 
-    clearAccessToken();
-    setTokenVersion((v) => v + 1);
-    dispatch({ type: 'session/ended' });
+    /*
+     * THE REVOKE THAT COUNTS, and its result is no longer thrown away.
+     *
+     * This was wrapped in a `try/catch` whose comment said "best-effort; local
+     * state is cleared regardless" — and `request` does not throw on a non-2xx,
+     * so the catch never even ran for a 500. A failed revocation was
+     * indistinguishable from a successful one, and the user was shown a login
+     * screen over a session that was still alive.
+     *
+     * Local state is STILL cleared either way: trapping somebody in a signed-in
+     * UI because the network is down would be its own bug. What changes is that
+     * we stop claiming something we did not verify.
+     */
+    const revoked = await revokeServerSession();
+
+    /*
+     * Through `endSessionLocally` rather than repeating its three lines, so the
+     * re-entrancy guard covers this path too. Without it the `clearAccessToken`
+     * inside would wake the token subscriber, which would revoke a SECOND time
+     * and overwrite this notice with "your session ended" — hiding the very
+     * failure the line below exists to report.
+     */
+    endSessionLocally(revoked ? undefined : REVOKE_FAILED_NOTICE);
 
     // `broadcastLogout` existed but had exactly one reference in the codebase:
     // its own definition. Logging out in one tab left every other tab fully
     // authenticated on the admin shell.
     broadcastLogout();
-  }, []);
+  }, [endSessionLocally]);
 
   // ═══════════════════════════════════════════════════════════
   // BOOTSTRAP (cold start recovery)
@@ -342,7 +423,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
  * hit its 12-hour lifetime and one that was revoked by a password change on
  * another device, and the operator's next action is identical either way.
  */
-const SESSION_ENDED_NOTICE = 'Your session ended. Please sign in again.';
+
+/**
+ * END THE SESSION ON THE SERVER, and report honestly whether it worked.
+ *
+ * `POST /auth/logout-session` authenticates by the httpOnly refresh COOKIE
+ * rather than by the access token, which is what makes it usable at the one
+ * moment it is most needed: when the access token has already gone null and
+ * `apiLogout` can no longer authenticate anything.
+ *
+ * Returns whether the credential is actually gone. `request` resolves
+ * `{ ok }` rather than throwing on a non-2xx, so a 500 here used to sail past a
+ * `try/catch` and be treated as success — which is how "you are signed out"
+ * could be displayed over a session that was still live.
+ */
+async function revokeServerSession(): Promise<boolean> {
+  try {
+    const res = await apiLogoutSession();
+    return res.ok;
+  } catch {
+    // A network failure is not a revocation. Reported as such.
+    return false;
+  }
+}
 
   const bootstrap = useCallback(async () => {
     dispatch({ type: 'bootstrap/start' });
@@ -396,20 +499,70 @@ const SESSION_ENDED_NOTICE = 'Your session ended. Please sign in again.';
     }
   }, []);
 
+  /*
+   * BACK-BUTTON RESTORE MUST BE RE-CHECKED.
+   *
+   * The other half of "go back to any route and the screen shows". Browsers keep
+   * a back-forward cache: pressing Back can restore the whole page — DOM, React
+   * state, the signed-in shell — WITHOUT re-running the app. Neither
+   * ProtectedRoute nor bootstrap gets a say, because neither runs.
+   *
+   * `pageshow` with `event.persisted` is the only signal that this happened.
+   * Treated as a fresh mount: ask the server again, and let the answer decide
+   * what is on screen. If the session has ended, bootstrap dispatches anonymous
+   * and the guard redirects — which is exactly what failed to happen before.
+   */
+  useEffect(() => {
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return; // an ordinary load already ran bootstrap
+      void bootstrap();
+    };
+    window.addEventListener('pageshow', onPageShow);
+    return () => window.removeEventListener('pageshow', onPageShow);
+  }, [bootstrap]);
+
   // Bootstrap on mount
   useEffect(() => {
     void bootstrap();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  /*
+   * REVOKE THE CREDENTIAL, not just the copy of it in this tab.
+   *
+   * This is the fix for a reported vulnerability. The old version of this
+   * function cleared memory, dispatched `session/ended`, and told the server
+   * NOTHING — so the httpOnly refresh cookie stayed valid. The operator read
+   * "Your session ended. Please sign in again." and walked away; anyone at that
+   * keyboard pressed Back, refreshed, and bootstrap's `/auth/refresh` correctly
+   * answered YES. Live rows, full access, on a console that approves suppliers
+   * and moves payout accounts.
+   *
+   * `apiLogoutSession` is the right call and the only one that works here: it
+   * authenticates by COOKIE, so it still succeeds at the exact moment the access
+   * token has gone null and `apiLogout` cannot.
+   *
+   * Not awaited. The user must reach the login form immediately whatever the
+   * network does — but it is genuinely fired, which is the whole difference.
+   *
+   * Worth being explicit about the three ways the refresh could have failed:
+   *
+   *   the cookie really expired  → this is a no-op, it is already dead
+   *   a transient network blip   → this fails too; no worse off than before
+   *   anything else, cookie live → this kills it. That is the bug being closed.
+   */
   const forceLogout = useCallback((notice?: string) => {
-    clearAccessToken();
-    setTokenVersion((v) => v + 1);
-    dispatch({ type: 'session/ended', notice });
-  }, []);
+    // Checked BEFORE the revoke, not just inside endSessionLocally: a session
+    // already on its way out has been revoked by whoever started it, and a
+    // second POST would be a duplicate on every single logout.
+    if (endingSessionRef.current) return;
+    void revokeServerSession();
+    endSessionLocally(notice);
+  }, [endSessionLocally]);
 
   // Cross-tab sync — logout broadcast only (no localStorage token sync)
-  useEffect(() => onAuthBroadcast(forceLogout), [forceLogout]);
+  // Local-only: the tab that ended the session already revoked it server-side.
+  useEffect(() => onAuthBroadcast(endSessionLocally), [endSessionLocally]);
 
   // Honour server-side session revocation.
   //
@@ -426,11 +579,22 @@ const SESSION_ENDED_NOTICE = 'Your session ended. Please sign in again.';
       if (token !== null) return;
       // Only meaningful while signed in; the reducer ignores it otherwise.
       if (!isAuthenticatedRef.current) return;
-      setTokenVersion((v) => v + 1);
-      dispatch({ type: 'session/ended', notice: SESSION_ENDED_NOTICE });
+      /*
+       * THE PATH THE REPORTED BUG CAME THROUGH.
+       *
+       * A token going null means a refresh attempt failed. That is NOT proof the
+       * cookie behind it is dead — a blip or the 401-storm path in
+       * api/client.ts:119 gets here with a perfectly live credential. Telling
+       * the user their session ended while leaving it usable is the vulnerability;
+       * `forceLogout` now revokes before saying so.
+       */
+      forceLogout(SESSION_ENDED_NOTICE);
       broadcastLogout();
     });
-  }, []);
+    // Genuinely depended on, and safe to depend on: `forceLogout` is a
+    // useCallback over `endSessionLocally`, which has an empty dependency list —
+    // so this subscribes once and is not torn down and rebuilt on every render.
+  }, [forceLogout]);
 
   // ═══════════════════════════════════════════════════════════
   // NAVIGATION HELPERS
